@@ -28,23 +28,47 @@ class CardBindingViewModel(
 
     fun readCard() {
         viewModelScope.launch {
-            _uiState.update { it.copy(status = CardBindingStatus.Reading, message = "Идет чтение карты...") }
+            _uiState.update {
+                it.copy(
+                    status = CardBindingStatus.Reading,
+                    message = "Идет чтение карты..."
+                )
+            }
 
-            val cardData = readCardUseCase().getOrElse {
-                val message = (it as? DomainError)?.message ?: DomainError.CardReadFailed.message
-                _uiState.update { st -> st.copy(status = CardBindingStatus.Error, message = message) }
+            val cardData = readCardUseCase().getOrElse { throwable ->
+                val message = (throwable as? DomainError)?.message
+                    ?: DomainError.CardReadFailed.message
+                    ?: "Не удалось прочитать карту. Попробуйте еще раз."
+
+                _uiState.update { state ->
+                    state.copy(
+                        status = CardBindingStatus.Error,
+                        message = message
+                    )
+                }
                 return@launch
             }
 
             linkCardUseCase(cardData.cardSha256, cardData.cardToken)
                 .onSuccess {
-                    _uiState.update {
-                        it.copy(status = CardBindingStatus.Success, message = "Карта успешно прочитана и привязана.")
+                    _uiState.update { state ->
+                        state.copy(
+                            status = CardBindingStatus.Success,
+                            message = "Карта успешно прочитана и привязана."
+                        )
                     }
                 }
-                .onFailure {
-                    val message = (it as? DomainError)?.message ?: DomainError.CardLinkFailed.message
-                    _uiState.update { st -> st.copy(status = CardBindingStatus.Error, message = message) }
+                .onFailure { throwable ->
+                    val message = (throwable as? DomainError)?.message
+                        ?: DomainError.CardLinkFailed.message
+                        ?: "Не удалось сохранить привязку карты. Попробуйте еще раз."
+
+                    _uiState.update { state ->
+                        state.copy(
+                            status = CardBindingStatus.Error,
+                            message = message
+                        )
+                    }
                 }
         }
     }
