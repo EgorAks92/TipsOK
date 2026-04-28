@@ -1,11 +1,12 @@
 package com.chaiok.pos.presentation.login
 
+import android.app.Activity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.keyframes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,15 +24,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chaiok.pos.R
 
 @Composable
 fun LoginScreen(
@@ -42,6 +48,10 @@ fun LoginScreen(
     onLogin: () -> Unit,
     onClose: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    val hasError = state.errorMessage != null
+    val checkEnabled = state.pin.length == 4 && !state.isLoading
+
     val shake = remember { Animatable(0f) }
     LaunchedEffect(state.triggerShake) {
         if (state.triggerShake > 0) {
@@ -59,30 +69,28 @@ fun LoginScreen(
         }
     }
 
-    val hasError = state.errorMessage != null
-
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(loginBackground(hasError))
-            .padding(horizontal = 24.dp, vertical = 20.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
-        val checkEnabled = state.pin.length == 4 && !state.isLoading
-
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Text(
-                    text = "×",
-                    color = Color.White,
-                    fontSize = 42.sp,
-                    lineHeight = 42.sp,
+                Image(
+                    painter = painterResource(id = R.drawable.ic_close),
+                    contentDescription = "Закрыть",
                     modifier = Modifier
-                        .clickable { onClose?.invoke() }
-                        .padding(4.dp)
+                        .size(42.dp)
+                        .clickable {
+                            onClose?.invoke() ?: (context as? Activity)?.finish()
+                        }
+                        .padding(4.dp),
+                    contentScale = ContentScale.Fit
                 )
             }
 
-            Spacer(modifier = Modifier.weight(0.6f))
+            Spacer(modifier = Modifier.weight(0.5f))
 
             Column(
                 modifier = Modifier
@@ -91,27 +99,35 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                LogoMark()
+                Image(
+                    painter = painterResource(id = R.drawable.tiply_logo),
+                    contentDescription = "Tiply",
+                    modifier = Modifier.fillMaxWidth(0.38f),
+                    contentScale = ContentScale.FillWidth
+                )
+
                 Text(
                     text = "Введите PIN-код",
                     color = Color.White,
-                    fontSize = 30.sp,
-                    lineHeight = 34.sp,
+                    fontSize = 29.sp,
+                    lineHeight = 33.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
+
                 PinDots(
                     pinLength = state.pin.length,
                     isLoading = state.isLoading,
                     isError = hasError
                 )
+
                 state.errorMessage?.let {
                     Text(
                         text = it,
-                        color = Color(0xFFFF7D84),
+                        color = Color(0xFFFF8E95),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 2.dp)
                     )
                 }
             }
@@ -131,72 +147,68 @@ fun LoginScreen(
 }
 
 private fun loginBackground(hasError: Boolean): Brush {
-    val baseTop = Color(0xFF141B23)
-    val baseBottom = Color(0xFF101722)
-    val glowPrimary = if (hasError) Color(0x80FF3B3B) else Color(0x8022D7D6)
-    val glowSecondary = if (hasError) Color(0x5CB11237) else Color(0x66306BFF)
+    val bgTop = Color(0xFF141B23)
+    val bgBottom = Color(0xFF111821)
+    val glowCore = if (hasError) Color(0xA8FF3A43) else Color(0xAA1DE1DE)
+    val glowMid = if (hasError) Color(0x75B31535) else Color(0x6D1A4FB0)
 
     return Brush.radialGradient(
-        colors = listOf(glowPrimary, glowSecondary, baseBottom, baseTop),
-        center = androidx.compose.ui.geometry.Offset(220f, 1120f),
-        radius = 1400f
+        colors = listOf(glowCore, glowMid, bgBottom, bgTop),
+        center = Offset(220f, 1100f),
+        radius = 1450f
     )
 }
 
 @Composable
-private fun LogoMark() {
-    Row(verticalAlignment = Alignment.Top) {
-        Text(
-            text = "●",
-            color = Color(0xFF17D7E8),
-            fontSize = 11.sp,
-            modifier = Modifier.padding(top = 7.dp, end = 4.dp)
-        )
-        Text(
-            text = "✓",
-            color = Color.White,
-            fontSize = 9.sp,
-            modifier = Modifier.padding(top = 7.dp, end = 8.dp)
-        )
-        Text(
-            text = "ЧайОК",
-            color = Color.White,
-            fontSize = 46.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.sp
-        )
-    }
-}
-
-@Composable
 private fun PinDots(pinLength: Int, isLoading: Boolean, isError: Boolean) {
-    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         repeat(4) { index ->
-            val filled = index < pinLength
-            val activeGlow = isError || (filled && (pinLength == 4 || isLoading))
-            val dotColor = when {
-                isError -> Color(0xFFFF6E74)
-                filled -> Color(0xFF31D3D5)
-                else -> Color(0x55739AAA)
-            }
-            val glowColor = if (isError) Color(0xFFFF404A) else Color(0xFF16E4E5)
+            val isFilled = index < pinLength
+            val isActive = isError || isFilled
+            val glowColor = if (isError) Color(0xFFFF4E58) else Color(0xFF22E3E5)
 
-            Box(
+            val fillBrush = when {
+                isError -> Brush.radialGradient(
+                    colors = listOf(Color(0xFFFF8B90), Color(0xCCF14E57), Color(0x99B62B39))
+                )
+
+                isFilled -> Brush.radialGradient(
+                    colors = listOf(Color(0xFF8CF8F5), Color(0xCC3ED6D6), Color(0xAA1EA5AF))
+                )
+
+                else -> Brush.radialGradient(
+                    colors = listOf(Color.White.copy(alpha = 0.23f), Color(0x8066A3B2), Color(0x5A4B7385))
+                )
+            }
+
+            androidx.compose.foundation.layout.Box(
                 modifier = Modifier
-                    .size(58.dp)
+                    .size(60.dp)
                     .drawBehind {
-                        if (activeGlow) {
-                            drawCircle(color = glowColor.copy(alpha = 0.42f), radius = size.minDimension * 0.80f)
-                            drawCircle(color = glowColor.copy(alpha = 0.26f), radius = size.minDimension * 0.62f)
-                        }
-                        drawCircle(color = dotColor, radius = size.minDimension * 0.28f)
-                        if (!filled && !isError) {
+                        val radius = size.minDimension / 2f
+                        if (isActive) {
+                            val glowBoost = if (isError || (pinLength == 4 || isLoading)) 1f else 0.65f
                             drawCircle(
-                                color = Color(0x88C3E3EA),
-                                radius = size.minDimension * 0.28f,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx())
+                                color = glowColor.copy(alpha = 0.45f * glowBoost),
+                                radius = radius * 1.52f
+                            )
+                            drawCircle(
+                                color = glowColor.copy(alpha = 0.30f * glowBoost),
+                                radius = radius * 1.26f
+                            )
+                            drawCircle(
+                                color = glowColor.copy(alpha = 0.20f * glowBoost),
+                                radius = radius * 1.08f
                             )
                         }
+
+                        drawCircle(brush = fillBrush, radius = radius * 0.98f)
+
+                        drawCircle(
+                            color = Color.White.copy(alpha = if (isFilled || isError) 0.44f else 0.35f),
+                            radius = radius * 0.98f,
+                            style = Stroke(width = 1.4.dp.toPx())
+                        )
                     }
             )
         }
@@ -220,8 +232,8 @@ private fun LoginPinKeypad(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         rows.forEach { row ->
             Row(
@@ -230,7 +242,7 @@ private fun LoginPinKeypad(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 row.forEach { label ->
-                    KeypadNumber(label = label) { onDigit(label) }
+                    KeypadDigit(label = label) { onDigit(label) }
                 }
             }
         }
@@ -240,75 +252,74 @@ private fun LoginPinKeypad(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            KeypadAction(
-                symbol = "⌫",
-                tint = Color(0xFFFF6E79),
-                glow = Color(0xFFFF4957),
-                onClick = onDelete
+            KeypadIconButton(
+                iconRes = R.drawable.ic_keypad_delete,
+                contentDescription = "Удалить",
+                onClick = onDelete,
+                enabled = true,
+                size = 82.dp
             )
 
-            KeypadNumber(label = "0") { onDigit("0") }
+            KeypadDigit(label = "0") { onDigit("0") }
 
             if (isLoading) {
                 CircularProgressIndicator(
                     color = Color(0xFF1DE9E7),
-                    strokeWidth = 2.2.dp,
-                    modifier = Modifier.size(38.dp)
+                    strokeWidth = 2.5.dp,
+                    modifier = Modifier.size(42.dp)
                 )
             } else {
-                KeypadAction(
-                    symbol = "✓",
-                    tint = Color(0xFF1DE9E7),
-                    glow = Color(0xFF13D6D5),
+                KeypadIconButton(
+                    iconRes = R.drawable.ic_keypad_confirm,
+                    contentDescription = "Подтвердить",
+                    onClick = onLogin,
                     enabled = checkEnabled,
-                    onClick = onLogin
+                    size = 82.dp
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(1.dp))
+        Spacer(modifier = Modifier.size(8.dp))
     }
 }
 
 @Composable
-private fun KeypadNumber(label: String, onClick: () -> Unit) {
+private fun KeypadDigit(label: String, onClick: () -> Unit) {
     Text(
         text = label,
         color = Color.White,
-        fontSize = 66.sp,
+        fontSize = 64.sp,
         fontWeight = FontWeight.Medium,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .size(88.dp)
-            .clickable(onClick = onClick)
-            .padding(top = 6.dp),
-        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.2f), blurRadius = 6f))
-    )
-}
-
-@Composable
-private fun KeypadAction(
-    symbol: String,
-    tint: Color,
-    glow: Color,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    Text(
-        text = symbol,
-        color = tint.copy(alpha = if (enabled) 1f else 0.35f),
-        fontSize = 58.sp,
-        fontWeight = FontWeight.SemiBold,
         textAlign = TextAlign.Center,
         style = TextStyle(
             shadow = Shadow(
-                color = glow.copy(alpha = if (enabled) 0.9f else 0.28f),
-                blurRadius = if (enabled) 24f else 8f
+                color = Color.Black.copy(alpha = 0.22f),
+                blurRadius = 7f
             )
         ),
         modifier = Modifier
             .size(88.dp)
+            .clickable(onClick = onClick)
+            .padding(top = 6.dp)
+    )
+}
+
+@Composable
+private fun KeypadIconButton(
+    iconRes: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    size: androidx.compose.ui.unit.Dp
+) {
+    Image(
+        painter = painterResource(id = iconRes),
+        contentDescription = contentDescription,
+        contentScale = ContentScale.Fit,
+        alpha = if (enabled) 1f else 0.35f,
+        modifier = Modifier
+            .size(size)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(top = 8.dp)
+            .padding(6.dp)
     )
 }
