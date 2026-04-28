@@ -16,11 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ExitToApp
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -52,7 +48,6 @@ private data class HomeLayoutMetrics(
     val cardHeight: Dp,
     val cardRadius: Dp,
     val avatarSize: Dp,
-    val avatarFontSize: Int,
     val avatarOverlap: Dp,
     val afterProfileSpacer: Dp,
     val nameSize: Int,
@@ -132,18 +127,17 @@ fun HomeScreen(
             val metrics = if (isCompact) {
                 HomeLayoutMetrics(
                     topRowSpacer = 8.dp,
-                    cardHeight = 122.dp,
-                    cardRadius = 32.dp,
-                    avatarSize = 72.dp,
-                    avatarFontSize = 68,
-                    avatarOverlap = 30.dp,
-                    afterProfileSpacer = 24.dp,
-                    nameSize = 23,
-                    statusSize = 18,
+                    cardHeight = 96.dp,
+                    cardRadius = 28.dp,
+                    avatarSize = 56.dp,
+                    avatarOverlap = 24.dp,
+                    afterProfileSpacer = 36.dp,
+                    nameSize = 20,
+                    statusSize = 15,
                     amountLabelSize = 16,
-                    amountBaseSize = 44,
-                    amountSpacer = 6.dp,
-                    beforeKeypadSpacer = 12.dp,
+                    amountBaseSize = 48,
+                    amountSpacer = 8.dp,
+                    beforeKeypadSpacer = 28.dp,
                     keypadTouchSize = 74.dp,
                     keypadDigitSize = 48,
                     keypadRowSpacing = 10.dp,
@@ -153,25 +147,24 @@ fun HomeScreen(
                 )
             } else {
                 HomeLayoutMetrics(
-                    topRowSpacer = 12.dp,
-                    cardHeight = 142.dp,
+                    topRowSpacer = 10.dp,
+                    cardHeight = 112.dp,
                     cardRadius = 32.dp,
-                    avatarSize = 82.dp,
-                    avatarFontSize = 78,
-                    avatarOverlap = 36.dp,
-                    afterProfileSpacer = 30.dp,
-                    nameSize = 25,
-                    statusSize = 20,
+                    avatarSize = 64.dp,
+                    avatarOverlap = 28.dp,
+                    afterProfileSpacer = 48.dp,
+                    nameSize = 22,
+                    statusSize = 16,
                     amountLabelSize = 17,
-                    amountBaseSize = 52,
-                    amountSpacer = 8.dp,
-                    beforeKeypadSpacer = 16.dp,
-                    keypadTouchSize = 82.dp,
-                    keypadDigitSize = 54,
-                    keypadRowSpacing = 14.dp,
-                    keypadIconSize = 62.dp,
+                    amountBaseSize = 56,
+                    amountSpacer = 10.dp,
+                    beforeKeypadSpacer = 48.dp,
+                    keypadTouchSize = 86.dp,
+                    keypadDigitSize = 56,
+                    keypadRowSpacing = 20.dp,
+                    keypadIconSize = 66.dp,
                     topIconSize = 34.dp,
-                    bottomPadding = 16.dp
+                    bottomPadding = 24.dp
                 )
             }
 
@@ -230,19 +223,19 @@ private fun TopActionRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         TopActionIcon(onClick = onLogout) {
-            Icon(
-                imageVector = Icons.Outlined.ExitToApp,
+            Image(
+                painter = painterResource(id = R.drawable.ic_home_logout),
                 contentDescription = "Выйти",
-                tint = Color.White,
+                // TODO: replace with final production drawable if icon asset is updated.
                 modifier = Modifier.size(iconSize)
             )
         }
 
         TopActionIcon(onClick = onOpenSettings) {
-            Icon(
-                imageVector = Icons.Outlined.Settings,
+            Image(
+                painter = painterResource(id = R.drawable.ic_home_settings),
                 contentDescription = "Настройки",
-                tint = Color.White,
+                // TODO: replace with final production drawable if icon asset is updated.
                 modifier = Modifier.size(iconSize)
             )
         }
@@ -297,14 +290,17 @@ private fun ProfileSection(state: HomeUiState, metrics: HomeLayoutMetrics) {
                     .offset(y = metrics.avatarOverlap),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "👨‍💼",
-                    fontSize = metrics.avatarFontSize.sp
+                Image(
+                    painter = painterResource(id = R.drawable.ic_waiter_avatar),
+                    contentDescription = "Аватар официанта",
+                    // TODO: replace with final production avatar drawable if asset is updated.
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(metrics.avatarOverlap + 6.dp))
+        Spacer(modifier = Modifier.height(metrics.avatarOverlap + 2.dp))
 
         Text(
             text = displayName,
@@ -319,7 +315,7 @@ private fun ProfileSection(state: HomeUiState, metrics: HomeLayoutMetrics) {
 
         Text(
             text = state.profile?.status?.ifBlank { "Коплю на отпуск!" } ?: "Коплю на отпуск!",
-            color = Color.White.copy(alpha = 0.9f),
+            color = Color.White.copy(alpha = 0.88f),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = metrics.statusSize.sp,
@@ -335,7 +331,7 @@ private fun AmountSection(amountInput: String, metrics: HomeLayoutMetrics) {
     val amountTextSize = when (amountInput.length) {
         in 0..4 -> metrics.amountBaseSize.sp
         in 5..6 -> (metrics.amountBaseSize - 4).sp
-        else -> (metrics.amountBaseSize - 8).sp
+        else -> (metrics.amountBaseSize - if (metrics.amountBaseSize >= 56) 8 else 10).sp
     }
 
     Column(
@@ -343,7 +339,7 @@ private fun AmountSection(amountInput: String, metrics: HomeLayoutMetrics) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Введите сумму счёта",
+            text = "Введите сумму счёта:",
             color = Color.White,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
