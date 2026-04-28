@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,11 +40,34 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+
+private data class HomeLayoutMetrics(
+    val topRowSpacer: Dp,
+    val cardHeight: Dp,
+    val cardRadius: Dp,
+    val avatarSize: Dp,
+    val avatarFontSize: Int,
+    val avatarOverlap: Dp,
+    val afterProfileSpacer: Dp,
+    val nameSize: Int,
+    val statusSize: Int,
+    val amountLabelSize: Int,
+    val amountBaseSize: Int,
+    val amountSpacer: Dp,
+    val beforeKeypadSpacer: Dp,
+    val keypadTouchSize: Dp,
+    val keypadDigitSize: Int,
+    val keypadRowSpacing: Dp,
+    val keypadIconSize: Dp,
+    val topIconSize: Dp,
+    val bottomPadding: Dp
+)
 
 @Composable
 fun HomeScreen(
@@ -103,28 +127,83 @@ fun HomeScreen(
             .drawBehind { drawHomeBackground() }
             .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            TopActionRow(onLogout = onLogout, onOpenSettings = onOpenSettings)
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            ProfileSection(state = state)
-
-            Spacer(modifier = Modifier.height(34.dp))
-
-            if (state.settings.tableModeEnabled) {
-                TableModePlaceholder()
-            } else {
-                AmountSection(amountInput = state.amountInput)
-                Spacer(modifier = Modifier.weight(1f))
-                HomeKeypad(
-                    onDigit = onDigit,
-                    onDelete = onBackspace,
-                    onConfirm = onConfirm,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp)
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val isCompact = maxHeight < 780.dp
+            val metrics = if (isCompact) {
+                HomeLayoutMetrics(
+                    topRowSpacer = 8.dp,
+                    cardHeight = 122.dp,
+                    cardRadius = 32.dp,
+                    avatarSize = 72.dp,
+                    avatarFontSize = 68,
+                    avatarOverlap = 30.dp,
+                    afterProfileSpacer = 24.dp,
+                    nameSize = 23,
+                    statusSize = 18,
+                    amountLabelSize = 16,
+                    amountBaseSize = 44,
+                    amountSpacer = 6.dp,
+                    beforeKeypadSpacer = 12.dp,
+                    keypadTouchSize = 74.dp,
+                    keypadDigitSize = 48,
+                    keypadRowSpacing = 10.dp,
+                    keypadIconSize = 58.dp,
+                    topIconSize = 30.dp,
+                    bottomPadding = 12.dp
                 )
+            } else {
+                HomeLayoutMetrics(
+                    topRowSpacer = 12.dp,
+                    cardHeight = 142.dp,
+                    cardRadius = 32.dp,
+                    avatarSize = 82.dp,
+                    avatarFontSize = 78,
+                    avatarOverlap = 36.dp,
+                    afterProfileSpacer = 30.dp,
+                    nameSize = 25,
+                    statusSize = 20,
+                    amountLabelSize = 17,
+                    amountBaseSize = 52,
+                    amountSpacer = 8.dp,
+                    beforeKeypadSpacer = 16.dp,
+                    keypadTouchSize = 82.dp,
+                    keypadDigitSize = 54,
+                    keypadRowSpacing = 14.dp,
+                    keypadIconSize = 62.dp,
+                    topIconSize = 34.dp,
+                    bottomPadding = 16.dp
+                )
+            }
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                TopActionRow(
+                    onLogout = onLogout,
+                    onOpenSettings = onOpenSettings,
+                    iconSize = metrics.topIconSize
+                )
+
+                Spacer(modifier = Modifier.height(metrics.topRowSpacer))
+
+                ProfileSection(state = state, metrics = metrics)
+
+                if (state.settings.tableModeEnabled) {
+                    TableModePlaceholder()
+                } else {
+                    Spacer(modifier = Modifier.height(metrics.afterProfileSpacer))
+                    AmountSection(amountInput = state.amountInput, metrics = metrics)
+                    Spacer(modifier = Modifier.height(metrics.beforeKeypadSpacer))
+                    HomeKeypad(
+                        onDigit = onDigit,
+                        onDelete = onBackspace,
+                        onConfirm = onConfirm,
+                        touchSize = metrics.keypadTouchSize,
+                        digitSize = metrics.keypadDigitSize,
+                        rowSpacing = metrics.keypadRowSpacing,
+                        iconSize = metrics.keypadIconSize,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(metrics.bottomPadding))
+                }
             }
         }
 
@@ -138,11 +217,15 @@ fun HomeScreen(
 }
 
 @Composable
-private fun TopActionRow(onLogout: () -> Unit, onOpenSettings: () -> Unit) {
+private fun TopActionRow(
+    onLogout: () -> Unit,
+    onOpenSettings: () -> Unit,
+    iconSize: Dp
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, start = 2.dp, end = 2.dp),
+            .padding(top = 2.dp, start = 2.dp, end = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -151,7 +234,7 @@ private fun TopActionRow(onLogout: () -> Unit, onOpenSettings: () -> Unit) {
                 imageVector = Icons.Outlined.ExitToApp,
                 contentDescription = "Выйти",
                 tint = Color.White,
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(iconSize)
             )
         }
 
@@ -160,7 +243,7 @@ private fun TopActionRow(onLogout: () -> Unit, onOpenSettings: () -> Unit) {
                 imageVector = Icons.Outlined.Settings,
                 contentDescription = "Настройки",
                 tint = Color.White,
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(iconSize)
             )
         }
     }
@@ -184,7 +267,7 @@ private fun TopActionIcon(onClick: () -> Unit, content: @Composable () -> Unit) 
 }
 
 @Composable
-private fun ProfileSection(state: HomeUiState) {
+private fun ProfileSection(state: HomeUiState, metrics: HomeLayoutMetrics) {
     val firstName = state.profile?.firstName.orEmpty().trim()
     val lastName = state.profile?.lastName.orEmpty().trim()
     val displayName = listOf(firstName, lastName)
@@ -203,27 +286,35 @@ private fun ProfileSection(state: HomeUiState) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(36.dp))
-                    .drawBehind { drawProfileCardBackground() }
+                    .height(metrics.cardHeight)
+                    .clip(RoundedCornerShape(metrics.cardRadius))
+                    .drawBehind { drawProfileCardBackground(metrics.cardRadius) }
             )
 
-            Text(
-                text = "👨‍💼",
-                fontSize = 86.sp,
-                modifier = Modifier.offset(y = 44.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(metrics.avatarSize)
+                    .offset(y = metrics.avatarOverlap),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "👨‍💼",
+                    fontSize = metrics.avatarFontSize.sp
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(46.dp))
+        Spacer(modifier = Modifier.height(metrics.avatarOverlap + 6.dp))
 
         Text(
             text = displayName,
             color = Color.White,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 27.sp,
-            textAlign = TextAlign.Center
+            fontSize = metrics.nameSize.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Text(
@@ -231,37 +322,48 @@ private fun ProfileSection(state: HomeUiState) {
             color = Color.White.copy(alpha = 0.9f),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Medium,
-            fontSize = 22.sp,
-            textAlign = TextAlign.Center
+            fontSize = metrics.statusSize.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
 
 @Composable
-private fun AmountSection(amountInput: String) {
+private fun AmountSection(amountInput: String, metrics: HomeLayoutMetrics) {
+    val amountTextSize = when (amountInput.length) {
+        in 0..4 -> metrics.amountBaseSize.sp
+        in 5..6 -> (metrics.amountBaseSize - 4).sp
+        else -> (metrics.amountBaseSize - 8).sp
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Введите сумму счёта:",
+            text = "Введите сумму счёта",
             color = Color.White,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 17.sp,
+            fontSize = metrics.amountLabelSize.sp,
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(metrics.amountSpacer))
 
         Text(
             text = formatAmount(amountInput),
             color = Color.White,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 58.sp,
+            fontSize = amountTextSize,
             textAlign = TextAlign.Center,
-            lineHeight = 58.sp
+            lineHeight = amountTextSize,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -271,7 +373,7 @@ private fun TableModePlaceholder() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 32.dp)
+            .padding(horizontal = 8.dp, vertical = 24.dp)
             .clip(RoundedCornerShape(30.dp))
             .drawBehind {
                 drawRect(
@@ -280,7 +382,7 @@ private fun TableModePlaceholder() {
                     )
                 )
             }
-            .padding(horizontal = 24.dp, vertical = 30.dp),
+            .padding(horizontal = 24.dp, vertical = 24.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -288,7 +390,7 @@ private fun TableModePlaceholder() {
             color = Color.White.copy(alpha = 0.92f),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Medium,
-            fontSize = 23.sp,
+            fontSize = 20.sp,
             textAlign = TextAlign.Center
         )
     }
@@ -299,6 +401,10 @@ private fun HomeKeypad(
     onDigit: (String) -> Unit,
     onDelete: () -> Unit,
     onConfirm: () -> Unit,
+    touchSize: Dp,
+    digitSize: Int,
+    rowSpacing: Dp,
+    iconSize: Dp,
     modifier: Modifier = Modifier
 ) {
     val rows = listOf(
@@ -310,7 +416,7 @@ private fun HomeKeypad(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(rowSpacing)
     ) {
         rows.forEach { row ->
             Row(
@@ -319,7 +425,12 @@ private fun HomeKeypad(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 row.forEach { label ->
-                    HomeKeypadDigit(label = label) { onDigit(label) }
+                    HomeKeypadDigit(
+                        label = label,
+                        onClick = { onDigit(label) },
+                        touchSize = touchSize,
+                        digitSize = digitSize
+                    )
                 }
             }
         }
@@ -333,29 +444,39 @@ private fun HomeKeypad(
                 iconRes = R.drawable.ic_keypad_delete,
                 contentDescription = "Удалить",
                 onClick = onDelete,
-                touchSize = 86.dp,
-                iconSize = 66.dp
+                touchSize = touchSize,
+                iconSize = iconSize
             )
 
-            HomeKeypadDigit(label = "0") { onDigit("0") }
+            HomeKeypadDigit(
+                label = "0",
+                onClick = { onDigit("0") },
+                touchSize = touchSize,
+                digitSize = digitSize
+            )
 
             HomeKeypadIconButton(
                 iconRes = R.drawable.ic_keypad_confirm,
                 contentDescription = "Подтвердить",
                 onClick = onConfirm,
-                touchSize = 86.dp,
-                iconSize = 66.dp
+                touchSize = touchSize,
+                iconSize = iconSize
             )
         }
     }
 }
 
 @Composable
-private fun HomeKeypadDigit(label: String, onClick: () -> Unit) {
+private fun HomeKeypadDigit(
+    label: String,
+    onClick: () -> Unit,
+    touchSize: Dp,
+    digitSize: Int
+) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            .size(86.dp)
+            .size(touchSize)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -366,7 +487,7 @@ private fun HomeKeypadDigit(label: String, onClick: () -> Unit) {
         Text(
             text = label,
             color = Color.White,
-            fontSize = 56.sp,
+            fontSize = digitSize.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = MontserratFontFamily,
             textAlign = TextAlign.Center
@@ -403,12 +524,11 @@ private fun HomeKeypadIconButton(
 }
 
 private fun DrawScope.drawHomeBackground() {
+    val baseTop = Color(0xFF151B23)
+    val baseBottom = Color(0xFF111821)
     drawRect(
         brush = Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF151B23),
-                Color(0xFF111821)
-            )
+            colors = listOf(baseTop, baseBottom)
         )
     )
 
@@ -419,7 +539,7 @@ private fun DrawScope.drawHomeBackground() {
                 Color(0x4D176FC6),
                 Color.Transparent
             ),
-            center = Offset(size.width * 0.24f, size.height * 0.72f),
+            center = Offset(size.width * 0.2f, size.height * 0.72f),
             radius = size.maxDimension * 0.95f
         ),
         radius = size.maxDimension
@@ -438,7 +558,7 @@ private fun DrawScope.drawHomeBackground() {
     )
 }
 
-private fun DrawScope.drawProfileCardBackground() {
+private fun DrawScope.drawProfileCardBackground(radius: Dp) {
     drawRoundRect(
         brush = Brush.linearGradient(
             colors = listOf(
@@ -449,7 +569,7 @@ private fun DrawScope.drawProfileCardBackground() {
             start = Offset.Zero,
             end = Offset(size.width, size.height)
         ),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(36.dp.toPx(), 36.dp.toPx())
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius.toPx(), radius.toPx())
     )
 
     drawCircle(
