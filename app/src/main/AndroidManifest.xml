@@ -4,8 +4,8 @@
     <application
         android:name=".app.ChaiOkApp"
         android:allowBackup="false"
-        android:icon="@android:drawable/ic_dialog_info"
-        android:label="ЧайОК"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Tiply"
         android:supportsRtl="true"
         android:theme="@style/Theme.ChaiOK">
         <activity
