@@ -39,7 +39,7 @@ fun TiplyNumericKeypad(
     isLoading: Boolean = false,
     touchSize: Dp = 86.dp,
     digitFontSize: TextUnit = 56.sp,
-    rowSpacing: Dp = 20.dp,
+    rowSpacing: Dp = 6.dp,
     iconSize: Dp = 66.dp
 ) {
     val rows = listOf(

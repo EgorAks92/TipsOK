@@ -49,6 +49,7 @@ private data class HomeLayoutMetrics(
     val avatarContainerSize: Dp,
     val avatarImageSize: Dp,
     val nameSize: Int,
+    val nameStatusSpacer: Dp,
     val statusSize: Int,
     val amountLabelSize: Int,
     val amountBaseSize: Int,
@@ -74,6 +75,7 @@ fun HomeScreen(
     onDismissBindDialog: () -> Unit
 ) {
     val snackState = remember { SnackbarHostState() }
+
     LaunchedEffect(state.snackbarMessage) {
         state.snackbarMessage?.let {
             snackState.showSnackbar(it)
@@ -102,12 +104,20 @@ fun HomeScreen(
             },
             confirmButton = {
                 TextButton(onClick = onBindCard) {
-                    Text(text = "Привязать карту", color = Color(0xFF20E3DE), fontFamily = MontserratFontFamily)
+                    Text(
+                        text = "Привязать карту",
+                        color = Color(0xFF20E3DE),
+                        fontFamily = MontserratFontFamily
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = onDismissBindDialog) {
-                    Text(text = "Позже", color = Color(0xFF0791E6), fontFamily = MontserratFontFamily)
+                    Text(
+                        text = "Позже",
+                        color = Color(0xFF0791E6),
+                        fontFamily = MontserratFontFamily
+                    )
                 }
             }
         )
@@ -121,20 +131,22 @@ fun HomeScreen(
     ) {
         val screenHeight = LocalConfiguration.current.screenHeightDp.dp
         val isCompact = screenHeight < 780.dp
+
         val metrics = if (isCompact) {
             HomeLayoutMetrics(
                 topRowSpacer = 6.dp,
                 profileSpacer = 10.dp,
-                avatarContainerSize = 112.dp,
-                avatarImageSize = 84.dp,
-                nameSize = 20,
-                statusSize = 15,
-                amountLabelSize = 22,
-                amountBaseSize = 50,
+                avatarContainerSize = 72.dp,
+                avatarImageSize = 64.dp,
+                nameSize = 16,
+                nameStatusSpacer = 8.dp,
+                statusSize = 14,
+                amountLabelSize = 16,
+                amountBaseSize = 48,
                 amountSpacer = 12.dp,
                 keypadTouchSize = 74.dp,
                 keypadDigitSize = 48,
-                keypadRowSpacing = 10.dp,
+                keypadRowSpacing = 6.dp,
                 keypadIconSize = 58.dp,
                 topIconSize = 30.dp,
                 bottomPadding = 12.dp
@@ -143,16 +155,17 @@ fun HomeScreen(
             HomeLayoutMetrics(
                 topRowSpacer = 8.dp,
                 profileSpacer = 16.dp,
-                avatarContainerSize = 140.dp,
-                avatarImageSize = 104.dp,
-                nameSize = 23,
-                statusSize = 17,
-                amountLabelSize = 28,
-                amountBaseSize = 58,
+                avatarContainerSize = 72.dp,
+                avatarImageSize = 64.dp,
+                nameSize = 16,
+                nameStatusSpacer = 8.dp,
+                statusSize = 14,
+                amountLabelSize = 16,
+                amountBaseSize = 48,
                 amountSpacer = 20.dp,
                 keypadTouchSize = 86.dp,
                 keypadDigitSize = 56,
-                keypadRowSpacing = 20.dp,
+                keypadRowSpacing = 6.dp,
                 keypadIconSize = 66.dp,
                 topIconSize = 34.dp,
                 bottomPadding = 24.dp
@@ -168,7 +181,10 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(metrics.topRowSpacer))
 
-            ProfileSection(state = state, metrics = metrics)
+            ProfileSection(
+                state = state,
+                metrics = metrics
+            )
 
             if (state.settings.tableModeEnabled) {
                 Spacer(modifier = Modifier.weight(1f))
@@ -176,8 +192,14 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.weight(1f))
             } else {
                 Spacer(modifier = Modifier.weight(1f))
-                AmountSection(amountInput = state.amountInput, metrics = metrics)
+
+                AmountSection(
+                    amountInput = state.amountInput,
+                    metrics = metrics
+                )
+
                 Spacer(modifier = Modifier.weight(1f))
+
                 TiplyNumericKeypad(
                     onDigit = onDigit,
                     onDelete = onBackspace,
@@ -188,9 +210,10 @@ fun HomeScreen(
                     digitFontSize = metrics.keypadDigitSize.sp,
                     rowSpacing = metrics.keypadRowSpacing,
                     iconSize = metrics.keypadIconSize,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = metrics.bottomPadding)
                 )
-                Spacer(modifier = Modifier.height(metrics.bottomPadding))
             }
         }
 
@@ -220,7 +243,6 @@ private fun TopActionRow(
             Image(
                 painter = painterResource(id = R.drawable.ic_home_logout),
                 contentDescription = "Выйти",
-                // TODO: replace with final production drawable if icon asset is updated.
                 modifier = Modifier.size(iconSize)
             )
         }
@@ -229,7 +251,6 @@ private fun TopActionRow(
             Image(
                 painter = painterResource(id = R.drawable.ic_home_settings),
                 contentDescription = "Настройки",
-                // TODO: replace with final production drawable if icon asset is updated.
                 modifier = Modifier.size(iconSize)
             )
         }
@@ -237,8 +258,12 @@ private fun TopActionRow(
 }
 
 @Composable
-private fun TopActionIcon(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun TopActionIcon(
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
     val interactionSource = remember { MutableInteractionSource() }
+
     Box(
         modifier = Modifier
             .size(48.dp)
@@ -254,9 +279,13 @@ private fun TopActionIcon(onClick: () -> Unit, content: @Composable () -> Unit) 
 }
 
 @Composable
-private fun ProfileSection(state: HomeUiState, metrics: HomeLayoutMetrics) {
+private fun ProfileSection(
+    state: HomeUiState,
+    metrics: HomeLayoutMetrics
+) {
     val firstName = state.profile?.firstName.orEmpty().trim()
     val lastName = state.profile?.lastName.orEmpty().trim()
+
     val displayName = listOf(firstName, lastName)
         .filter { it.isNotBlank() }
         .joinToString(" ")
@@ -276,7 +305,6 @@ private fun ProfileSection(state: HomeUiState, metrics: HomeLayoutMetrics) {
             Image(
                 painter = painterResource(id = R.drawable.ic_waiter_avatar),
                 contentDescription = "Аватар официанта",
-                // TODO: replace with final production avatar drawable if asset is updated.
                 modifier = Modifier.size(metrics.avatarImageSize),
                 contentScale = ContentScale.Fit
             )
@@ -295,6 +323,8 @@ private fun ProfileSection(state: HomeUiState, metrics: HomeLayoutMetrics) {
             overflow = TextOverflow.Ellipsis
         )
 
+        Spacer(modifier = Modifier.height(metrics.nameStatusSpacer))
+
         Text(
             text = state.profile?.status?.ifBlank { "Коплю на отпуск!" } ?: "Коплю на отпуск!",
             color = Color.White.copy(alpha = 0.88f),
@@ -309,11 +339,14 @@ private fun ProfileSection(state: HomeUiState, metrics: HomeLayoutMetrics) {
 }
 
 @Composable
-private fun AmountSection(amountInput: String, metrics: HomeLayoutMetrics) {
+private fun AmountSection(
+    amountInput: String,
+    metrics: HomeLayoutMetrics
+) {
     val amountTextSize = when (amountInput.length) {
         in 0..4 -> metrics.amountBaseSize.sp
         in 5..6 -> (metrics.amountBaseSize - 4).sp
-        else -> (metrics.amountBaseSize - if (metrics.amountBaseSize >= 56) 8 else 10).sp
+        else -> (metrics.amountBaseSize - 10).sp
     }
 
     Column(
@@ -356,7 +389,11 @@ private fun TableModePlaceholder() {
             .drawBehind {
                 drawRect(
                     brush = Brush.verticalGradient(
-                        listOf(Color(0x66263A55), Color(0x55304565), Color(0x44314D70))
+                        listOf(
+                            Color(0x66263A55),
+                            Color(0x55304565),
+                            Color(0x44314D70)
+                        )
                     )
                 )
             }
@@ -377,6 +414,7 @@ private fun TableModePlaceholder() {
 private fun DrawScope.drawHomeBackground() {
     val baseTop = Color(0xFF151B23)
     val baseBottom = Color(0xFF111821)
+
     drawRect(
         brush = Brush.verticalGradient(
             colors = listOf(baseTop, baseBottom)
