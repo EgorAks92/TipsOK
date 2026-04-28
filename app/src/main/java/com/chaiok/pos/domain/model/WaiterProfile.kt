@@ -6,6 +6,5 @@ data class WaiterProfile(
     val lastName: String,
     val status: String,
     val hasLinkedCard: Boolean,
-    val encryptedCardToken: String?,
     val cardSha256: String?
 )

@@ -2,9 +2,9 @@ package com.chaiok.pos.presentation.cardbinding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.chaiok.pos.data.service.CardReaderService
 import com.chaiok.pos.domain.model.AppError
 import com.chaiok.pos.domain.usecase.LinkCardUseCase
+import com.chaiok.pos.domain.usecase.ReadCardUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +19,7 @@ data class CardBindingUiState(
 )
 
 class CardBindingViewModel(
-    private val cardReaderService: CardReaderService,
+    private val readCardUseCase: ReadCardUseCase,
     private val linkCardUseCase: LinkCardUseCase
 ) : ViewModel() {
 
@@ -29,18 +29,21 @@ class CardBindingViewModel(
     fun readCard() {
         viewModelScope.launch {
             _uiState.update { it.copy(status = CardBindingStatus.Reading, message = "Идет чтение карты...") }
-            val readResult = cardReaderService.readCard()
-            readResult.onSuccess { card ->
-                linkCardUseCase(card.cardSha256, card.encryptedCardToken)
+
+            val cardResult = readCardUseCase()
+            val cardData = cardResult.getOrElse {
+                _uiState.update { st -> st.copy(status = CardBindingStatus.Error, message = AppError.CardReadError.message) }
+                return@launch
+            }
+
+            val linkResult = linkCardUseCase(cardData.cardSha256, cardData.encryptedCardToken)
+            linkResult.onSuccess {
                 _uiState.update {
-                    it.copy(
-                        status = CardBindingStatus.Success,
-                        message = "Карта успешно прочитана и привязана."
-                    )
+                    it.copy(status = CardBindingStatus.Success, message = "Карта успешно прочитана и привязана.")
                 }
             }.onFailure {
                 _uiState.update {
-                    it.copy(status = CardBindingStatus.Error, message = AppError.CardReadError.message)
+                    it.copy(status = CardBindingStatus.Error, message = "Не удалось сохранить привязку карты. Попробуйте еще раз.")
                 }
             }
         }

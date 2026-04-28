@@ -51,6 +51,7 @@ fun HomeScreen(
             onSnackbarShown()
         }
     }
+
     if (state.showLinkCardDialog) {
         AlertDialog(
             onDismissRequest = onDismissBindDialog,
@@ -60,6 +61,7 @@ fun HomeScreen(
             text = { Text("К вашему профилю не привязана банковская карта. Привяжите карту, чтобы получать чаевые.") }
         )
     }
+
     Scaffold(snackbarHost = { SnackbarHost(hostState = snackState) }) { padding ->
         Column(
             modifier = Modifier
@@ -72,7 +74,7 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Brush.horizontalGradient(listOf(Color(0xFF2066E2), Color(0xFF36CFC9))))
+                        .background(tileBrush(state.settings.selectedTileBackground))
                         .padding(16.dp)
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -90,25 +92,26 @@ fun HomeScreen(
 
             if (state.settings.tableModeEnabled) {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Режим столиков будет настроен позже",
-                        modifier = Modifier.padding(24.dp),
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text("Режим столиков будет настроен позже", modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.titleMedium)
                 }
             } else {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Сумма счета", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            text = if (state.amountInput.isBlank()) "0 ₽" else "${state.amountInput} ₽",
-                            style = MaterialTheme.typography.displaySmall
-                        )
+                        Text(text = if (state.amountInput.isBlank()) "0 ₽" else "${state.amountInput} ₽", style = MaterialTheme.typography.displaySmall)
                     }
                 }
-                NumericKeypad(onDigit = onDigit, onBackspace = onBackspace)
+                NumericKeypad(onDigit = onDigit, onBackspace = onBackspace, onOk = onConfirm)
                 Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) { Text("Подтвердить сумму") }
             }
         }
+    }
+}
+
+private fun tileBrush(tileBackground: String): Brush {
+    return when (tileBackground) {
+        "sunset" -> Brush.horizontalGradient(listOf(Color(0xFFE96443), Color(0xFF904E95)))
+        "forest" -> Brush.horizontalGradient(listOf(Color(0xFF134E5E), Color(0xFF71B280)))
+        else -> Brush.horizontalGradient(listOf(Color(0xFF2066E2), Color(0xFF36CFC9)))
     }
 }

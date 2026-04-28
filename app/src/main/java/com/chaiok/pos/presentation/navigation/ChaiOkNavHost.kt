@@ -8,7 +8,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.chaiok.pos.app.ChaiOkApp
 import com.chaiok.pos.data.di.AppContainer
 import com.chaiok.pos.presentation.cardbinding.CardBindingScreen
 import com.chaiok.pos.presentation.cardbinding.CardBindingViewModel
@@ -70,7 +69,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onConfirm = vm::onConfirmAmount,
                 onSnackbarShown = vm::onSnackbarShown,
                 onBindCard = {
-                    vm.dismissLinkCardDialog()
+                    vm.onCardBindingStarted()
                     navController.navigate(Routes.CardBinding)
                 },
                 onDismissBindDialog = vm::dismissLinkCardDialog
@@ -89,7 +88,7 @@ fun ChaiOkNavHost(container: AppContainer) {
 
         composable(Routes.CardBinding) {
             val vm: CardBindingViewModel = viewModel(
-                factory = SimpleFactory { CardBindingViewModel(container.cardReaderService, container.linkCardUseCase) }
+                factory = SimpleFactory { CardBindingViewModel(container.readCardUseCase, container.linkCardUseCase) }
             )
             val state by vm.uiState.collectAsStateWithLifecycle()
             CardBindingScreen(state = state, onBack = { navController.popBackStack() }, onReadCard = vm::readCard)

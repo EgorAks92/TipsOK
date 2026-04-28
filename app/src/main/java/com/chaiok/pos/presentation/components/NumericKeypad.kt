@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 fun NumericKeypad(
     onDigit: (String) -> Unit,
     onBackspace: () -> Unit,
+    onOk: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val rows = listOf(
@@ -33,7 +34,7 @@ fun NumericKeypad(
                         onClick = {
                             when (label) {
                                 "⌫" -> onBackspace()
-                                "OK" -> Unit
+                                "OK" -> onOk?.invoke()
                                 else -> onDigit(label)
                             }
                         },

@@ -37,6 +37,8 @@ class HomeViewModel(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private var linkCardDialogHandledInSession = false
+
     private val events = Channel<HomeEvent>(Channel.BUFFERED)
     val oneTimeEvents = events.receiveAsFlow()
 
@@ -45,11 +47,12 @@ class HomeViewModel(
             combine(observeProfileUseCase(), observeSettingsUseCase()) { profile, settings ->
                 profile to settings
             }.collect { (profile, settings) ->
+                val shouldShowDialog = profile?.hasLinkedCard == false && !linkCardDialogHandledInSession
                 _uiState.update {
                     it.copy(
                         profile = profile,
                         settings = settings,
-                        showLinkCardDialog = profile?.hasLinkedCard == false
+                        showLinkCardDialog = shouldShowDialog
                     )
                 }
             }
@@ -75,6 +78,12 @@ class HomeViewModel(
     }
 
     fun dismissLinkCardDialog() {
+        linkCardDialogHandledInSession = true
+        _uiState.update { it.copy(showLinkCardDialog = false) }
+    }
+
+    fun onCardBindingStarted() {
+        linkCardDialogHandledInSession = true
         _uiState.update { it.copy(showLinkCardDialog = false) }
     }
 

@@ -1,15 +1,18 @@
-package com.chaiok.pos.data.service
+package com.chaiok.pos.data.repository
 
+import com.chaiok.pos.domain.model.CardReadResult
+import com.chaiok.pos.domain.repository.CardReaderRepository
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
-class MockCardReaderService(
-    private val mode: Mode = Mode.Random
-) : CardReaderService {
+class MockCardReaderRepository(
+    private val mode: Mode = Mode.AlwaysSuccess
+) : CardReaderRepository {
 
     enum class Mode { AlwaysSuccess, AlwaysError, Random }
 
     override suspend fun readCard(): Result<CardReadResult> {
+        // TODO: Replace with real POS card reader SDK integration.
         delay(Random.nextLong(1000, 2000))
         val success = when (mode) {
             Mode.AlwaysSuccess -> true

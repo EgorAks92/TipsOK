@@ -24,7 +24,6 @@ class MockWaiterRepository(
             lastName = "Смирнова",
             status = "На смене",
             hasLinkedCard = false,
-            encryptedCardToken = null,
             cardSha256 = null
         )
         baseProfile.value = loaded
@@ -41,7 +40,6 @@ class MockWaiterRepository(
             profile?.copy(
                 status = status,
                 hasLinkedCard = hasLinkedCard,
-                encryptedCardToken = sensitiveStorage.readEncryptedCardToken(),
                 cardSha256 = cardSha
             )
         }
@@ -61,8 +59,7 @@ class MockWaiterRepository(
         baseProfile.update {
             it?.copy(
                 hasLinkedCard = true,
-                cardSha256 = cardSha256,
-                encryptedCardToken = encryptedCardToken
+                cardSha256 = cardSha256
             )
         }
         return Result.success(Unit)

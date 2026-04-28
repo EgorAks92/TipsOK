@@ -66,6 +66,6 @@ fun LoginScreen(
                 }
             }
         }
-        NumericKeypad(onDigit = onDigit, onBackspace = onDelete, modifier = Modifier.fillMaxWidth())
+        NumericKeypad(onDigit = onDigit, onBackspace = onDelete, onOk = onLogin, modifier = Modifier.fillMaxWidth())
     }
 }

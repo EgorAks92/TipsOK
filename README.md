@@ -10,7 +10,7 @@
 - Экран привязки карты с mock card reader сервисом и состояниями ожидания/чтения/ошибки/успеха.
 - Экран выбора статуса с локальным сохранением.
 - Экран истории чаевых с mock-данными (8 записей) и сводкой.
-- Экран интеграционных настроек (integration mode + table mode).
+- Экран интеграционных настроек (integration mode + table mode) и поддержка вариантов фоновой плитки профиля (`default/sunset/forest`).
 - Сессия пользователя с logout и возвратом на login.
 
 ## Стек
@@ -41,11 +41,11 @@
 - PIN auth: `MockAuthRepository`.
 - Профиль официанта: `MockWaiterRepository`.
 - История чаевых: `MockTipsRepository`.
-- Чтение карты: `MockCardReaderService`.
+- Чтение карты: `MockCardReaderRepository` (по умолчанию `AlwaysSuccess`, можно переключить на `Random`/`AlwaysError`).
 
 ## Как заменить mock на реальные интеграции
 1. Оставьте интерфейсы `domain/repository/*` и замените только реализации в `data/repository/*`.
-2. Замените `MockCardReaderService` на реализацию реального POS/Card Reader SDK через `CardReaderService`.
+2. Замените `MockCardReaderRepository` на реализацию реального POS/Card Reader SDK через `CardReaderRepository`.
 3. Подключите backend API-клиент в `data` и мапперы DTO -> domain модели.
 4. Обновите `AppContainer`, подставив production-реализации.
 

@@ -1,6 +1,8 @@
 package com.chaiok.pos.presentation.cardbinding
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +14,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,14 +25,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardBindingScreen(
     state: CardBindingUiState,
     onBack: () -> Unit,
     onReadCard: () -> Unit
 ) {
+    val successScale = animateFloatAsState(
+        targetValue = if (state.status == CardBindingStatus.Success) 1.15f else 1f,
+        animationSpec = tween(350),
+        label = "success_scale"
+    )
+    val errorScale = animateFloatAsState(
+        targetValue = if (state.status == CardBindingStatus.Error) 1.15f else 1f,
+        animationSpec = tween(350),
+        label = "error_scale"
+    )
+
     Scaffold(topBar = {
         TopAppBar(title = { Text("Привязка карты") }, navigationIcon = {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = null) }
@@ -45,11 +61,22 @@ fun CardBindingScreen(
         ) {
             Icon(Icons.Default.CreditCard, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Text(state.message, style = MaterialTheme.typography.titleMedium)
+
             AnimatedVisibility(state.status == CardBindingStatus.Success) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF24A148))
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF24A148),
+                    modifier = Modifier.graphicsLayer(scaleX = successScale.value, scaleY = successScale.value)
+                )
             }
             AnimatedVisibility(state.status == CardBindingStatus.Error) {
-                Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                Icon(
+                    Icons.Default.Error,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.graphicsLayer(scaleX = errorScale.value, scaleY = errorScale.value)
+                )
             }
             Button(
                 onClick = onReadCard,
