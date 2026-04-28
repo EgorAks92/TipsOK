@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,11 +45,9 @@ import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
 private data class HomeLayoutMetrics(
     val topRowSpacer: Dp,
-    val cardHeight: Dp,
-    val cardRadius: Dp,
-    val avatarSize: Dp,
-    val avatarOverlap: Dp,
-    val afterProfileSpacer: Dp,
+    val profileSpacer: Dp,
+    val avatarContainerSize: Dp,
+    val avatarImageSize: Dp,
     val nameSize: Int,
     val statusSize: Int,
     val amountLabelSize: Int,
@@ -127,16 +124,14 @@ fun HomeScreen(
         val metrics = if (isCompact) {
             HomeLayoutMetrics(
                 topRowSpacer = 6.dp,
-                cardHeight = 78.dp,
-                cardRadius = 26.dp,
-                avatarSize = 50.dp,
-                avatarOverlap = 22.dp,
-                afterProfileSpacer = 38.dp,
-                nameSize = 18,
-                statusSize = 14,
-                amountLabelSize = 16,
-                amountBaseSize = 48,
-                amountSpacer = 8.dp,
+                profileSpacer = 10.dp,
+                avatarContainerSize = 112.dp,
+                avatarImageSize = 84.dp,
+                nameSize = 20,
+                statusSize = 15,
+                amountLabelSize = 22,
+                amountBaseSize = 50,
+                amountSpacer = 12.dp,
                 keypadTouchSize = 74.dp,
                 keypadDigitSize = 48,
                 keypadRowSpacing = 10.dp,
@@ -147,16 +142,14 @@ fun HomeScreen(
         } else {
             HomeLayoutMetrics(
                 topRowSpacer = 8.dp,
-                cardHeight = 88.dp,
-                cardRadius = 28.dp,
-                avatarSize = 56.dp,
-                avatarOverlap = 24.dp,
-                afterProfileSpacer = 52.dp,
-                nameSize = 20,
-                statusSize = 15,
-                amountLabelSize = 17,
-                amountBaseSize = 56,
-                amountSpacer = 10.dp,
+                profileSpacer = 16.dp,
+                avatarContainerSize = 140.dp,
+                avatarImageSize = 104.dp,
+                nameSize = 23,
+                statusSize = 17,
+                amountLabelSize = 28,
+                amountBaseSize = 58,
+                amountSpacer = 20.dp,
                 keypadTouchSize = 86.dp,
                 keypadDigitSize = 56,
                 keypadRowSpacing = 20.dp,
@@ -178,9 +171,11 @@ fun HomeScreen(
             ProfileSection(state = state, metrics = metrics)
 
             if (state.settings.tableModeEnabled) {
+                Spacer(modifier = Modifier.weight(1f))
                 TableModePlaceholder()
+                Spacer(modifier = Modifier.weight(1f))
             } else {
-                Spacer(modifier = Modifier.height(metrics.afterProfileSpacer))
+                Spacer(modifier = Modifier.weight(1f))
                 AmountSection(amountInput = state.amountInput, metrics = metrics)
                 Spacer(modifier = Modifier.weight(1f))
                 TiplyNumericKeypad(
@@ -272,34 +267,22 @@ private fun ProfileSection(state: HomeUiState, metrics: HomeLayoutMetrics) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.BottomCenter
+            modifier = Modifier
+                .size(metrics.avatarContainerSize)
+                .clip(RoundedCornerShape(percent = 50))
+                .drawBehind { drawCircle(Color.White) },
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(metrics.cardHeight)
-                    .clip(RoundedCornerShape(metrics.cardRadius))
-                    .drawBehind { drawProfileCardBackground(metrics.cardRadius) }
+            Image(
+                painter = painterResource(id = R.drawable.ic_waiter_avatar),
+                contentDescription = "Аватар официанта",
+                // TODO: replace with final production avatar drawable if asset is updated.
+                modifier = Modifier.size(metrics.avatarImageSize),
+                contentScale = ContentScale.Fit
             )
-
-            Box(
-                modifier = Modifier
-                    .size(metrics.avatarSize)
-                    .offset(y = metrics.avatarOverlap),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_waiter_avatar),
-                    contentDescription = "Аватар официанта",
-                    // TODO: replace with final production avatar drawable if asset is updated.
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
-                )
-            }
         }
 
-        Spacer(modifier = Modifier.height(metrics.avatarOverlap + 2.dp))
+        Spacer(modifier = Modifier.height(metrics.profileSpacer))
 
         Text(
             text = displayName,
@@ -423,41 +406,6 @@ private fun DrawScope.drawHomeBackground() {
             radius = size.maxDimension * 0.78f
         ),
         radius = size.maxDimension
-    )
-}
-
-private fun DrawScope.drawProfileCardBackground(radius: Dp) {
-    drawRoundRect(
-        brush = Brush.linearGradient(
-            colors = listOf(
-                Color(0xFF08122A),
-                Color(0xFF0B2E54),
-                Color(0xFF0D7C9C)
-            ),
-            start = Offset.Zero,
-            end = Offset(size.width, size.height)
-        ),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius.toPx(), radius.toPx())
-    )
-
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(Color(0x770791E6), Color.Transparent),
-            center = Offset(size.width * 0.12f, size.height * 0.14f),
-            radius = size.width * 0.62f
-        ),
-        radius = size.width * 0.62f,
-        center = Offset(size.width * 0.12f, size.height * 0.14f)
-    )
-
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(Color(0x7A1DE9E7), Color.Transparent),
-            center = Offset(size.width * 0.92f, size.height * 0.32f),
-            radius = size.width * 0.72f
-        ),
-        radius = size.width * 0.72f,
-        center = Offset(size.width * 0.92f, size.height * 0.32f)
     )
 }
 
