@@ -1,6 +1,7 @@
 package com.chaiok.pos.presentation.home
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -14,11 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -39,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
@@ -48,6 +48,7 @@ private data class HomeLayoutMetrics(
     val profileSpacer: Dp,
     val avatarContainerSize: Dp,
     val avatarImageSize: Dp,
+    val avatarRadius: Dp,
     val nameSize: Int,
     val nameStatusSpacer: Dp,
     val statusSize: Int,
@@ -80,42 +81,9 @@ fun HomeScreen(
     }
 
     if (state.showLinkCardDialog) {
-        AlertDialog(
-            onDismissRequest = onDismissBindDialog,
-            containerColor = Color(0xFF151B23),
-            titleContentColor = Color.White,
-            textContentColor = Color.White,
-            title = {
-                Text(
-                    text = "Карта не привязана",
-                    fontFamily = MontserratFontFamily
-                )
-            },
-            text = {
-                Text(
-                    text = "К вашему профилю не привязана банковская карта. Привяжите карту, чтобы получать чаевые.",
-                    fontFamily = MontserratFontFamily,
-                    color = Color.White.copy(alpha = 0.9f)
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = onBindCard) {
-                    Text(
-                        text = "Привязать карту",
-                        color = Color(0xFF20E3DE),
-                        fontFamily = MontserratFontFamily
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissBindDialog) {
-                    Text(
-                        text = "Позже",
-                        color = Color(0xFF0791E6),
-                        fontFamily = MontserratFontFamily
-                    )
-                }
-            }
+        LinkCardDialog(
+            onBindCard = onBindCard,
+            onDismiss = onDismissBindDialog
         )
     }
 
@@ -134,6 +102,7 @@ fun HomeScreen(
                 profileSpacer = 10.dp,
                 avatarContainerSize = 72.dp,
                 avatarImageSize = 64.dp,
+                avatarRadius = 22.dp,
                 nameSize = 16,
                 nameStatusSpacer = 8.dp,
                 statusSize = 14,
@@ -149,6 +118,7 @@ fun HomeScreen(
                 profileSpacer = 16.dp,
                 avatarContainerSize = 72.dp,
                 avatarImageSize = 64.dp,
+                avatarRadius = 22.dp,
                 nameSize = 16,
                 nameStatusSpacer = 8.dp,
                 statusSize = 14,
@@ -192,7 +162,7 @@ fun HomeScreen(
                     onDigit = onDigit,
                     onDelete = onBackspace,
                     onConfirm = onConfirm,
-                    confirmEnabled = true,
+                    confirmEnabled = state.amountInput.isNotBlank(),
                     isLoading = false,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -208,6 +178,111 @@ fun HomeScreen(
                 .padding(bottom = 10.dp)
         )
     }
+}
+
+@Composable
+private fun LinkCardDialog(
+    onBindCard: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp)
+                .clip(RoundedCornerShape(38.dp))
+                .background(Color.White)
+                .padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 24.dp,
+                    bottom = 22.dp
+                )
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.tiply_logo_black),
+                    contentDescription = "Tiply",
+                    modifier = Modifier.size(width = 116.dp, height = 38.dp),
+                    contentScale = ContentScale.Fit
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "Карта не привязана!",
+                    color = Color(0xFF18212B),
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    lineHeight = 24.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "К вашему профилю не привязана\nбанковская карта. Привяжите карту,\nчтобы получать чаевые.",
+                    color = Color(0xFF1E2530),
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 14.sp,
+                    lineHeight = 24.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(26.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DialogActionText(
+                        text = "Позже",
+                        color = Color(0xFFFF4545),
+                        onClick = onDismiss
+                    )
+
+                    DialogActionText(
+                        text = "Привязать карту",
+                        color = Color(0xFF087BE8),
+                        onClick = onBindCard
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialogActionText(
+    text: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Text(
+        text = text,
+        modifier = Modifier
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        color = color,
+        fontFamily = MontserratFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 18.sp,
+        lineHeight = 22.sp,
+        textAlign = TextAlign.Center,
+        maxLines = 1
+    )
 }
 
 @Composable
@@ -282,8 +357,8 @@ private fun ProfileSection(
         Box(
             modifier = Modifier
                 .size(metrics.avatarContainerSize)
-                .clip(RoundedCornerShape(percent = 50))
-                .drawBehind { drawCircle(Color.White) },
+                .clip(RoundedCornerShape(metrics.avatarRadius))
+                .background(Color.White),
             contentAlignment = Alignment.Center
         ) {
             Image(
