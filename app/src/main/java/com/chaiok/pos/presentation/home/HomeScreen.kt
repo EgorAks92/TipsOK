@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
 private data class HomeLayoutMetrics(
@@ -182,12 +183,14 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(metrics.afterProfileSpacer))
                 AmountSection(amountInput = state.amountInput, metrics = metrics)
                 Spacer(modifier = Modifier.weight(1f))
-                HomeKeypad(
+                TiplyNumericKeypad(
                     onDigit = onDigit,
                     onDelete = onBackspace,
                     onConfirm = onConfirm,
+                    confirmEnabled = true,
+                    isLoading = false,
                     touchSize = metrics.keypadTouchSize,
-                    digitSize = metrics.keypadDigitSize,
+                    digitFontSize = metrics.keypadDigitSize.sp,
                     rowSpacing = metrics.keypadRowSpacing,
                     iconSize = metrics.keypadIconSize,
                     modifier = Modifier.fillMaxWidth()
@@ -384,133 +387,6 @@ private fun TableModePlaceholder() {
             fontWeight = FontWeight.Medium,
             fontSize = 20.sp,
             textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun HomeKeypad(
-    onDigit: (String) -> Unit,
-    onDelete: () -> Unit,
-    onConfirm: () -> Unit,
-    touchSize: Dp,
-    digitSize: Int,
-    rowSpacing: Dp,
-    iconSize: Dp,
-    modifier: Modifier = Modifier
-) {
-    val rows = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9")
-    )
-
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(rowSpacing)
-    ) {
-        rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                row.forEach { label ->
-                    HomeKeypadDigit(
-                        label = label,
-                        onClick = { onDigit(label) },
-                        touchSize = touchSize,
-                        digitSize = digitSize
-                    )
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            HomeKeypadIconButton(
-                iconRes = R.drawable.ic_keypad_delete,
-                contentDescription = "Удалить",
-                onClick = onDelete,
-                touchSize = touchSize,
-                iconSize = iconSize
-            )
-
-            HomeKeypadDigit(
-                label = "0",
-                onClick = { onDigit("0") },
-                touchSize = touchSize,
-                digitSize = digitSize
-            )
-
-            HomeKeypadIconButton(
-                iconRes = R.drawable.ic_keypad_confirm,
-                contentDescription = "Подтвердить",
-                onClick = onConfirm,
-                touchSize = touchSize,
-                iconSize = iconSize
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeKeypadDigit(
-    label: String,
-    onClick: () -> Unit,
-    touchSize: Dp,
-    digitSize: Int
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .size(touchSize)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = digitSize.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = MontserratFontFamily,
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun HomeKeypadIconButton(
-    iconRes: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    touchSize: Dp,
-    iconSize: Dp
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .size(touchSize)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = iconRes),
-            contentDescription = contentDescription,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.size(iconSize)
         )
     }
 }
