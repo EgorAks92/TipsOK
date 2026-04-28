@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +28,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -37,10 +35,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
 @Composable
@@ -140,12 +138,12 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            LoginPinKeypad(
-                isLoading = state.isLoading,
-                checkEnabled = checkEnabled,
+            TiplyNumericKeypad(
                 onDigit = onDigit,
                 onDelete = onDelete,
-                onLogin = onLogin,
+                onConfirm = onLogin,
+                confirmEnabled = checkEnabled,
+                isLoading = state.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 24.dp)
@@ -310,137 +308,5 @@ private fun PinDots(pinLength: Int, isLoading: Boolean, isError: Boolean) {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun LoginPinKeypad(
-    isLoading: Boolean,
-    checkEnabled: Boolean,
-    onDigit: (String) -> Unit,
-    onDelete: () -> Unit,
-    onLogin: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val rows = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9")
-    )
-
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                row.forEach { label ->
-                    KeypadDigit(label = label) { onDigit(label) }
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            KeypadIconButton(
-                iconRes = R.drawable.ic_keypad_delete,
-                contentDescription = "Удалить",
-                onClick = onDelete,
-                enabled = true,
-                touchSize = 86.dp,
-                iconSize = 66.dp
-            )
-
-            KeypadDigit(label = "0") { onDigit("0") }
-
-            if (isLoading) {
-                Box(modifier = Modifier.size(86.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        color = Color(0xFF1DE9E7),
-                        strokeWidth = 2.6.dp,
-                        modifier = Modifier.size(38.dp)
-                    )
-                }
-            } else {
-                KeypadIconButton(
-                    iconRes = R.drawable.ic_keypad_confirm,
-                    contentDescription = "Подтвердить",
-                    onClick = onLogin,
-                    enabled = checkEnabled,
-                    touchSize = 86.dp,
-                    iconSize = 66.dp
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun KeypadDigit(label: String, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .size(86.dp)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = 56.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = MontserratFontFamily,
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.displaySmall.copy(
-                fontFamily = MontserratFontFamily,
-                shadow = Shadow(
-                    color = Color.Black.copy(alpha = 0.2f),
-                    blurRadius = 6f
-                )
-            )
-        )
-    }
-}
-
-@Composable
-private fun KeypadIconButton(
-    iconRes: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    enabled: Boolean,
-    touchSize: Dp,
-    iconSize: Dp
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .size(touchSize)
-            .clickable(
-                enabled = enabled,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = iconRes),
-            contentDescription = contentDescription,
-            contentScale = ContentScale.Fit,
-            alpha = if (enabled) 1f else 0.35f,
-            modifier = Modifier.size(iconSize)
-        )
     }
 }
