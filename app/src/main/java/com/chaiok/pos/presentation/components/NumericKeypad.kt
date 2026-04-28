@@ -4,8 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,7 +31,7 @@ fun NumericKeypad(
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { label ->
-                    Button(
+                    ElevatedButton(
                         onClick = {
                             when (label) {
                                 "⌫" -> onBackspace()
@@ -38,9 +39,13 @@ fun NumericKeypad(
                                 else -> onDigit(label)
                             }
                         },
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = if (label == "OK") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (label == "OK") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                        ),
                         modifier = Modifier
                             .weight(1f)
-                            .padding(vertical = 2.dp)
+                            .height(64.dp)
                     ) {
                         Text(label, style = MaterialTheme.typography.headlineSmall)
                     }

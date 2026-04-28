@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,11 +59,13 @@ fun LoginScreen(
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Вход по PIN", style = MaterialTheme.typography.titleLarge)
                 Text("*".repeat(state.pin.length).padEnd(4, '•'), style = MaterialTheme.typography.headlineMedium)
-                state.errorMessage?.let {
-                    Text(text = it, color = MaterialTheme.colorScheme.error)
-                }
+                state.errorMessage?.let { Text(text = it, color = MaterialTheme.colorScheme.error) }
                 Button(onClick = onLogin, modifier = Modifier.fillMaxWidth(), enabled = state.pin.length == 4 && !state.isLoading) {
-                    if (state.isLoading) CircularProgressIndicator() else Text("Войти")
+                    if (state.isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Войти")
+                    }
                 }
             }
         }

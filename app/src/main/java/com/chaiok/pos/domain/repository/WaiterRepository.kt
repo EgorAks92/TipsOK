@@ -7,5 +7,5 @@ interface WaiterRepository {
     suspend fun loadProfile(waiterId: String): Result<WaiterProfile>
     fun observeProfile(): Flow<WaiterProfile?>
     suspend fun updateStatus(status: String): Result<Unit>
-    suspend fun linkCard(cardSha256: String, encryptedCardToken: String): Result<Unit>
+    suspend fun linkCard(cardSha256: String, cardToken: String): Result<Unit>
 }

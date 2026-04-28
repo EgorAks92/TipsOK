@@ -2,7 +2,7 @@ package com.chaiok.pos.presentation.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.chaiok.pos.domain.model.AppError
+import com.chaiok.pos.domain.error.DomainError
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,13 +54,14 @@ class LoginViewModel(
             result.onSuccess {
                 _uiState.update { state -> state.copy(isLoading = false, errorMessage = null, pin = "") }
                 events.send(LoginEvent.NavigateToHome)
-            }.onFailure {
-                _uiState.update {
-                    it.copy(
+            }.onFailure { throwable ->
+                val message = (throwable as? DomainError)?.message ?: DomainError.InvalidPin.message
+                _uiState.update { state ->
+                    state.copy(
                         isLoading = false,
-                        errorMessage = AppError.InvalidPin.message,
+                        errorMessage = message,
                         pin = "",
-                        triggerShake = it.triggerShake + 1
+                        triggerShake = state.triggerShake + 1
                     )
                 }
             }

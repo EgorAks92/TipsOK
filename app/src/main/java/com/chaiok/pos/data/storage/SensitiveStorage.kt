@@ -1,6 +1,6 @@
 package com.chaiok.pos.data.storage
 
 interface SensitiveStorage {
-    fun saveEncryptedCardToken(token: String)
-    fun readEncryptedCardToken(): String?
+    fun saveCardToken(token: String): Result<Unit>
+    fun readCardToken(): Result<String?>
 }

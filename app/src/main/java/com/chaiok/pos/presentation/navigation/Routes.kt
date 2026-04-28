@@ -8,4 +8,5 @@ object Routes {
     const val Status = "status"
     const val Tips = "tips"
     const val Integration = "integration"
+    const val Background = "background"
 }

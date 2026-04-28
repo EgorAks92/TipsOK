@@ -21,10 +21,12 @@ import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import com.chaiok.pos.domain.usecase.LogoutUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
+import com.chaiok.pos.domain.usecase.ObserveCurrentStatusUseCase
 import com.chaiok.pos.domain.usecase.ReadCardUseCase
 import com.chaiok.pos.domain.usecase.UpdateIntegrationModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateStatusUseCase
 import com.chaiok.pos.domain.usecase.UpdateTableModeUseCase
+import com.chaiok.pos.domain.usecase.UpdateTileBackgroundUseCase
 
 class AppContainer(context: Context) {
     private val appDataStore = AppDataStore(context)
@@ -41,10 +43,12 @@ class AppContainer(context: Context) {
     val logoutUseCase = LogoutUseCase(authRepository, sessionRepository)
     val observeProfileUseCase = ObserveProfileUseCase(waiterRepository)
     val updateStatusUseCase = UpdateStatusUseCase(waiterRepository)
+    val observeCurrentStatusUseCase = ObserveCurrentStatusUseCase(observeProfileUseCase)
     val linkCardUseCase = LinkCardUseCase(waiterRepository)
     val readCardUseCase = ReadCardUseCase(cardReaderRepository)
     val getTipsUseCase = GetTipsUseCase(tipsRepository)
     val observeSettingsUseCase = ObserveSettingsUseCase(settingsRepository)
     val updateIntegrationModeUseCase = UpdateIntegrationModeUseCase(settingsRepository)
     val updateTableModeUseCase = UpdateTableModeUseCase(settingsRepository)
+    val updateTileBackgroundUseCase = UpdateTileBackgroundUseCase(settingsRepository)
 }

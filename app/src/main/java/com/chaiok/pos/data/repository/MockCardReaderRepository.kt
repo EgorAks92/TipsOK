@@ -1,5 +1,6 @@
 package com.chaiok.pos.data.repository
 
+import com.chaiok.pos.domain.error.DomainError
 import com.chaiok.pos.domain.model.CardReadResult
 import com.chaiok.pos.domain.repository.CardReaderRepository
 import kotlinx.coroutines.delay
@@ -11,7 +12,7 @@ class MockCardReaderRepository(
 
     enum class Mode { AlwaysSuccess, AlwaysError, Random }
 
-    override suspend fun readCard(): Result<CardReadResult> {
+    override suspend fun readCard(): Result<CardReadResult> = runCatching {
         // TODO: Replace with real POS card reader SDK integration.
         delay(Random.nextLong(1000, 2000))
         val success = when (mode) {
@@ -20,14 +21,12 @@ class MockCardReaderRepository(
             Mode.Random -> Random.nextBoolean()
         }
 
-        if (!success) return Result.failure(IllegalStateException("READ_ERROR"))
+        if (!success) throw DomainError.CardReadFailed
 
         val suffix = Random.nextInt(1000, 9999)
-        return Result.success(
-            CardReadResult(
-                cardSha256 = "sha256_mock_$suffix",
-                encryptedCardToken = "enc_token_mock_$suffix"
-            )
+        CardReadResult(
+            cardSha256 = "sha256_mock_$suffix",
+            cardToken = "card_token_mock_$suffix"
         )
     }
 }

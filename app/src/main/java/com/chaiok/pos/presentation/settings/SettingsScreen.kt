@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,7 +34,8 @@ fun SettingsScreen(
     onCardBinding: () -> Unit,
     onStatus: () -> Unit,
     onTips: () -> Unit,
-    onIntegration: () -> Unit
+    onIntegration: () -> Unit,
+    onBackground: () -> Unit
 ) {
     Scaffold(topBar = {
         TopAppBar(title = { Text("Настройки") }, navigationIcon = {
@@ -51,6 +53,7 @@ fun SettingsScreen(
             SettingsItem("Выбор статуса", "Обновить рабочий статус", Icons.Default.Person, onStatus)
             SettingsItem("Мои чаевые", "История и сводка по чаевым", Icons.Default.ReceiptLong, onTips)
             SettingsItem("Интеграционный режим", "Настройка POS-интеграции", Icons.Default.Link, onIntegration)
+            SettingsItem("Фон профиля", "Настройка плитки на главном экране", Icons.Default.Wallpaper, onBackground)
         }
     }
 }

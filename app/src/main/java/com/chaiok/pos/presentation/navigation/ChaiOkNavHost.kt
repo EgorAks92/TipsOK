@@ -9,6 +9,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.chaiok.pos.data.di.AppContainer
+import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
+import com.chaiok.pos.presentation.background.ProfileBackgroundViewModel
 import com.chaiok.pos.presentation.cardbinding.CardBindingScreen
 import com.chaiok.pos.presentation.cardbinding.CardBindingViewModel
 import com.chaiok.pos.presentation.home.HomeEvent
@@ -82,7 +84,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onCardBinding = { navController.navigate(Routes.CardBinding) },
                 onStatus = { navController.navigate(Routes.Status) },
                 onTips = { navController.navigate(Routes.Tips) },
-                onIntegration = { navController.navigate(Routes.Integration) }
+                onIntegration = { navController.navigate(Routes.Integration) },
+                onBackground = { navController.navigate(Routes.Background) }
             )
         }
 
@@ -95,7 +98,7 @@ fun ChaiOkNavHost(container: AppContainer) {
         }
 
         composable(Routes.Status) {
-            val vm: StatusViewModel = viewModel(factory = SimpleFactory { StatusViewModel(container.updateStatusUseCase) })
+            val vm: StatusViewModel = viewModel(factory = SimpleFactory { StatusViewModel(container.updateStatusUseCase, container.observeCurrentStatusUseCase) })
             val state by vm.uiState.collectAsStateWithLifecycle()
             StatusScreen(state, onBack = { navController.popBackStack() }, onStatusChanged = vm::onStatusChanged, onSave = vm::saveStatus)
         }
@@ -106,6 +109,15 @@ fun ChaiOkNavHost(container: AppContainer) {
             TipsScreen(state = state, onBack = { navController.popBackStack() })
         }
 
+
+
+        composable(Routes.Background) {
+            val vm: ProfileBackgroundViewModel = viewModel(
+                factory = SimpleFactory { ProfileBackgroundViewModel(container.observeSettingsUseCase, container.updateTileBackgroundUseCase) }
+            )
+            val state by vm.uiState.collectAsStateWithLifecycle()
+            ProfileBackgroundScreen(state = state, onBack = { navController.popBackStack() }, onSelect = vm::setBackground)
+        }
         composable(Routes.Integration) {
             val vm: IntegrationViewModel = viewModel(
                 factory = SimpleFactory {

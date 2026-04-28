@@ -22,7 +22,15 @@ class DataStoreSettingsRepository(
         )
     }
 
-    override suspend fun setIntegrationMode(enabled: Boolean) = dataStore.setIntegrationMode(enabled)
-    override suspend fun setTableMode(enabled: Boolean) = dataStore.setTableMode(enabled)
-    override suspend fun setTileBackground(background: String) = dataStore.setTileBackground(background)
+    override suspend fun setIntegrationMode(enabled: Boolean) {
+        runCatching { dataStore.setIntegrationMode(enabled) }
+    }
+
+    override suspend fun setTableMode(enabled: Boolean) {
+        runCatching { dataStore.setTableMode(enabled) }
+    }
+
+    override suspend fun setTileBackground(background: String) {
+        runCatching { dataStore.setTileBackground(background) }
+    }
 }

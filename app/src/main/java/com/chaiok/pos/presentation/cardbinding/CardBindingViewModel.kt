@@ -2,7 +2,7 @@ package com.chaiok.pos.presentation.cardbinding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.chaiok.pos.domain.model.AppError
+import com.chaiok.pos.domain.error.DomainError
 import com.chaiok.pos.domain.usecase.LinkCardUseCase
 import com.chaiok.pos.domain.usecase.ReadCardUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,22 +30,22 @@ class CardBindingViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(status = CardBindingStatus.Reading, message = "Идет чтение карты...") }
 
-            val cardResult = readCardUseCase()
-            val cardData = cardResult.getOrElse {
-                _uiState.update { st -> st.copy(status = CardBindingStatus.Error, message = AppError.CardReadError.message) }
+            val cardData = readCardUseCase().getOrElse {
+                val message = (it as? DomainError)?.message ?: DomainError.CardReadFailed.message
+                _uiState.update { st -> st.copy(status = CardBindingStatus.Error, message = message) }
                 return@launch
             }
 
-            val linkResult = linkCardUseCase(cardData.cardSha256, cardData.encryptedCardToken)
-            linkResult.onSuccess {
-                _uiState.update {
-                    it.copy(status = CardBindingStatus.Success, message = "Карта успешно прочитана и привязана.")
+            linkCardUseCase(cardData.cardSha256, cardData.cardToken)
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(status = CardBindingStatus.Success, message = "Карта успешно прочитана и привязана.")
+                    }
                 }
-            }.onFailure {
-                _uiState.update {
-                    it.copy(status = CardBindingStatus.Error, message = "Не удалось сохранить привязку карты. Попробуйте еще раз.")
+                .onFailure {
+                    val message = (it as? DomainError)?.message ?: DomainError.CardLinkFailed.message
+                    _uiState.update { st -> st.copy(status = CardBindingStatus.Error, message = message) }
                 }
-            }
         }
     }
 }

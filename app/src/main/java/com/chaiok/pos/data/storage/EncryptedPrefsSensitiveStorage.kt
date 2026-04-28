@@ -13,9 +13,12 @@ class EncryptedPrefsSensitiveStorage(context: Context) : SensitiveStorage {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
-    override fun saveEncryptedCardToken(token: String) {
+    override fun saveCardToken(token: String): Result<Unit> = runCatching {
         prefs.edit().putString("card_token", token).apply()
+        Unit
     }
 
-    override fun readEncryptedCardToken(): String? = prefs.getString("card_token", null)
+    override fun readCardToken(): Result<String?> = runCatching {
+        prefs.getString("card_token", null)
+    }
 }

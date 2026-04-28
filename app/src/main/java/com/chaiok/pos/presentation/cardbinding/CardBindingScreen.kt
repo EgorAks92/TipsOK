@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,15 +37,13 @@ fun CardBindingScreen(
     onBack: () -> Unit,
     onReadCard: () -> Unit
 ) {
-    val successScale = animateFloatAsState(
-        targetValue = if (state.status == CardBindingStatus.Success) 1.15f else 1f,
-        animationSpec = tween(350),
-        label = "success_scale"
-    )
-    val errorScale = animateFloatAsState(
-        targetValue = if (state.status == CardBindingStatus.Error) 1.15f else 1f,
-        animationSpec = tween(350),
-        label = "error_scale"
+    val pulseScale = animateFloatAsState(
+        targetValue = when (state.status) {
+            CardBindingStatus.Success, CardBindingStatus.Error -> 1.25f
+            else -> 1f
+        },
+        animationSpec = tween(420),
+        label = "card_binding_state_scale"
     )
 
     Scaffold(topBar = {
@@ -57,17 +57,23 @@ fun CardBindingScreen(
                 .padding(padding)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically)
+            verticalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterVertically)
         ) {
-            Icon(Icons.Default.CreditCard, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.CreditCard, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(56.dp))
             Text(state.message, style = MaterialTheme.typography.titleMedium)
+
+            if (state.status == CardBindingStatus.Reading) {
+                CircularProgressIndicator(modifier = Modifier.size(84.dp), strokeWidth = 6.dp)
+            }
 
             AnimatedVisibility(state.status == CardBindingStatus.Success) {
                 Icon(
                     Icons.Default.CheckCircle,
                     contentDescription = null,
                     tint = Color(0xFF24A148),
-                    modifier = Modifier.graphicsLayer(scaleX = successScale.value, scaleY = successScale.value)
+                    modifier = Modifier
+                        .size(128.dp)
+                        .graphicsLayer(scaleX = pulseScale.value, scaleY = pulseScale.value)
                 )
             }
             AnimatedVisibility(state.status == CardBindingStatus.Error) {
@@ -75,15 +81,14 @@ fun CardBindingScreen(
                     Icons.Default.Error,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.graphicsLayer(scaleX = errorScale.value, scaleY = errorScale.value)
+                    modifier = Modifier
+                        .size(128.dp)
+                        .graphicsLayer(scaleX = pulseScale.value, scaleY = pulseScale.value)
                 )
             }
-            Button(
-                onClick = onReadCard,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.status != CardBindingStatus.Reading
-            ) {
-                Text("Считать карту")
+
+            Button(onClick = onReadCard, modifier = Modifier.fillMaxWidth(), enabled = state.status != CardBindingStatus.Reading) {
+                Text(if (state.status == CardBindingStatus.Reading) "Чтение..." else "Считать карту")
             }
         }
     }
