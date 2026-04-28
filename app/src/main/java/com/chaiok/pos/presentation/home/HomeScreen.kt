@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -109,7 +110,7 @@ fun HomeScreen(
 
             ProfileSection(state = state)
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(34.dp))
 
             if (state.settings.tableModeEnabled) {
                 TableModePlaceholder()
@@ -131,7 +132,7 @@ fun HomeScreen(
             hostState = snackState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 8.dp)
+                .padding(bottom = 10.dp)
         )
     }
 }
@@ -141,7 +142,7 @@ private fun TopActionRow(onLogout: () -> Unit, onOpenSettings: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, start = 4.dp, end = 4.dp),
+            .padding(top = 10.dp, start = 2.dp, end = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -196,20 +197,25 @@ private fun ProfileSection(state: HomeUiState) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .clip(RoundedCornerShape(36.dp))
-                .drawBehind { drawProfileCardBackground() }
-        )
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(36.dp))
+                    .drawBehind { drawProfileCardBackground() }
+            )
 
-        Text(
-            text = "👨‍💼",
-            fontSize = 86.sp,
-            modifier = Modifier.padding(top = (-60).dp)
-        )
+            Text(
+                text = "👨‍💼",
+                fontSize = 86.sp,
+                modifier = Modifier.offset(y = 44.dp)
+            )
+        }
 
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(46.dp))
 
         Text(
             text = displayName,
@@ -241,21 +247,21 @@ private fun AmountSection(amountInput: String) {
             text = "Введите сумму счёта:",
             color = Color.White,
             fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 31.sp,
+            fontWeight = FontWeight.Bold,
+            fontSize = 17.sp,
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Text(
             text = formatAmount(amountInput),
             color = Color.White,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 62.sp,
+            fontSize = 58.sp,
             textAlign = TextAlign.Center,
-            lineHeight = 62.sp
+            lineHeight = 58.sp
         )
     }
 }
@@ -304,7 +310,7 @@ private fun HomeKeypad(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         rows.forEach { row ->
             Row(
