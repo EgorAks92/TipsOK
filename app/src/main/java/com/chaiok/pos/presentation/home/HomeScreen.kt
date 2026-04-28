@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,6 +32,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,7 +55,6 @@ private data class HomeLayoutMetrics(
     val amountLabelSize: Int,
     val amountBaseSize: Int,
     val amountSpacer: Dp,
-    val beforeKeypadSpacer: Dp,
     val keypadTouchSize: Dp,
     val keypadDigitSize: Int,
     val keypadRowSpacing: Dp,
@@ -122,81 +121,78 @@ fun HomeScreen(
             .drawBehind { drawHomeBackground() }
             .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val isCompact = maxHeight < 780.dp
-            val metrics = if (isCompact) {
-                HomeLayoutMetrics(
-                    topRowSpacer = 8.dp,
-                    cardHeight = 96.dp,
-                    cardRadius = 28.dp,
-                    avatarSize = 56.dp,
-                    avatarOverlap = 24.dp,
-                    afterProfileSpacer = 36.dp,
-                    nameSize = 20,
-                    statusSize = 15,
-                    amountLabelSize = 16,
-                    amountBaseSize = 48,
-                    amountSpacer = 8.dp,
-                    beforeKeypadSpacer = 28.dp,
-                    keypadTouchSize = 74.dp,
-                    keypadDigitSize = 48,
-                    keypadRowSpacing = 10.dp,
-                    keypadIconSize = 58.dp,
-                    topIconSize = 30.dp,
-                    bottomPadding = 12.dp
-                )
+        val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+        val isCompact = screenHeight < 780.dp
+        val metrics = if (isCompact) {
+            HomeLayoutMetrics(
+                topRowSpacer = 6.dp,
+                cardHeight = 78.dp,
+                cardRadius = 26.dp,
+                avatarSize = 50.dp,
+                avatarOverlap = 22.dp,
+                afterProfileSpacer = 38.dp,
+                nameSize = 18,
+                statusSize = 14,
+                amountLabelSize = 16,
+                amountBaseSize = 48,
+                amountSpacer = 8.dp,
+                keypadTouchSize = 74.dp,
+                keypadDigitSize = 48,
+                keypadRowSpacing = 10.dp,
+                keypadIconSize = 58.dp,
+                topIconSize = 30.dp,
+                bottomPadding = 12.dp
+            )
+        } else {
+            HomeLayoutMetrics(
+                topRowSpacer = 8.dp,
+                cardHeight = 88.dp,
+                cardRadius = 28.dp,
+                avatarSize = 56.dp,
+                avatarOverlap = 24.dp,
+                afterProfileSpacer = 52.dp,
+                nameSize = 20,
+                statusSize = 15,
+                amountLabelSize = 17,
+                amountBaseSize = 56,
+                amountSpacer = 10.dp,
+                keypadTouchSize = 86.dp,
+                keypadDigitSize = 56,
+                keypadRowSpacing = 20.dp,
+                keypadIconSize = 66.dp,
+                topIconSize = 34.dp,
+                bottomPadding = 24.dp
+            )
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopActionRow(
+                onLogout = onLogout,
+                onOpenSettings = onOpenSettings,
+                iconSize = metrics.topIconSize
+            )
+
+            Spacer(modifier = Modifier.height(metrics.topRowSpacer))
+
+            ProfileSection(state = state, metrics = metrics)
+
+            if (state.settings.tableModeEnabled) {
+                TableModePlaceholder()
             } else {
-                HomeLayoutMetrics(
-                    topRowSpacer = 10.dp,
-                    cardHeight = 112.dp,
-                    cardRadius = 32.dp,
-                    avatarSize = 64.dp,
-                    avatarOverlap = 28.dp,
-                    afterProfileSpacer = 48.dp,
-                    nameSize = 22,
-                    statusSize = 16,
-                    amountLabelSize = 17,
-                    amountBaseSize = 56,
-                    amountSpacer = 10.dp,
-                    beforeKeypadSpacer = 48.dp,
-                    keypadTouchSize = 86.dp,
-                    keypadDigitSize = 56,
-                    keypadRowSpacing = 20.dp,
-                    keypadIconSize = 66.dp,
-                    topIconSize = 34.dp,
-                    bottomPadding = 24.dp
+                Spacer(modifier = Modifier.height(metrics.afterProfileSpacer))
+                AmountSection(amountInput = state.amountInput, metrics = metrics)
+                Spacer(modifier = Modifier.weight(1f))
+                HomeKeypad(
+                    onDigit = onDigit,
+                    onDelete = onBackspace,
+                    onConfirm = onConfirm,
+                    touchSize = metrics.keypadTouchSize,
+                    digitSize = metrics.keypadDigitSize,
+                    rowSpacing = metrics.keypadRowSpacing,
+                    iconSize = metrics.keypadIconSize,
+                    modifier = Modifier.fillMaxWidth()
                 )
-            }
-
-            Column(modifier = Modifier.fillMaxSize()) {
-                TopActionRow(
-                    onLogout = onLogout,
-                    onOpenSettings = onOpenSettings,
-                    iconSize = metrics.topIconSize
-                )
-
-                Spacer(modifier = Modifier.height(metrics.topRowSpacer))
-
-                ProfileSection(state = state, metrics = metrics)
-
-                if (state.settings.tableModeEnabled) {
-                    TableModePlaceholder()
-                } else {
-                    Spacer(modifier = Modifier.height(metrics.afterProfileSpacer))
-                    AmountSection(amountInput = state.amountInput, metrics = metrics)
-                    Spacer(modifier = Modifier.height(metrics.beforeKeypadSpacer))
-                    HomeKeypad(
-                        onDigit = onDigit,
-                        onDelete = onBackspace,
-                        onConfirm = onConfirm,
-                        touchSize = metrics.keypadTouchSize,
-                        digitSize = metrics.keypadDigitSize,
-                        rowSpacing = metrics.keypadRowSpacing,
-                        iconSize = metrics.keypadIconSize,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(metrics.bottomPadding))
-                }
+                Spacer(modifier = Modifier.height(metrics.bottomPadding))
             }
         }
 
@@ -342,7 +338,7 @@ private fun AmountSection(amountInput: String, metrics: HomeLayoutMetrics) {
             text = "Введите сумму счёта:",
             color = Color.White,
             fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Normal,
             fontSize = metrics.amountLabelSize.sp,
             textAlign = TextAlign.Center
         )
