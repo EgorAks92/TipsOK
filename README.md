@@ -1,4 +1,4 @@
-# ЧайОК (Android POS)
+# Tiply (Android POS)
 
 Современное Android-приложение для POS-терминала ресторана, реализованное на Kotlin + Jetpack Compose c Clean Architecture.
 
