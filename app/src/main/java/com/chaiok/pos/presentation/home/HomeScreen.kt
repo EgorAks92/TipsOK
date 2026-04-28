@@ -54,10 +54,6 @@ private data class HomeLayoutMetrics(
     val amountLabelSize: Int,
     val amountBaseSize: Int,
     val amountSpacer: Dp,
-    val keypadTouchSize: Dp,
-    val keypadDigitSize: Int,
-    val keypadRowSpacing: Dp,
-    val keypadIconSize: Dp,
     val topIconSize: Dp,
     val bottomPadding: Dp
 )
@@ -144,10 +140,6 @@ fun HomeScreen(
                 amountLabelSize = 16,
                 amountBaseSize = 48,
                 amountSpacer = 12.dp,
-                keypadTouchSize = 74.dp,
-                keypadDigitSize = 48,
-                keypadRowSpacing = 6.dp,
-                keypadIconSize = 58.dp,
                 topIconSize = 30.dp,
                 bottomPadding = 12.dp
             )
@@ -163,10 +155,6 @@ fun HomeScreen(
                 amountLabelSize = 16,
                 amountBaseSize = 48,
                 amountSpacer = 20.dp,
-                keypadTouchSize = 86.dp,
-                keypadDigitSize = 56,
-                keypadRowSpacing = 6.dp,
-                keypadIconSize = 66.dp,
                 topIconSize = 34.dp,
                 bottomPadding = 24.dp
             )
@@ -206,10 +194,6 @@ fun HomeScreen(
                     onConfirm = onConfirm,
                     confirmEnabled = true,
                     isLoading = false,
-                    touchSize = metrics.keypadTouchSize,
-                    digitFontSize = metrics.keypadDigitSize.sp,
-                    rowSpacing = metrics.keypadRowSpacing,
-                    iconSize = metrics.keypadIconSize,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = metrics.bottomPadding)

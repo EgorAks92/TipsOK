@@ -38,7 +38,7 @@ fun TiplyNumericKeypad(
     confirmEnabled: Boolean = true,
     isLoading: Boolean = false,
     touchSize: Dp = 86.dp,
-    digitFontSize: TextUnit = 56.sp,
+    digitFontSize: TextUnit = 48.sp,
     rowSpacing: Dp = 0.dp,
     iconSize: Dp = 66.dp
 ) {
