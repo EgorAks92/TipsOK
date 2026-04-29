@@ -28,12 +28,15 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +48,14 @@ import com.chaiok.pos.presentation.theme.MontserratFontFamily
 private data class HomeLayoutMetrics(
     val topRowSpacer: Dp,
     val profileSpacer: Dp,
+    val headerHeight: Dp,
+    val topBarHeight: Dp,
+    val waiterCardHeight: Dp,
+    val waiterCardTopPadding: Dp,
+    val waiterCardHorizontalInset: Dp,
+    val waiterCardCornerRadius: Dp,
+    val cardCutoutRadius: Dp,
+    val cardCutoutDepth: Dp,
     val avatarContainerSize: Dp,
     val avatarImageSize: Dp,
     val avatarRadius: Dp,
@@ -99,6 +110,14 @@ fun HomeScreen(
             HomeLayoutMetrics(
                 topRowSpacer = 6.dp,
                 profileSpacer = 10.dp,
+                headerHeight = 300.dp,
+                topBarHeight = 108.dp,
+                waiterCardHeight = 232.dp,
+                waiterCardTopPadding = 52.dp,
+                waiterCardHorizontalInset = 8.dp,
+                waiterCardCornerRadius = 34.dp,
+                cardCutoutRadius = 36.dp,
+                cardCutoutDepth = 56.dp,
                 avatarContainerSize = 72.dp,
                 avatarImageSize = 64.dp,
                 avatarRadius = 22.dp,
@@ -115,6 +134,14 @@ fun HomeScreen(
             HomeLayoutMetrics(
                 topRowSpacer = 8.dp,
                 profileSpacer = 16.dp,
+                headerHeight = 320.dp,
+                topBarHeight = 116.dp,
+                waiterCardHeight = 248.dp,
+                waiterCardTopPadding = 56.dp,
+                waiterCardHorizontalInset = 8.dp,
+                waiterCardCornerRadius = 36.dp,
+                cardCutoutRadius = 38.dp,
+                cardCutoutDepth = 60.dp,
                 avatarContainerSize = 72.dp,
                 avatarImageSize = 64.dp,
                 avatarRadius = 22.dp,
@@ -130,7 +157,7 @@ fun HomeScreen(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            TopBarAndProfileHeader(
+            HomeHeader(
                 onLogout = onLogout,
                 onOpenSettings = onOpenSettings,
                 iconSize = metrics.topIconSize,
@@ -287,28 +314,45 @@ private fun DialogActionText(
 }
 
 @Composable
-private fun TopBarAndProfileHeader(
+private fun HomeHeader(
     onLogout: () -> Unit,
     onOpenSettings: () -> Unit,
     iconSize: Dp,
     metrics: HomeLayoutMetrics
 ) {
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(metrics.headerHeight)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(260.dp)
-                .padding(top = 56.dp, start = 8.dp, end = 8.dp)
-                .clip(RoundedCornerShape(34.dp))
+                .height(metrics.waiterCardHeight)
+                .padding(
+                    top = metrics.waiterCardTopPadding,
+                    start = metrics.waiterCardHorizontalInset,
+                    end = metrics.waiterCardHorizontalInset
+                )
+                .clip(
+                    WaiterCardShape(
+                        cornerRadius = metrics.waiterCardCornerRadius,
+                        cutoutRadius = metrics.cardCutoutRadius,
+                        cutoutDepth = metrics.cardCutoutDepth
+                    )
+                )
                 .background(
                     brush = Brush.linearGradient(
-                        colors = listOf(Color(0xFFF4F7FA), Color(0xFFEFF2F5), Color(0xFFF7F8FA))
+                        colors = listOf(Color(0xFFFDFEFF), Color(0xFFF3F6FA), Color(0xFFF9FBFE))
                     )
                 )
                 .drawBehind {
+                    val accentBlue = Color(0x3327C7F7)
+                    val softCyan = Color(0x2B49E4FF)
+
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color(0x5D59DFE1), Color.Transparent),
+                            colors = listOf(Color(0x3D58DAEC), Color.Transparent),
                             center = center.copy(x = size.width * 0.2f, y = size.height * 0.35f),
                             radius = size.minDimension * 0.75f
                         ),
@@ -317,18 +361,39 @@ private fun TopBarAndProfileHeader(
                     )
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color(0x4058C5FF), Color.Transparent),
+                            colors = listOf(Color(0x3049B9FF), Color.Transparent),
                             center = center.copy(x = size.width * 0.85f, y = size.height * 0.85f),
                             radius = size.minDimension * 0.65f
                         ),
                         radius = size.minDimension * 0.65f,
                         center = center.copy(x = size.width * 0.85f, y = size.height * 0.85f)
                     )
-                    drawLine(
-                        color = Color(0x5549D6E6),
-                        start = center.copy(x = size.width * 0.06f, y = size.height * 0.95f),
-                        end = center.copy(x = size.width * 0.88f, y = size.height * 0.18f),
-                        strokeWidth = 3f
+                    val firstCurve = Path().apply {
+                        moveTo(-size.width * 0.15f, size.height * 0.9f)
+                        cubicTo(
+                            size.width * 0.22f, size.height * 0.88f,
+                            size.width * 0.4f, size.height * 0.25f,
+                            size.width * 0.78f, -size.height * 0.08f
+                        )
+                    }
+                    drawPath(
+                        path = firstCurve,
+                        color = accentBlue,
+                        style = Stroke(width = 2.6f)
+                    )
+
+                    val secondCurve = Path().apply {
+                        moveTo(size.width * 0.08f, size.height * 1.02f)
+                        cubicTo(
+                            size.width * 0.32f, size.height * 0.78f,
+                            size.width * 0.66f, size.height * 0.34f,
+                            size.width * 1.02f, size.height * 0.2f
+                        )
+                    }
+                    drawPath(
+                        path = secondCurve,
+                        color = softCyan,
+                        style = Stroke(width = 1.8f)
                     )
                 }
         )
@@ -339,7 +404,8 @@ private fun TopBarAndProfileHeader(
                 .clip(RoundedCornerShape(0.dp, 0.dp, 42.dp, 42.dp))
                 .shadow(14.dp, RoundedCornerShape(0.dp, 0.dp, 42.dp, 42.dp))
                 .background(Color.White)
-                .padding(top = 2.dp, start = 2.dp, end = 2.dp, bottom = 12.dp)
+                .height(metrics.topBarHeight)
+                .padding(top = 8.dp, start = 6.dp, end = 6.dp, bottom = 14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -350,7 +416,8 @@ private fun TopBarAndProfileHeader(
                     Image(
                         painter = painterResource(id = R.drawable.ic_home_logout),
                         contentDescription = "Выйти",
-                        modifier = Modifier.size(iconSize)
+                        modifier = Modifier.size(iconSize),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF1B2128))
                     )
                 }
 
@@ -365,7 +432,8 @@ private fun TopBarAndProfileHeader(
                     Image(
                         painter = painterResource(id = R.drawable.ic_home_settings),
                         contentDescription = "Настройки",
-                        modifier = Modifier.size(iconSize)
+                        modifier = Modifier.size(iconSize),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF1B2128))
                     )
                 }
             }
@@ -374,11 +442,10 @@ private fun TopBarAndProfileHeader(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 2.dp)
                 .size(metrics.avatarContainerSize)
+                .shadow(12.dp, RoundedCornerShape(metrics.avatarRadius))
                 .clip(RoundedCornerShape(metrics.avatarRadius))
-                .background(Color(0xFFF2F3F2))
-                .shadow(10.dp, RoundedCornerShape(metrics.avatarRadius)),
+                .background(Color(0xFFF7F8FA)),
             contentAlignment = Alignment.Center
         ) {
             Image(
@@ -388,6 +455,42 @@ private fun TopBarAndProfileHeader(
                 contentScale = ContentScale.Fit
             )
         }
+    }
+}
+
+private class WaiterCardShape(
+    private val cornerRadius: Dp,
+    private val cutoutRadius: Dp,
+    private val cutoutDepth: Dp
+) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: Density
+    ): androidx.compose.ui.graphics.Outline {
+        val radiusPx = with(density) { cornerRadius.toPx() }
+        val cutoutRadiusPx = with(density) { cutoutRadius.toPx() }
+        val cutoutDepthPx = with(density) { cutoutDepth.toPx() }
+        val centerX = size.width / 2f
+        val leftCut = centerX - cutoutRadiusPx
+        val rightCut = centerX + cutoutRadiusPx
+
+        val path = Path().apply {
+            moveTo(radiusPx, 0f)
+            lineTo(size.width - radiusPx, 0f)
+            quadraticBezierTo(size.width, 0f, size.width, radiusPx)
+            lineTo(size.width, size.height - radiusPx)
+            quadraticBezierTo(size.width, size.height, size.width - radiusPx, size.height)
+            lineTo(rightCut, size.height)
+            quadraticBezierTo(centerX, size.height, centerX, size.height - cutoutDepthPx)
+            quadraticBezierTo(centerX, size.height, leftCut, size.height)
+            lineTo(radiusPx, size.height)
+            quadraticBezierTo(0f, size.height, 0f, size.height - radiusPx)
+            lineTo(0f, radiusPx)
+            quadraticBezierTo(0f, 0f, radiusPx, 0f)
+            close()
+        }
+        return androidx.compose.ui.graphics.Outline.Generic(path)
     }
 }
 
