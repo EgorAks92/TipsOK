@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,11 +25,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+
+private val LightScreenColor = Color(0xFFF4F4F2)
+private val PrimaryTextColor = Color(0xFF1B2128)
 
 @Composable
 fun LoginScreen(
@@ -72,7 +75,7 @@ fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .drawBehind { drawLoginBackground(hasError = hasError) }
+            .background(LightScreenColor)
             .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -92,7 +95,8 @@ fun LoginScreen(
                         painter = painterResource(id = R.drawable.ic_close),
                         contentDescription = "Закрыть",
                         modifier = Modifier.size(34.dp),
-                        contentScale = ContentScale.Fit
+                        contentScale = ContentScale.Fit,
+                        alpha = 0.95f
                     )
                 }
             }
@@ -116,7 +120,7 @@ fun LoginScreen(
 
                 Text(
                     text = "Введите PIN-код",
-                    color = Color.White,
+                    color = PrimaryTextColor,
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontFamily = MontserratFontFamily,
                         fontSize = 16.sp,
@@ -130,7 +134,6 @@ fun LoginScreen(
 
                 PinDots(
                     pinLength = state.pin.length,
-                    isLoading = state.isLoading,
                     isError = hasError
                 )
             }
@@ -143,6 +146,7 @@ fun LoginScreen(
                 onConfirm = onLogin,
                 confirmEnabled = checkEnabled,
                 isLoading = state.isLoading,
+                digitColor = PrimaryTextColor,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 24.dp)
@@ -151,159 +155,34 @@ fun LoginScreen(
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLoginBackground(hasError: Boolean) {
-    val baseTop = Color(0xFF151B23)
-    val baseBottom = Color(0xFF111821)
-    drawRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(baseTop, baseBottom)
-        )
-    )
-
-    if (hasError) {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0x5EFF3A47),
-                    Color(0x38CF2D45),
-                    Color.Transparent
-                ),
-                center = Offset(size.width * 0.55f, size.height * 0.62f),
-                radius = size.maxDimension * 0.92f
-            ),
-            radius = size.maxDimension
-        )
-    } else {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0x660791E6),
-                    Color(0x4D176FC6),
-                    Color.Transparent
-                ),
-                center = Offset(size.width * 0.2f, size.height * 0.72f),
-                radius = size.maxDimension * 0.95f
-            ),
-            radius = size.maxDimension
-        )
-    }
-
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0x2D2A78B9),
-                Color.Transparent
-            ),
-            center = Offset(size.width * 0.82f, size.height * 0.7f),
-            radius = size.maxDimension * 0.78f
-        ),
-        radius = size.maxDimension
-    )
-}
-
 @Composable
-private fun PinDots(pinLength: Int, isLoading: Boolean, isError: Boolean) {
+private fun PinDots(pinLength: Int, isError: Boolean) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         repeat(4) { index ->
             val isFilled = index < pinLength
-            val active = isError || isFilled
+            val fillBrush = when {
+                isError -> Brush.radialGradient(listOf(Color(0xFFFF9094), Color(0xFFE44751)))
+                isFilled -> Brush.radialGradient(listOf(Color(0xFF47E4D9), Color(0xFF0ABFD8)))
+                else -> Brush.radialGradient(listOf(Color(0xFFE7E8E9), Color(0xFFD6D8DA)))
+            }
 
             Box(
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier
+                    .size(36.dp)
+                    .shadow(
+                        elevation = 7.dp,
+                        shape = CircleShape,
+                        ambientColor = if (isError) Color(0x55FF7A81) else Color(0x33000000),
+                        spotColor = if (isError) Color(0x66FF7A81) else Color(0x22000000)
+                    )
+                    .background(color = Color(0xFFF3F3F2), shape = CircleShape)
+                    .padding(3.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val glowColor = if (isError) {
-                    Color(0xFFFF5E67)
-                } else {
-                    Color(0xFF20E3DE)
-                }
-
-                if (active) {
-                    val boost = if (isError || isLoading || pinLength == 4) 1f else 0.72f
-
-                    Box(
-                        modifier = Modifier
-                            .size(92.dp)
-                            .drawBehind {
-                                drawCircle(
-                                    brush = Brush.radialGradient(
-                                        colors = listOf(
-                                            glowColor.copy(alpha = 0.38f * boost),
-                                            glowColor.copy(alpha = 0.15f * boost),
-                                            glowColor.copy(alpha = 0.05f * boost),
-                                            Color.Transparent
-                                        ),
-                                        center = center,
-                                        radius = size.minDimension * 0.48f
-                                    ),
-                                    radius = size.minDimension * 0.48f
-                                )
-                            }
-                    )
-                }
-
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .drawBehind {
-                            val coreRadius = 12.dp.toPx()
-
-                            val coreBrush = when {
-                                isError -> Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0xFFFF8C93),
-                                        Color(0xFFE65E68),
-                                        Color(0xFFB94453)
-                                    ),
-                                    center = Offset(size.width * 0.35f, size.height * 0.28f),
-                                    radius = coreRadius * 1.45f
-                                )
-
-                                isFilled -> Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0xFF89F7F2),
-                                        Color(0xFF49D4D3),
-                                        Color(0xFF2F8FA6)
-                                    ),
-                                    center = Offset(size.width * 0.35f, size.height * 0.28f),
-                                    radius = coreRadius * 1.45f
-                                )
-
-                                else -> Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0x667CC0CA),
-                                        Color(0x55658A98),
-                                        Color(0x4A4D6D)
-                                    ),
-                                    center = Offset(size.width * 0.35f, size.height * 0.28f),
-                                    radius = coreRadius * 1.55f
-                                )
-                            }
-
-                            drawCircle(
-                                brush = coreBrush,
-                                radius = coreRadius
-                            )
-
-                            drawCircle(
-                                color = Color.White.copy(alpha = if (active) 0.30f else 0.26f),
-                                radius = coreRadius,
-                                style = Stroke(width = 1.dp.toPx())
-                            )
-
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(
-                                        Color.White.copy(alpha = 0.28f),
-                                        Color.Transparent
-                                    ),
-                                    center = Offset(size.width * 0.34f, size.height * 0.28f),
-                                    radius = coreRadius * 0.9f
-                                ),
-                                radius = coreRadius * 0.82f,
-                                center = Offset(size.width * 0.4f, size.height * 0.36f)
-                            )
-                        }
+                        .fillMaxSize()
+                        .background(fillBrush, CircleShape)
                 )
             }
         }

@@ -40,7 +40,8 @@ fun TiplyNumericKeypad(
     touchSize: Dp = 86.dp,
     digitFontSize: TextUnit = 32.sp,
     rowSpacing: Dp = 0.dp,
-    iconSize: Dp = 38.dp
+    iconSize: Dp = 38.dp,
+    digitColor: Color = Color.White
 ) {
     val rows = listOf(
         listOf("1", "2", "3"),
@@ -64,7 +65,8 @@ fun TiplyNumericKeypad(
                         label = label,
                         onClick = { onDigit(label) },
                         touchSize = touchSize,
-                        digitFontSize = digitFontSize
+                        digitFontSize = digitFontSize,
+                        digitColor = digitColor
                     )
                 }
             }
@@ -88,7 +90,8 @@ fun TiplyNumericKeypad(
                 label = "0",
                 onClick = { onDigit("0") },
                 touchSize = touchSize,
-                digitFontSize = digitFontSize
+                digitFontSize = digitFontSize,
+                digitColor = digitColor
             )
 
             if (isLoading) {
@@ -118,7 +121,8 @@ private fun TiplyKeypadDigit(
     label: String,
     onClick: () -> Unit,
     touchSize: Dp,
-    digitFontSize: TextUnit
+    digitFontSize: TextUnit,
+    digitColor: Color
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
@@ -133,7 +137,7 @@ private fun TiplyKeypadDigit(
     ) {
         Text(
             text = label,
-            color = Color.White,
+            color = digitColor,
             fontSize = digitFontSize,
             fontWeight = FontWeight.SemiBold,
             fontFamily = MontserratFontFamily,
@@ -141,7 +145,7 @@ private fun TiplyKeypadDigit(
             style = MaterialTheme.typography.displaySmall.copy(
                 fontFamily = MontserratFontFamily,
                 shadow = Shadow(
-                    color = Color.Black.copy(alpha = 0.2f),
+                    color = Color.Black.copy(alpha = if (digitColor == Color.White) 0.2f else 0.08f),
                     blurRadius = 6f
                 )
             )
