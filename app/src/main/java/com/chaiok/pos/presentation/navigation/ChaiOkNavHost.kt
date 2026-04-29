@@ -21,19 +21,31 @@ import com.chaiok.pos.presentation.integration.IntegrationViewModel
 import com.chaiok.pos.presentation.login.LoginEvent
 import com.chaiok.pos.presentation.login.LoginScreen
 import com.chaiok.pos.presentation.login.LoginViewModel
-import com.chaiok.pos.presentation.settings.SettingsScreen
+import com.chaiok.pos.presentation.settings.SettingsRoute
+import com.chaiok.pos.presentation.settings.SettingsViewModel
 import com.chaiok.pos.presentation.status.StatusScreen
 import com.chaiok.pos.presentation.status.StatusViewModel
 import com.chaiok.pos.presentation.tips.TipsScreen
 import com.chaiok.pos.presentation.tips.TipsViewModel
+import androidx.navigation.NavHostController
 
 @Composable
 fun ChaiOkNavHost(container: AppContainer) {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Routes.Login) {
+
+    NavHost(
+        navController = navController,
+        startDestination = Routes.Login
+    ) {
         composable(Routes.Login) {
-            val vm: LoginViewModel = viewModel(factory = SimpleFactory { LoginViewModel(container.loginWithPinUseCase) })
+            val vm: LoginViewModel = viewModel(
+                factory = SimpleFactory {
+                    LoginViewModel(container.loginWithPinUseCase)
+                }
+            )
+
             val state by vm.uiState.collectAsStateWithLifecycle()
+
             LaunchedEffect(Unit) {
                 vm.oneTimeEvents.collect { event ->
                     if (event is LoginEvent.NavigateToHome) {
@@ -43,16 +55,28 @@ fun ChaiOkNavHost(container: AppContainer) {
                     }
                 }
             }
-            LoginScreen(state, vm::onDigitPressed, vm::onDeletePressed, vm::onLoginPressed)
+
+            LoginScreen(
+                state = state,
+                onDigit = vm::onDigitPressed,
+                onDelete = vm::onDeletePressed,
+                onLogin = vm::onLoginPressed
+            )
         }
 
         composable(Routes.Home) {
             val vm: HomeViewModel = viewModel(
                 factory = SimpleFactory {
-                    HomeViewModel(container.observeProfileUseCase, container.observeSettingsUseCase, container.logoutUseCase)
+                    HomeViewModel(
+                        container.observeProfileUseCase,
+                        container.observeSettingsUseCase,
+                        container.logoutUseCase
+                    )
                 }
             )
+
             val state by vm.uiState.collectAsStateWithLifecycle()
+
             LaunchedEffect(Unit) {
                 vm.oneTimeEvents.collect { event ->
                     if (event is HomeEvent.NavigateToLogin) {
@@ -62,10 +86,11 @@ fun ChaiOkNavHost(container: AppContainer) {
                     }
                 }
             }
+
             HomeScreen(
                 state = state,
                 onLogout = vm::logout,
-                onOpenSettings = { navController.navigate(Routes.Settings) },
+                onOpenSettings = { navController.navigateSingleTopTo(Routes.Settings) },
                 onDigit = vm::onAmountDigitPressed,
                 onBackspace = vm::onAmountDeletePressed,
                 onConfirm = vm::onConfirmAmount,
@@ -79,8 +104,24 @@ fun ChaiOkNavHost(container: AppContainer) {
         }
 
         composable(Routes.Settings) {
-            SettingsScreen(
-                onBack = { navController.popBackStack() },
+            val vm: SettingsViewModel = viewModel(
+                factory = SimpleFactory {
+                    SettingsViewModel(container.observeProfileUseCase)
+                }
+            )
+
+            SettingsRoute(
+                viewModel = vm,
+                onBack = {
+                    val popped = navController.popBackStack(
+                        route = Routes.Home,
+                        inclusive = false
+                    )
+
+                    if (!popped) {
+                        navController.navigateSingleTopTo(Routes.Home)
+                    }
+                },
                 onCardBinding = { navController.navigate(Routes.CardBinding) },
                 onStatus = { navController.navigate(Routes.Status) },
                 onTips = { navController.navigate(Routes.Tips) },
@@ -91,33 +132,77 @@ fun ChaiOkNavHost(container: AppContainer) {
 
         composable(Routes.CardBinding) {
             val vm: CardBindingViewModel = viewModel(
-                factory = SimpleFactory { CardBindingViewModel(container.readCardUseCase, container.linkCardUseCase) }
+                factory = SimpleFactory {
+                    CardBindingViewModel(
+                        container.readCardUseCase,
+                        container.linkCardUseCase
+                    )
+                }
             )
+
             val state by vm.uiState.collectAsStateWithLifecycle()
-            CardBindingScreen(state = state, onBack = { navController.popBackStack() }, onReadCard = vm::readCard)
+
+            CardBindingScreen(
+                state = state,
+                onBack = { navController.popBackStack() },
+                onReadCard = vm::readCard
+            )
         }
 
         composable(Routes.Status) {
-            val vm: StatusViewModel = viewModel(factory = SimpleFactory { StatusViewModel(container.updateStatusUseCase, container.observeCurrentStatusUseCase) })
+            val vm: StatusViewModel = viewModel(
+                factory = SimpleFactory {
+                    StatusViewModel(
+                        container.updateStatusUseCase,
+                        container.observeCurrentStatusUseCase
+                    )
+                }
+            )
+
             val state by vm.uiState.collectAsStateWithLifecycle()
-            StatusScreen(state, onBack = { navController.popBackStack() }, onStatusChanged = vm::onStatusChanged, onSave = vm::saveStatus)
+
+            StatusScreen(
+                state,
+                onBack = { navController.popBackStack() },
+                onStatusChanged = vm::onStatusChanged,
+                onSave = vm::saveStatus
+            )
         }
 
         composable(Routes.Tips) {
-            val vm: TipsViewModel = viewModel(factory = SimpleFactory { TipsViewModel(container.getTipsUseCase) })
+            val vm: TipsViewModel = viewModel(
+                factory = SimpleFactory {
+                    TipsViewModel(container.getTipsUseCase)
+                }
+            )
+
             val state by vm.uiState.collectAsStateWithLifecycle()
-            TipsScreen(state = state, onBack = { navController.popBackStack() })
+
+            TipsScreen(
+                state = state,
+                onBack = { navController.popBackStack() }
+            )
         }
-
-
 
         composable(Routes.Background) {
             val vm: ProfileBackgroundViewModel = viewModel(
-                factory = SimpleFactory { ProfileBackgroundViewModel(container.observeSettingsUseCase, container.updateTileBackgroundUseCase) }
+                factory = SimpleFactory {
+                    ProfileBackgroundViewModel(
+                        container.observeSettingsUseCase,
+                        container.updateTileBackgroundUseCase
+                    )
+                }
             )
+
             val state by vm.uiState.collectAsStateWithLifecycle()
-            ProfileBackgroundScreen(state = state, onBack = { navController.popBackStack() }, onSelect = vm::setBackground)
+
+            ProfileBackgroundScreen(
+                state = state,
+                onBack = { navController.popBackStack() },
+                onSelect = vm::setBackground
+            )
         }
+
         composable(Routes.Integration) {
             val vm: IntegrationViewModel = viewModel(
                 factory = SimpleFactory {
@@ -128,7 +213,9 @@ fun ChaiOkNavHost(container: AppContainer) {
                     )
                 }
             )
+
             val state by vm.uiState.collectAsStateWithLifecycle()
+
             IntegrationScreen(
                 state = state,
                 onBack = { navController.popBackStack() },
@@ -136,5 +223,11 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onToggleTableMode = vm::toggleTableMode
             )
         }
+    }
+}
+
+private fun NavHostController.navigateSingleTopTo(route: String) {
+    navigate(route) {
+        launchSingleTop = true
     }
 }

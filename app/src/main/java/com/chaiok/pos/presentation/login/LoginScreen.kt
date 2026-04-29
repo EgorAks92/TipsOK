@@ -40,6 +40,7 @@ import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
+
 private val LightScreenColor = Color(0xFFFFFFFF)
 private val PrimaryTextColor = Color(0xFF1B2128)
 
@@ -112,7 +113,7 @@ fun LoginScreen(
                 Image(
                     painter = painterResource(id = R.drawable.tiply_logo_black),
                     contentDescription = "Tiply",
-                    modifier = Modifier.size(width = 100.dp, height = 34.dp),
+                    modifier = Modifier.size(width = 120.dp, height = 54.dp),
                     contentScale = ContentScale.Fit
                 )
 
@@ -157,26 +158,55 @@ fun LoginScreen(
 
 @Composable
 private fun PinDots(pinLength: Int, isError: Boolean) {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
         repeat(4) { index ->
             val isFilled = index < pinLength
+
             val fillBrush = when {
-                isError -> Brush.radialGradient(listOf(Color(0xFFFF9094), Color(0xFFE44751)))
-                isFilled -> Brush.radialGradient(listOf(Color(0xFF47E4D9), Color(0xFF0ABFD8)))
-                else -> Brush.radialGradient(listOf(Color(0xFFE7E8E9), Color(0xFFD6D8DA)))
+                isError -> Brush.radialGradient(
+                    listOf(
+                        Color(0xFFFF9AA0),
+                        Color(0xFFE44751)
+                    )
+                )
+
+                isFilled -> Brush.radialGradient(
+                    listOf(
+                        Color(0xFF7AF3EC),
+                        Color(0xFF0ABFD8)
+                    )
+                )
+
+                else -> Brush.radialGradient(
+                    listOf(
+                        Color(0xFFF8F9FA),
+                        Color(0xFFE1E4E8)
+                    )
+                )
             }
 
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(46.dp)
                     .shadow(
-                        elevation = 7.dp,
+                        elevation = if (isFilled || isError) 12.dp else 9.dp,
                         shape = CircleShape,
-                        ambientColor = if (isError) Color(0x55FF7A81) else Color(0x33000000),
-                        spotColor = if (isError) Color(0x66FF7A81) else Color(0x22000000)
+                        ambientColor = when {
+                            isError -> Color(0x55FF7A81)
+                            isFilled -> Color(0x4435DAD8)
+                            else -> Color.Black.copy(alpha = 0.10f)
+                        },
+                        spotColor = when {
+                            isError -> Color(0x66FF7A81)
+                            isFilled -> Color(0x5520E3DE)
+                            else -> Color.Black.copy(alpha = 0.08f)
+                        }
                     )
-                    .background(color = Color(0xFFF3F3F2), shape = CircleShape)
-                    .padding(3.dp),
+                    .background(
+                        color = Color(0xFFF9FAFB),
+                        shape = CircleShape
+                    )
+                    .padding(6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Box(

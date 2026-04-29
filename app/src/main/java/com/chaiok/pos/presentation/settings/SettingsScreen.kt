@@ -1,35 +1,51 @@
 package com.chaiok.pos.presentation.settings
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Wallpaper
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.chaiok.pos.R
+import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
+import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
-@OptIn(ExperimentalMaterial3Api::class)
+private val SettingsBackgroundColor = Color.White
+private val SettingsPrimaryTextColor = Color(0xFF1B2128)
+private val SettingsSecondaryTextColor = Color(0xFF69707A)
+private val SettingsCardColor = Color(0xFFF7F8FA)
+private val SettingsIconBackgroundColor = Color(0xFFF0F2F4)
+private val SettingsAccentColor = Color(0xFF087BE8)
+
 @Composable
-fun SettingsScreen(
+fun SettingsRoute(
+    viewModel: SettingsViewModel,
     onBack: () -> Unit,
     onCardBinding: () -> Unit,
     onStatus: () -> Unit,
@@ -37,24 +53,160 @@ fun SettingsScreen(
     onIntegration: () -> Unit,
     onBackground: () -> Unit
 ) {
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("Настройки") }, navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = null) }
-        })
-    }) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            SettingsItem("Привязка карты", "Зарегистрировать карту для получения чаевых", Icons.Default.CreditCard, onCardBinding)
-            SettingsItem("Выбор статуса", "Обновить рабочий статус", Icons.Default.Person, onStatus)
-            SettingsItem("Мои чаевые", "История и сводка по чаевым", Icons.Default.ReceiptLong, onTips)
-            SettingsItem("Интеграционный режим", "Настройка POS-интеграции", Icons.Default.Link, onIntegration)
-            SettingsItem("Фон профиля", "Настройка плитки на главном экране", Icons.Default.Wallpaper, onBackground)
+    val state by viewModel.uiState.collectAsState()
+
+    SettingsScreen(
+        state = state,
+        onBack = onBack,
+        onCardBinding = onCardBinding,
+        onStatus = onStatus,
+        onTips = onTips,
+        onIntegration = onIntegration,
+        onBackground = onBackground
+    )
+}
+
+@Composable
+fun SettingsScreen(
+    state: SettingsUiState,
+    onBack: () -> Unit,
+    onCardBinding: () -> Unit,
+    onStatus: () -> Unit,
+    onTips: () -> Unit,
+    onIntegration: () -> Unit,
+    onBackground: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SettingsBackgroundColor)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                WaiterProfileCardHeader(
+                    waiterName = state.waiterName,
+                    waiterStatus = state.waiterStatus
+                )
+
+                SettingsTopAppBar(
+                    onBack = onBack,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SettingsItem(
+                    title = "Привязка карты",
+                    subtitle = "Зарегистрировать карту для получения чаевых",
+                    iconRes = R.drawable.ic_settings_card,
+                    onClick = onCardBinding
+                )
+
+                SettingsItem(
+                    title = "Выбор статуса",
+                    subtitle = "Обновить рабочий статус",
+                    iconRes = R.drawable.ic_settings_status,
+                    onClick = onStatus
+                )
+
+                SettingsItem(
+                    title = "Мои чаевые",
+                    subtitle = "История и сводка по чаевым",
+                    iconRes = R.drawable.ic_settings_tips,
+                    onClick = onTips
+                )
+
+                SettingsItem(
+                    title = "Интеграционный режим",
+                    subtitle = "Настройка POS-интеграции",
+                    iconRes = R.drawable.ic_settings_integration,
+                    onClick = onIntegration
+                )
+
+                SettingsItem(
+                    title = "Фон профиля",
+                    subtitle = "Настройка плитки на главном экране",
+                    iconRes = R.drawable.ic_settings_background,
+                    onClick = onBackground
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun SettingsTopAppBar(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val barShape = RoundedCornerShape(
+        topStart = 0.dp,
+        topEnd = 0.dp,
+        bottomStart = 46.dp,
+        bottomEnd = 46.dp
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .shadow(
+                elevation = 22.dp,
+                shape = barShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.20f),
+                spotColor = Color.Black.copy(alpha = 0.28f)
+            )
+            .clip(barShape)
+            .background(Color.White)
+            .padding(
+                start = 32.dp,
+                end = 32.dp,
+                top = 10.dp,
+                bottom = 10.dp
+            )
+    ) {
+        SettingsTopIcon(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_settings_back),
+                contentDescription = "Назад",
+                modifier = Modifier.size(30.dp),
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(SettingsPrimaryTextColor)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsTopIcon(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
     }
 }
 
@@ -62,16 +214,84 @@ fun SettingsScreen(
 private fun SettingsItem(
     title: String,
     subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconRes: Int,
     onClick: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null)
-            Column(modifier = Modifier.padding(start = 12.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium)
-            }
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 5.dp,
+                shape = RoundedCornerShape(24.dp),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.08f),
+                spotColor = Color.Black.copy(alpha = 0.12f)
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(SettingsCardColor)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(SettingsIconBackgroundColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(SettingsAccentColor)
+            )
         }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 14.dp, end = 10.dp)
+        ) {
+            Text(
+                text = title,
+                color = SettingsPrimaryTextColor,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                lineHeight = 19.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = subtitle,
+                color = SettingsSecondaryTextColor,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Text(
+            text = "›",
+            color = SettingsPrimaryTextColor.copy(alpha = 0.42f),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Normal,
+            fontSize = 28.sp,
+            lineHeight = 28.sp
+        )
     }
 }
