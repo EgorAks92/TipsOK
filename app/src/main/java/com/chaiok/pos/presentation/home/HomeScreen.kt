@@ -25,10 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
@@ -90,7 +89,7 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .drawBehind { drawHomeBackground() }
+            .background(Color(0xFFF4F4F2))
             .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
         val screenHeight = LocalConfiguration.current.screenHeightDp.dp
@@ -131,10 +130,11 @@ fun HomeScreen(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            TopActionRow(
+            TopBarAndProfileHeader(
                 onLogout = onLogout,
                 onOpenSettings = onOpenSettings,
-                iconSize = metrics.topIconSize
+                iconSize = metrics.topIconSize,
+                metrics = metrics
             )
 
             Spacer(modifier = Modifier.height(metrics.topRowSpacer))
@@ -159,6 +159,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.weight(1f))
 
                 TiplyNumericKeypad(
+                    digitColor = Color(0xFF1B2128),
                     onDigit = onDigit,
                     onDelete = onBackspace,
                     onConfirm = onConfirm,
@@ -286,31 +287,105 @@ private fun DialogActionText(
 }
 
 @Composable
-private fun TopActionRow(
+private fun TopBarAndProfileHeader(
     onLogout: () -> Unit,
     onOpenSettings: () -> Unit,
-    iconSize: Dp
+    iconSize: Dp,
+    metrics: HomeLayoutMetrics
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 2.dp, start = 2.dp, end = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TopActionIcon(onClick = onLogout) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_home_logout),
-                contentDescription = "Выйти",
-                modifier = Modifier.size(iconSize)
-            )
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .padding(top = 56.dp, start = 8.dp, end = 8.dp)
+                .clip(RoundedCornerShape(34.dp))
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(Color(0xFFF4F7FA), Color(0xFFEFF2F5), Color(0xFFF7F8FA))
+                    )
+                )
+                .drawBehind {
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color(0x5D59DFE1), Color.Transparent),
+                            center = center.copy(x = size.width * 0.2f, y = size.height * 0.35f),
+                            radius = size.minDimension * 0.75f
+                        ),
+                        radius = size.minDimension * 0.75f,
+                        center = center.copy(x = size.width * 0.2f, y = size.height * 0.35f)
+                    )
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color(0x4058C5FF), Color.Transparent),
+                            center = center.copy(x = size.width * 0.85f, y = size.height * 0.85f),
+                            radius = size.minDimension * 0.65f
+                        ),
+                        radius = size.minDimension * 0.65f,
+                        center = center.copy(x = size.width * 0.85f, y = size.height * 0.85f)
+                    )
+                    drawLine(
+                        color = Color(0x5549D6E6),
+                        start = center.copy(x = size.width * 0.06f, y = size.height * 0.95f),
+                        end = center.copy(x = size.width * 0.88f, y = size.height * 0.18f),
+                        strokeWidth = 3f
+                    )
+                }
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(0.dp, 0.dp, 42.dp, 42.dp))
+                .shadow(14.dp, RoundedCornerShape(0.dp, 0.dp, 42.dp, 42.dp))
+                .background(Color.White)
+                .padding(top = 2.dp, start = 2.dp, end = 2.dp, bottom = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TopActionIcon(onClick = onLogout) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_home_logout),
+                        contentDescription = "Выйти",
+                        modifier = Modifier.size(iconSize)
+                    )
+                }
+
+                Image(
+                    painter = painterResource(id = R.drawable.tiply_logo),
+                    contentDescription = "Tiply",
+                    modifier = Modifier.size(width = 110.dp, height = 36.dp),
+                    contentScale = ContentScale.Fit
+                )
+
+                TopActionIcon(onClick = onOpenSettings) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_home_settings),
+                        contentDescription = "Настройки",
+                        modifier = Modifier.size(iconSize)
+                    )
+                }
+            }
         }
 
-        TopActionIcon(onClick = onOpenSettings) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 2.dp)
+                .size(metrics.avatarContainerSize)
+                .clip(RoundedCornerShape(metrics.avatarRadius))
+                .background(Color(0xFFF2F3F2))
+                .shadow(10.dp, RoundedCornerShape(metrics.avatarRadius)),
+            contentAlignment = Alignment.Center
+        ) {
             Image(
-                painter = painterResource(id = R.drawable.ic_home_settings),
-                contentDescription = "Настройки",
-                modifier = Modifier.size(iconSize)
+                painter = painterResource(id = R.drawable.ic_waiter_avatar),
+                contentDescription = "Аватар официанта",
+                modifier = Modifier.size(metrics.avatarImageSize),
+                contentScale = ContentScale.Fit
             )
         }
     }
@@ -354,26 +429,11 @@ private fun ProfileSection(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .size(metrics.avatarContainerSize)
-                .clip(RoundedCornerShape(metrics.avatarRadius))
-                .background(Color.White),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_waiter_avatar),
-                contentDescription = "Аватар официанта",
-                modifier = Modifier.size(metrics.avatarImageSize),
-                contentScale = ContentScale.Fit
-            )
-        }
-
-        Spacer(modifier = Modifier.height(metrics.profileSpacer))
+        Spacer(modifier = Modifier.height(metrics.profileSpacer + 8.dp))
 
         Text(
             text = displayName,
-            color = Color.White,
+            color = Color(0xFF1B2128),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = metrics.nameSize.sp,
@@ -386,7 +446,7 @@ private fun ProfileSection(
 
         Text(
             text = state.profile?.status?.ifBlank { "Коплю на отпуск!" } ?: "Коплю на отпуск!",
-            color = Color.White.copy(alpha = 0.88f),
+            color = Color(0xFF3B4148),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = metrics.statusSize.sp,
@@ -414,7 +474,7 @@ private fun AmountSection(
     ) {
         Text(
             text = "Введите сумму счёта:",
-            color = Color.White,
+            color = Color(0xFF1B2128),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = metrics.amountLabelSize.sp,
@@ -425,7 +485,7 @@ private fun AmountSection(
 
         Text(
             text = formatAmount(amountInput),
-            color = Color.White,
+            color = Color(0xFF1B2128),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = amountTextSize,
@@ -468,42 +528,6 @@ private fun TableModePlaceholder() {
             textAlign = TextAlign.Center
         )
     }
-}
-
-private fun DrawScope.drawHomeBackground() {
-    val baseTop = Color(0xFF151B23)
-    val baseBottom = Color(0xFF111821)
-
-    drawRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(baseTop, baseBottom)
-        )
-    )
-
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0x660791E6),
-                Color(0x4D176FC6),
-                Color.Transparent
-            ),
-            center = Offset(size.width * 0.2f, size.height * 0.72f),
-            radius = size.maxDimension * 0.95f
-        ),
-        radius = size.maxDimension
-    )
-
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0x2D2A78B9),
-                Color.Transparent
-            ),
-            center = Offset(size.width * 0.82f, size.height * 0.7f),
-            radius = size.maxDimension * 0.78f
-        ),
-        radius = size.maxDimension
-    )
 }
 
 private fun formatAmount(input: String): String {
