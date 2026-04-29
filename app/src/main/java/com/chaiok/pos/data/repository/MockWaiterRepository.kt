@@ -21,9 +21,9 @@ class MockWaiterRepository(
         // TODO: Replace with real waiter profile API.
         val loaded = WaiterProfile(
             id = waiterId,
-            firstName = "Анна",
-            lastName = "Смирнова",
-            status = "На смене",
+            firstName = "Ваш",
+            lastName = "Официант",
+            status = "Коплю на отпуск!",
             hasLinkedCard = false,
             cardSha256 = null
         )

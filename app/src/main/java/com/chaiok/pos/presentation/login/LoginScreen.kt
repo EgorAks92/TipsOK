@@ -40,7 +40,7 @@ import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
-private val LightScreenColor = Color(0xFFF4F4F2)
+private val LightScreenColor = Color(0xFFFFFFFF)
 private val PrimaryTextColor = Color(0xFF1B2128)
 
 @Composable
@@ -110,7 +110,7 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.tiply_logo),
+                    painter = painterResource(id = R.drawable.tiply_logo_black),
                     contentDescription = "Tiply",
                     modifier = Modifier.size(width = 100.dp, height = 34.dp),
                     contentScale = ContentScale.Fit

@@ -26,21 +26,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import androidx.compose.foundation.layout.widthIn
 
 private data class HomeLayoutMetrics(
     val topRowSpacer: Dp,
@@ -55,7 +63,12 @@ private data class HomeLayoutMetrics(
     val amountBaseSize: Int,
     val amountSpacer: Dp,
     val topIconSize: Dp,
-    val bottomPadding: Dp
+    val bottomPadding: Dp,
+    val headerHeight: Dp,
+    val waiterCardTopPadding: Dp,
+    val waiterCardHeight: Dp,
+    val waiterCardHorizontalPadding: Dp,
+    val waiterCardCutoutPadding: Dp
 )
 
 @Composable
@@ -89,8 +102,7 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF4F4F2))
-            .padding(horizontal = 24.dp, vertical = 14.dp)
+            .background(Color.White)
     ) {
         val screenHeight = LocalConfiguration.current.screenHeightDp.dp
         val isCompact = screenHeight < 780.dp
@@ -98,23 +110,28 @@ fun HomeScreen(
         val metrics = if (isCompact) {
             HomeLayoutMetrics(
                 topRowSpacer = 6.dp,
-                profileSpacer = 10.dp,
-                avatarContainerSize = 72.dp,
-                avatarImageSize = 64.dp,
+                profileSpacer = 0.dp,
+                avatarContainerSize = 70.dp,
+                avatarImageSize = 62.dp,
                 avatarRadius = 22.dp,
                 nameSize = 16,
-                nameStatusSpacer = 8.dp,
+                nameStatusSpacer = 0.dp,
                 statusSize = 14,
                 amountLabelSize = 16,
                 amountBaseSize = 48,
                 amountSpacer = 12.dp,
                 topIconSize = 30.dp,
-                bottomPadding = 12.dp
+                bottomPadding = 12.dp,
+                headerHeight = 224.dp,
+                waiterCardTopPadding = 16.dp,
+                waiterCardHeight = 178.dp,
+                waiterCardHorizontalPadding = 32.dp,
+                waiterCardCutoutPadding = 12.dp
             )
         } else {
             HomeLayoutMetrics(
                 topRowSpacer = 8.dp,
-                profileSpacer = 16.dp,
+                profileSpacer = 0.dp,
                 avatarContainerSize = 72.dp,
                 avatarImageSize = 64.dp,
                 avatarRadius = 22.dp,
@@ -125,12 +142,17 @@ fun HomeScreen(
                 amountBaseSize = 48,
                 amountSpacer = 20.dp,
                 topIconSize = 34.dp,
-                bottomPadding = 24.dp
+                bottomPadding = 24.dp,
+                headerHeight = 242.dp,
+                waiterCardTopPadding = 16.dp,
+                waiterCardHeight = 196.dp,
+                waiterCardHorizontalPadding = 16.dp,
+                waiterCardCutoutPadding = 12.dp
             )
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            TopBarAndProfileHeader(
+            HomeHeader(
                 onLogout = onLogout,
                 onOpenSettings = onOpenSettings,
                 iconSize = metrics.topIconSize,
@@ -182,6 +204,216 @@ fun HomeScreen(
 }
 
 @Composable
+private fun HomeHeader(
+    onLogout: () -> Unit,
+    onOpenSettings: () -> Unit,
+    iconSize: Dp,
+    metrics: HomeLayoutMetrics
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(metrics.headerHeight)
+    ) {
+        WaiterBackgroundCard(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = metrics.waiterCardTopPadding),
+            cardHeight = metrics.waiterCardHeight,
+            horizontalPadding = metrics.waiterCardHorizontalPadding,
+            avatarSize = metrics.avatarContainerSize,
+            avatarRadius = metrics.avatarRadius,
+            cutoutPadding = metrics.waiterCardCutoutPadding
+        )
+
+        HomeTopAppBar(
+            onLogout = onLogout,
+            onOpenSettings = onOpenSettings,
+            iconSize = iconSize,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+
+        WaiterAvatar(
+            metrics = metrics,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(
+                    top = metrics.waiterCardTopPadding +
+                            metrics.waiterCardHeight -
+                            (metrics.avatarContainerSize * 0.64f)
+                )
+        )
+    }
+}
+
+@Composable
+private fun WaiterBackgroundCard(
+    modifier: Modifier = Modifier,
+    cardHeight: Dp,
+    horizontalPadding: Dp,
+    avatarSize: Dp,
+    avatarRadius: Dp,
+    cutoutPadding: Dp,
+    backgroundRes: Int = R.drawable.waiter_card_background
+) {
+    val cardShape = WaiterCardAvatarCutoutShape(
+        cornerRadius = 32.dp,
+        avatarSize = avatarSize,
+        avatarRadius = avatarRadius,
+        cutoutPadding = cutoutPadding
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = horizontalPadding)
+            .height(cardHeight)
+            .shadow(
+                elevation = 4.dp,
+                shape = cardShape,
+                clip = false,
+                ambientColor = Color(0x40000000),
+                spotColor = Color(0x40000000)
+            )
+            .clip(cardShape)
+    ) {
+        Image(
+            painter = painterResource(id = backgroundRes),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds
+        )
+    }
+}
+
+private class WaiterCardAvatarCutoutShape(
+    private val cornerRadius: Dp,
+    private val avatarSize: Dp,
+    private val avatarRadius: Dp,
+    private val cutoutPadding: Dp
+) : Shape {
+
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val path = Path()
+
+        with(density) {
+            val width = size.width
+            val height = size.height
+
+            val cardRadius = cornerRadius.toPx()
+                .coerceAtMost(width / 2f)
+                .coerceAtMost(height / 2f)
+
+            val gap = cutoutPadding.toPx()
+            val cutoutWidth = avatarSize.toPx() + gap * 2f
+            val cutoutDepth = avatarSize.toPx() * 0.64f + gap
+            val cutoutRadius = avatarRadius.toPx() + gap
+
+            val centerX = width / 2f
+
+            val cutoutLeft = (centerX - cutoutWidth / 2f)
+                .coerceAtLeast(cardRadius)
+
+            val cutoutRight = (centerX + cutoutWidth / 2f)
+                .coerceAtMost(width - cardRadius)
+
+            val cutoutTop = (height - cutoutDepth)
+                .coerceAtLeast(cardRadius)
+
+            path.moveTo(cardRadius, 0f)
+
+            path.lineTo(width - cardRadius, 0f)
+            path.quadraticBezierTo(width, 0f, width, cardRadius)
+
+            path.lineTo(width, height - cardRadius)
+            path.quadraticBezierTo(width, height, width - cardRadius, height)
+
+            val bottomCutoutRadius = 24.dp.toPx()
+
+            path.lineTo(cutoutRight + bottomCutoutRadius, height)
+
+            path.quadraticBezierTo(
+                cutoutRight,
+                height,
+                cutoutRight,
+                height - bottomCutoutRadius
+            )
+
+            path.lineTo(cutoutRight, cutoutTop + cutoutRadius)
+
+            path.quadraticBezierTo(
+                cutoutRight,
+                cutoutTop,
+                cutoutRight - cutoutRadius,
+                cutoutTop
+            )
+
+            path.lineTo(cutoutLeft + cutoutRadius, cutoutTop)
+
+            path.quadraticBezierTo(
+                cutoutLeft,
+                cutoutTop,
+                cutoutLeft,
+                cutoutTop + cutoutRadius
+            )
+
+            path.lineTo(cutoutLeft, height - bottomCutoutRadius)
+
+            path.quadraticBezierTo(
+                cutoutLeft,
+                height,
+                cutoutLeft - bottomCutoutRadius,
+                height
+            )
+
+            path.lineTo(cardRadius, height)
+            path.quadraticBezierTo(0f, height, 0f, height - cardRadius)
+
+            path.lineTo(0f, cardRadius)
+            path.quadraticBezierTo(0f, 0f, cardRadius, 0f)
+
+            path.close()
+        }
+
+        return Outline.Generic(path)
+    }
+}
+
+@Composable
+private fun WaiterAvatar(
+    metrics: HomeLayoutMetrics,
+    modifier: Modifier = Modifier
+) {
+    val avatarShape = RoundedCornerShape(metrics.avatarRadius)
+
+    Box(
+        modifier = modifier
+            .size(metrics.avatarContainerSize)
+            .shadow(
+                elevation = 8.dp,
+                shape = avatarShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.16f),
+                spotColor = Color.Black.copy(alpha = 0.22f)
+            )
+            .clip(avatarShape)
+            .background(Color(0xFFF2F3F2)),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_waiter_avatar),
+            contentDescription = "Аватар официанта",
+            modifier = Modifier.size(metrics.avatarImageSize),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
+
+@Composable
 private fun LinkCardDialog(
     onBindCard: () -> Unit,
     onDismiss: () -> Unit
@@ -207,7 +439,7 @@ private fun LinkCardDialog(
                 Image(
                     painter = painterResource(id = R.drawable.tiply_logo_black),
                     contentDescription = "Tiply",
-                    modifier = Modifier.size(width = 116.dp, height = 38.dp),
+                    modifier = Modifier.size(width = 100.dp, height = 34.dp),
                     contentScale = ContentScale.Fit
                 )
 
@@ -287,106 +519,63 @@ private fun DialogActionText(
 }
 
 @Composable
-private fun TopBarAndProfileHeader(
+private fun HomeTopAppBar(
     onLogout: () -> Unit,
     onOpenSettings: () -> Unit,
     iconSize: Dp,
-    metrics: HomeLayoutMetrics
+    modifier: Modifier = Modifier
 ) {
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(260.dp)
-                .padding(top = 56.dp, start = 8.dp, end = 8.dp)
-                .clip(RoundedCornerShape(34.dp))
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(Color(0xFFF4F7FA), Color(0xFFEFF2F5), Color(0xFFF7F8FA))
-                    )
-                )
-                .drawBehind {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color(0x5D59DFE1), Color.Transparent),
-                            center = center.copy(x = size.width * 0.2f, y = size.height * 0.35f),
-                            radius = size.minDimension * 0.75f
-                        ),
-                        radius = size.minDimension * 0.75f,
-                        center = center.copy(x = size.width * 0.2f, y = size.height * 0.35f)
-                    )
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color(0x4058C5FF), Color.Transparent),
-                            center = center.copy(x = size.width * 0.85f, y = size.height * 0.85f),
-                            radius = size.minDimension * 0.65f
-                        ),
-                        radius = size.minDimension * 0.65f,
-                        center = center.copy(x = size.width * 0.85f, y = size.height * 0.85f)
-                    )
-                    drawLine(
-                        color = Color(0x5549D6E6),
-                        start = center.copy(x = size.width * 0.06f, y = size.height * 0.95f),
-                        end = center.copy(x = size.width * 0.88f, y = size.height * 0.18f),
-                        strokeWidth = 3f
-                    )
-                }
-        )
+    val barShape = RoundedCornerShape(
+        topStart = 0.dp,
+        topEnd = 0.dp,
+        bottomStart = 46.dp,
+        bottomEnd = 46.dp
+    )
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(0.dp, 0.dp, 42.dp, 42.dp))
-                .shadow(14.dp, RoundedCornerShape(0.dp, 0.dp, 42.dp, 42.dp))
-                .background(Color.White)
-                .padding(top = 2.dp, start = 2.dp, end = 2.dp, bottom = 12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TopActionIcon(onClick = onLogout) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_home_logout),
-                        contentDescription = "Выйти",
-                        modifier = Modifier.size(iconSize)
-                    )
-                }
-
-                Image(
-                    painter = painterResource(id = R.drawable.tiply_logo),
-                    contentDescription = "Tiply",
-                    modifier = Modifier.size(width = 110.dp, height = 36.dp),
-                    contentScale = ContentScale.Fit
-                )
-
-                TopActionIcon(onClick = onOpenSettings) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_home_settings),
-                        contentDescription = "Настройки",
-                        modifier = Modifier.size(iconSize)
-                    )
-                }
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 2.dp)
-                .size(metrics.avatarContainerSize)
-                .clip(RoundedCornerShape(metrics.avatarRadius))
-                .background(Color(0xFFF2F3F2))
-                .shadow(10.dp, RoundedCornerShape(metrics.avatarRadius)),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_waiter_avatar),
-                contentDescription = "Аватар официанта",
-                modifier = Modifier.size(metrics.avatarImageSize),
-                contentScale = ContentScale.Fit
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(84.dp)
+            .shadow(
+                elevation = 22.dp,
+                shape = barShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.20f),
+                spotColor = Color.Black.copy(alpha = 0.28f)
             )
+            .clip(barShape)
+            .background(Color.White)
+            .padding(
+                start = 32.dp,
+                end = 32.dp,
+                top = 14.dp,
+                bottom = 12.dp
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.Center),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TopActionIcon(onClick = onOpenSettings) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_home_settings),
+                    contentDescription = "Настройки",
+                    modifier = Modifier.size(iconSize),
+                    colorFilter = ColorFilter.tint(Color(0xFF1B2128))
+                )
+            }
+
+            TopActionIcon(onClick = onLogout) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_home_logout),
+                    contentDescription = "Выйти",
+                    modifier = Modifier.size(iconSize),
+                    colorFilter = ColorFilter.tint(Color(0xFF1B2128))
+                )
+            }
         }
     }
 }
@@ -429,7 +618,7 @@ private fun ProfileSection(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(metrics.profileSpacer + 8.dp))
+        Spacer(modifier = Modifier.height(metrics.profileSpacer))
 
         Text(
             text = displayName,
@@ -469,7 +658,9 @@ private fun AmountSection(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(92.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -478,23 +669,32 @@ private fun AmountSection(
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = metrics.amountLabelSize.sp,
+            lineHeight = metrics.amountLabelSize.sp,
             textAlign = TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(metrics.amountSpacer))
 
-        Text(
-            text = formatAmount(amountInput),
-            color = Color(0xFF1B2128),
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = amountTextSize,
-            textAlign = TextAlign.Center,
-            lineHeight = amountTextSize,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = formatAmount(amountInput),
+                modifier = Modifier.widthIn(max = 320.dp),
+                color = Color(0xFF1B2128),
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = amountTextSize,
+                lineHeight = metrics.amountBaseSize.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
