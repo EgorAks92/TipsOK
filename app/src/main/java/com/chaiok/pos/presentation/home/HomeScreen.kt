@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -44,6 +43,8 @@ import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import androidx.compose.foundation.layout.widthIn
+
 
 private data class HomeLayoutMetrics(
     val amountLabelSize: Int,
@@ -310,11 +311,11 @@ private fun HomeTopAppBar(
             .fillMaxWidth()
             .height(72.dp)
             .shadow(
-                elevation = 22.dp,
+                elevation = 14.dp,
                 shape = barShape,
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.20f),
-                spotColor = Color.Black.copy(alpha = 0.28f)
+                ambientColor = Color.Black.copy(alpha = 0.64f),
+                spotColor = Color.Black.copy(alpha = 0.72f)
             )
             .clip(barShape)
             .background(Color.White)

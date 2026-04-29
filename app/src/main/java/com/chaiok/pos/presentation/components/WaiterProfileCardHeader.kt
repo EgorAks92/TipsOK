@@ -179,11 +179,11 @@ private fun WaiterBackgroundCard(
             .padding(horizontal = horizontalPadding)
             .height(cardHeight)
             .shadow(
-                elevation = 4.dp,
+                elevation = 14.dp,
                 shape = cardShape,
                 clip = false,
-                ambientColor = Color(0x40000000),
-                spotColor = Color(0x40000000)
+                ambientColor = Color.Black.copy(alpha = 0.64f),
+                spotColor = Color.Black.copy(alpha = 0.72f)
             )
             .clip(cardShape)
     ) {
