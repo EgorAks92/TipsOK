@@ -112,7 +112,7 @@ fun LoginScreen(
                     contentScale = ContentScale.Fit
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(116.dp))
 
                 Text(
                     text = "Введите PIN-код",
@@ -126,7 +126,7 @@ fun LoginScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(64.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
                 PinDots(
                     pinLength = state.pin.length,
@@ -209,7 +209,7 @@ private fun PinDots(pinLength: Int, isLoading: Boolean, isError: Boolean) {
             val active = isError || isFilled
 
             Box(
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(32.dp),
                 contentAlignment = Alignment.Center
             ) {
                 val glowColor = if (isError) {
@@ -228,9 +228,9 @@ private fun PinDots(pinLength: Int, isLoading: Boolean, isError: Boolean) {
                                 drawCircle(
                                     brush = Brush.radialGradient(
                                         colors = listOf(
-                                            glowColor.copy(alpha = 0.42f * boost),
-                                            glowColor.copy(alpha = 0.18f * boost),
-                                            glowColor.copy(alpha = 0.06f * boost),
+                                            glowColor.copy(alpha = 0.38f * boost),
+                                            glowColor.copy(alpha = 0.15f * boost),
+                                            glowColor.copy(alpha = 0.05f * boost),
                                             Color.Transparent
                                         ),
                                         center = center,
@@ -244,9 +244,9 @@ private fun PinDots(pinLength: Int, isLoading: Boolean, isError: Boolean) {
 
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(38.dp)
                         .drawBehind {
-                            val coreRadius = 15.5.dp.toPx()
+                            val coreRadius = 12.dp.toPx()
 
                             val coreBrush = when {
                                 isError -> Brush.radialGradient(
