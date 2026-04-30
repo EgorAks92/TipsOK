@@ -6,6 +6,7 @@ import com.chaiok.pos.domain.repository.AuthRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.TerminalDataProvider
 import com.chaiok.pos.domain.repository.WaiterRepository
+import android.util.Log
 
 class LoginWithPinUseCase(
     private val authRepository: AuthRepository,
