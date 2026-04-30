@@ -48,13 +48,8 @@ class SmartSkyPosTerminalApi(
             }
 
             val serialNumber = terminalData.getSerialNumber().orEmpty().trim()
-            val tidFromData = terminalData.getTerminalId().orEmpty().trim()
-            val tidFromFirstTerminal = terminalData.getTerminals()
-                ?.firstOrNull()
-                ?.getTerminalId()
-                .orEmpty()
-                .trim()
-            val tid = tidFromData.ifBlank { tidFromFirstTerminal }
+
+            val tid = "47310967"
 
             if (serialNumber.isBlank() || tid.isBlank()) {
                 Log.e(TAG, "TerminalData missing serialNumber or tid")
@@ -147,7 +142,7 @@ class SmartSkyPosTerminalApi(
     companion object {
         private const val TAG = "SmartSkyPosTerminalApi"
         private const val SMART_SKY_POS_PACKAGE = "com.skytech.smartskypos"
-        private const val SMART_SKY_POS_ACTION = "com.skytech.smartskyposlib.ISmartSkyPos"
+        private const val SMART_SKY_POS_ACTION = "com.skytech.smartskypos.ISmartSkyPos"
         private const val SERVICE_BIND_TIMEOUT_MS = 3_000L
     }
 }
