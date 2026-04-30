@@ -7,6 +7,7 @@ import com.chaiok.pos.data.remote.dto.ApiResponseTransactionRangeDto
 import com.chaiok.pos.data.remote.dto.TerminalAuthRequestDto
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 
@@ -20,7 +21,7 @@ interface TerminalApi {
         @Body request: GetTransactionsRequestDto
     ): Response<ApiResponseTransactionsDto>
 
-    @POST("getTransactionRange")
+    @GET("getTransactionRange")
     suspend fun getTransactionRange(
         @Header("Authorization") authorization: String
     ): Response<ApiResponseTransactionRangeDto>

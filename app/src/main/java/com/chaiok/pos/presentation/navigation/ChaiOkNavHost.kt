@@ -212,9 +212,9 @@ fun ChaiOkNavHost(container: AppContainer) {
 
         composable(
             route = Routes.TipSelectionWithArg,
-            arguments = listOf(navArgument("billAmount") { type = NavType.FloatType })
+            arguments = listOf(navArgument("billAmountRub") { type = NavType.IntType })
         ) { backStack ->
-            val billAmount = backStack.arguments?.getFloat("billAmount")?.toDouble() ?: 0.0
+            val billAmount = backStack.arguments?.getInt("billAmountRub")?.toDouble() ?: 0.0
             val vm: TipSelectionViewModel = viewModel(factory = SimpleFactory {
                 TipSelectionViewModel(
                     billAmount = billAmount,
@@ -225,6 +225,7 @@ fun ChaiOkNavHost(container: AppContainer) {
             val state by vm.uiState.collectAsStateWithLifecycle()
             TipSelectionScreen(
                 state = state,
+                onBack = { navController.popBackStack() },
                 onPreset = vm::selectPreset,
                 onCustomStart = vm::openCustomDialog,
                 onCustomSet = vm::applyCustom,

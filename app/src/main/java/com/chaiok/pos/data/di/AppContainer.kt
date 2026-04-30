@@ -5,6 +5,7 @@ import android.util.Log
 import com.chaiok.pos.data.remote.TerminalNetworkFactory
 import com.chaiok.pos.data.repository.BackendAuthRepository
 import com.chaiok.pos.data.repository.BackendTipsRepository
+import com.chaiok.pos.data.repository.BackendTipRangeRepository
 import com.chaiok.pos.data.repository.DataStoreSettingsRepository
 import com.chaiok.pos.data.repository.InMemorySessionRepository
 import com.chaiok.pos.data.repository.MockAuthRepository
