@@ -44,7 +44,10 @@ fun ChaiOkNavHost(container: AppContainer) {
         composable(Routes.Login) {
             val vm: LoginViewModel = viewModel(
                 factory = SimpleFactory {
-                    LoginViewModel(container.loginWithPinUseCase)
+                    LoginViewModel(
+                        container.loginWithPinUseCase,
+                        container.getTransactionRangeUseCase
+                    )
                 }
             )
 

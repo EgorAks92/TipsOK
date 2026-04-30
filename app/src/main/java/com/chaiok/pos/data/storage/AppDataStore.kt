@@ -33,8 +33,9 @@ class AppDataStore(private val context: Context) {
     val hasLinkedCardFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.hasLinkedCard] ?: false }
     val cardShaFlow: Flow<String?> = context.dataStore.data.map { it[Keys.cardSha] }
     val tipRangeFlow: Flow<TipRange?> = context.dataStore.data.map { prefs ->
-        val percentsRaw = prefs[Keys.tipRangePercents] ?: return@map null
+        val percentsRaw = prefs[Keys.tipRangePercents]?.takeIf { it.isNotBlank() } ?: return@map null
         val percents = percentsRaw.split(",").mapNotNull { it.toDoubleOrNull() }
+        if (percents.isEmpty()) return@map null
         TipRange(
             percents = percents,
             startRange = prefs[Keys.tipRangeStart] ?: 0,

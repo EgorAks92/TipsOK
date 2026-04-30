@@ -6,15 +6,13 @@ import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.TerminalDataProvider
-import com.chaiok.pos.domain.repository.TipRangeRepository
 import com.chaiok.pos.domain.repository.WaiterRepository
 
 class LoginWithPinUseCase(
     private val authRepository: AuthRepository,
     private val terminalDataProvider: TerminalDataProvider,
     private val waiterRepository: WaiterRepository,
-    private val sessionRepository: SessionRepository,
-    private val tipRangeRepository: TipRangeRepository
+    private val sessionRepository: SessionRepository
 ) {
     suspend operator fun invoke(pin: String): Result<WaiterProfile> {
         Log.e("LoginFlow", "LoginWithPinUseCase started")
@@ -33,10 +31,6 @@ class LoginWithPinUseCase(
         sessionRepository.setProfileId(authSession.profileId)
         sessionRepository.setAccessToken(authSession.accessToken)
         waiterRepository.setCardConnected(authSession.isCardConnected)
-
-        tipRangeRepository.refreshTransactionRange().onFailure {
-            Log.e("LoginFlow", "refreshTransactionRange failed after login: ${it.message}", it)
-        }
 
         return waiterRepository.loadProfile(authSession.waiterId)
     }

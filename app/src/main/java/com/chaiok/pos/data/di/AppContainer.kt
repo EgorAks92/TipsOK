@@ -77,8 +77,7 @@ class AppContainer(context: Context) {
         authRepository,
         terminalDataProvider,
         waiterRepository,
-        sessionRepository,
-        tipRangeRepository
+        sessionRepository
     )
     val logoutUseCase = LogoutUseCase(authRepository, sessionRepository)
     val observeProfileUseCase = ObserveProfileUseCase(waiterRepository)
