@@ -39,12 +39,10 @@ class BackendTipsRepository(
             } ?: return@mapNotNull null
             val amount = dto.amount ?: 0.0
             val percent = dto.billPercentage ?: 0.0
-            val billAmount = if (percent > 0.0) amount * 100.0 / percent else 0.0
-            // TODO: replace calculated billAmount when backend starts returning bill amount.
             TipRecord(
                 id = (dto.id ?: 0L).toString(),
                 dateTime = dt,
-                billAmount = billAmount,
+                billAmount = 0.0,
                 tipPercent = percent.toInt(),
                 tipAmount = amount
             )
