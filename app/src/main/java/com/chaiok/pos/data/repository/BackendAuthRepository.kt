@@ -4,6 +4,7 @@ import android.util.Log
 import com.chaiok.pos.data.remote.TerminalApi
 import com.chaiok.pos.data.remote.dto.TerminalAuthRequestDto
 import com.chaiok.pos.domain.error.DomainError
+import com.chaiok.pos.domain.model.AuthSession
 import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.google.gson.JsonElement
@@ -16,64 +17,32 @@ class BackendAuthRepository(
     private val api: TerminalApi
 ) : AuthRepository {
 
-    override suspend fun login(pin: String, terminalInfo: TerminalInfo): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun login(pin: String, terminalInfo: TerminalInfo): Result<AuthSession> = withContext(Dispatchers.IO) {
         runCatching {
-            val request = TerminalAuthRequestDto(
-                waiterCode = pin,
-                serialNumber = terminalInfo.serialNumber,
-                tid = terminalInfo.tid
-            )
-
-            Log.e(
-                "LoginFlow",
-                "terminalLogin request started serial=***${terminalInfo.serialNumber.takeLast(4)} tid=***${terminalInfo.tid.takeLast(4)}"
-            )
+            val request = TerminalAuthRequestDto(pin, terminalInfo.serialNumber, terminalInfo.tid)
+            Log.e("LoginFlow", "terminalLogin request started serial=***${terminalInfo.serialNumber.takeLast(4)} tid=***${terminalInfo.tid.takeLast(4)}")
             val response = api.terminalLogin(request)
             Log.e("LoginFlow", "terminalLogin response httpCode=${response.code()} isSuccessful=${response.isSuccessful}")
-            if (!response.isSuccessful) {
-                throw when (response.code()) {
-                    400 -> DomainError.InvalidPin
-                    else -> DomainError.LoginFailed
-                }
-            }
+            if (!response.isSuccessful) throw if (response.code() == 400) DomainError.InvalidPin else DomainError.LoginFailed
 
-            val body = response.body() ?: run {
-                Log.e("LoginFlow", "terminalLogin body is null")
-                throw DomainError.LoginFailed
-            }
-            if (!body.status.isSuccessStatus()) {
-                Log.e("LoginFlow", "terminalLogin status is not success: ${body.status}")
-                throw DomainError.LoginFailed
-            }
+            val body = response.body() ?: throw DomainError.LoginFailed
+            if (!body.status.isSuccessStatus()) throw DomainError.LoginFailed
 
             val payload = body.data ?: throw DomainError.LoginFailed
-            val waiterId = payload.extractWaiterId()
-                ?: run {
-                    Log.e("LoginFlow", "terminalLogin waiterId not found in data")
-                    throw DomainError.LoginFailed
-                } // TODO: replace flexible parsing after backend provides exact TerminalLogin response schema.
+            val waiterId = payload.extractWaiterId() ?: throw DomainError.LoginFailed
+            val profileId = payload.extractProfileId() ?: throw DomainError.LoginFailed
+            val token = payload.extractAuthToken()?.takeIf { it.isNotBlank() } ?: throw DomainError.LoginFailed
+
             Log.e("LoginFlow", "terminalLogin waiterId extracted=$waiterId")
+            Log.e("LoginFlow", "terminalLogin profileId extracted=$profileId")
+            Log.e("LoginFlow", "terminalLogin accessToken found=true")
 
-            val token = payload.extractAuthToken()
-            if (token != null) {
-                Log.e("LoginFlow", "terminalLogin accessToken found=true")
-                // TODO: store auth token in SessionRepository when protected endpoints are connected.
-            } else {
-                Log.e("LoginFlow", "terminalLogin accessToken found=false")
-            }
-
-            waiterId
+            AuthSession(waiterId = waiterId, profileId = profileId, accessToken = token)
         }.recoverCatching { error ->
             throw when (error) {
                 is DomainError -> error
-                is IOException -> {
-                    Log.e("LoginFlow", "terminalLogin IOException: ${error.message}", error)
-                    DomainError.LoginFailed
-                }
-                else -> {
-                    Log.e("LoginFlow", "terminalLogin failed: ${error.message}", error)
-                    DomainError.LoginFailed
-                }
+                is IOException -> DomainError.LoginFailed
+                else -> DomainError.LoginFailed
             }
         }
     }
@@ -81,43 +50,32 @@ class BackendAuthRepository(
     override suspend fun logout() = Unit
 }
 
-private fun String?.isSuccessStatus(): Boolean {
-    return equals("OK", ignoreCase = true) ||
-        equals("SUCCESS", ignoreCase = true)
-}
+private fun String?.isSuccessStatus(): Boolean = equals("OK", true) || equals("SUCCESS", true)
 
-private fun JsonElement.asStringOrNumberString(): String? {
-    return when {
-        isJsonPrimitive && asJsonPrimitive.isString -> asString
-        isJsonPrimitive && asJsonPrimitive.isNumber -> asNumber.toString()
-        else -> null
-    }
+private fun JsonElement.asStringOrNumberString(): String? = when {
+    isJsonPrimitive && asJsonPrimitive.isString -> asString
+    isJsonPrimitive && asJsonPrimitive.isNumber -> asNumber.toString()
+    else -> null
 }
 
 private fun JsonObject.extractWaiterId(): String? {
-    val directFields = listOf("waiterId", "profileId", "id", "userId")
+    getAsJsonObject("profile")?.get("waiterId")?.asStringOrNumberString()?.let { return it }
+    return listOf("waiterId", "profileId", "id", "userId")
+        .asSequence()
+        .mapNotNull { get(it) }
+        .firstNotNullOfOrNull { it.asStringOrNumberString() }
+}
 
-    directFields.asSequence()
-        .mapNotNull { key -> get(key) }
-        .firstNotNullOfOrNull { element -> element.asStringOrNumberString() }
-        ?.let { return it }
-
+private fun JsonObject.extractProfileId(): Long? {
     val profile = getAsJsonObject("profile")
-
-    if (profile != null) {
-        listOf("waiterId", "id", "profileId", "userId")
-            .asSequence()
-            .mapNotNull { key -> profile.get(key) }
-            .firstNotNullOfOrNull { element -> element.asStringOrNumberString() }
-            ?.let { return it }
+    val value = profile?.get("id") ?: get("profileId") ?: get("id")
+    return value?.let {
+        if (it.isJsonPrimitive && it.asJsonPrimitive.isNumber) it.asLong
+        else it.asStringOrNumberString()?.toLongOrNull()
     }
-
-    return null
 }
 
 private fun JsonObject.extractAuthToken(): String? {
-    val fields = listOf("token", "accessToken", "authToken", "authorization")
-    return fields.asSequence()
-        .mapNotNull { key -> this.get(key) }
-        .firstNotNullOfOrNull { element -> element.asStringOrNumberString() }
+    val fields = listOf("accessToken", "token", "authToken", "authorization")
+    return fields.asSequence().mapNotNull { get(it) }.firstNotNullOfOrNull { it.asStringOrNumberString() }
 }

@@ -9,6 +9,6 @@ class LogoutUseCase(
 ) {
     suspend operator fun invoke() {
         authRepository.logout()
-        sessionRepository.setActiveWaiter(null)
+        sessionRepository.clear()
     }
 }
