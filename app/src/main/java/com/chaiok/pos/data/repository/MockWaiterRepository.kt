@@ -56,10 +56,14 @@ class MockWaiterRepository(
     override suspend fun setCardConnected(isConnected: Boolean): Result<Unit> = runCatching {
         loginCardConnected.value = isConnected
         dataStore.setHasLinkedCard(isConnected)
-        if (!isConnected) {
-            dataStore.setCardSha(null)
+
+        baseProfile.update {
+            it?.copy(
+                hasLinkedCard = isConnected,
+                cardSha256 = if (isConnected) it.cardSha256 else null
+            )
         }
-        baseProfile.update { it?.copy(hasLinkedCard = isConnected) }
+
         Unit
     }
 
