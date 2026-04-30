@@ -3,6 +3,8 @@ package com.chaiok.pos.domain
 import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.chaiok.pos.domain.repository.SessionRepository
+import com.chaiok.pos.domain.model.TerminalInfo
+import com.chaiok.pos.domain.repository.TerminalDataProvider
 import com.chaiok.pos.domain.repository.WaiterRepository
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import kotlinx.coroutines.flow.Flow
@@ -14,14 +16,14 @@ import org.junit.Test
 class LoginWithPinUseCaseTest {
     @Test
     fun `successful login returns profile`() = runTest {
-        val useCase = LoginWithPinUseCase(FakeAuthRepo(), FakeWaiterRepo(), FakeSessionRepo())
+        val useCase = LoginWithPinUseCase(FakeAuthRepo(), FakeWaiterRepo(), FakeSessionRepo(), FakeTerminalDataProvider())
         val result = useCase("1234")
         assertTrue(result.isSuccess)
     }
 }
 
 private class FakeAuthRepo : AuthRepository {
-    override suspend fun login(pin: String): Result<String> = Result.success("w1")
+    override suspend fun login(pin: String, terminalInfo: TerminalInfo): Result<String> = Result.success("w1")
     override suspend fun logout() = Unit
 }
 

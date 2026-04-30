@@ -13,7 +13,8 @@ class LoginWithPinUseCase(
     private val authRepository: AuthRepository,
     private val terminalDataProvider: TerminalDataProvider,
     private val waiterRepository: WaiterRepository,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val terminalDataProvider: TerminalDataProvider
 ) {
     suspend operator fun invoke(pin: String): Result<WaiterProfile> {
         val terminalInfo = runCatching { terminalDataProvider.getTerminalInfo() }

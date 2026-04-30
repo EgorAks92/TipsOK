@@ -1,10 +1,13 @@
 package com.chaiok.pos.data.di
 
 import android.content.Context
+import com.chaiok.pos.data.remote.TerminalNetworkFactory
+import com.chaiok.pos.data.repository.BackendAuthRepository
 import com.chaiok.pos.data.repository.DataStoreSettingsRepository
 import com.chaiok.pos.data.repository.InMemorySessionRepository
 import com.chaiok.pos.data.repository.MockAuthRepository
 import com.chaiok.pos.data.repository.MockCardReaderRepository
+import com.chaiok.pos.data.repository.MockTerminalDataProvider
 import com.chaiok.pos.data.repository.MockTipsRepository
 import com.chaiok.pos.data.repository.MockWaiterRepository
 import com.chaiok.pos.data.repository.PaymentTerminalApi

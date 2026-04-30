@@ -16,6 +16,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "BACKEND_BASE_URL", "\"https://dev-api.tiply.local/api/v1/terminal/\"")
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -23,6 +25,7 @@ android {
 
     buildTypes {
         release {
+            buildConfigField("String", "BACKEND_BASE_URL", "\"https://api.tiply.local/api/v1/terminal/\"")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -40,6 +43,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
