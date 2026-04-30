@@ -26,6 +26,7 @@ data class HomeUiState(
 
 sealed interface HomeEvent {
     data object NavigateToLogin : HomeEvent
+    data class NavigateToTipSelection(val billAmount: Double) : HomeEvent
 }
 
 class HomeViewModel(
@@ -59,38 +60,21 @@ class HomeViewModel(
         }
     }
 
-    fun onAmountDigitPressed(digit: String) {
-        _uiState.update {
-            if (it.amountInput.length >= 6) it else it.copy(amountInput = it.amountInput + digit)
-        }
-    }
-
-    fun onAmountDeletePressed() {
-        _uiState.update { it.copy(amountInput = it.amountInput.dropLast(1)) }
-    }
+    fun onAmountDigitPressed(digit: String) { _uiState.update { if (it.amountInput.length >= 6) it else it.copy(amountInput = it.amountInput + digit) } }
+    fun onAmountDeletePressed() { _uiState.update { it.copy(amountInput = it.amountInput.dropLast(1)) } }
 
     fun onConfirmAmount() {
-        _uiState.update { it.copy(snackbarMessage = "Сумма принята. Интеграция будет подключена позже.") }
-    }
-
-    fun onSnackbarShown() {
-        _uiState.update { it.copy(snackbarMessage = null) }
-    }
-
-    fun dismissLinkCardDialog() {
-        linkCardDialogHandledInSession = true
-        _uiState.update { it.copy(showLinkCardDialog = false) }
-    }
-
-    fun onCardBindingStarted() {
-        linkCardDialogHandledInSession = true
-        _uiState.update { it.copy(showLinkCardDialog = false) }
-    }
-
-    fun logout() {
-        viewModelScope.launch {
-            logoutUseCase()
-            events.send(HomeEvent.NavigateToLogin)
+        val amount = _uiState.value.amountInput.toDoubleOrNull()
+        if (amount == null || amount <= 0.0) {
+            _uiState.update { it.copy(snackbarMessage = "Введите корректную сумму") }
+            return
         }
+        viewModelScope.launch { events.send(HomeEvent.NavigateToTipSelection(amount)) }
     }
+
+    fun onSnackbarShown() { _uiState.update { it.copy(snackbarMessage = null) } }
+    fun dismissLinkCardDialog() { linkCardDialogHandledInSession = true; _uiState.update { it.copy(showLinkCardDialog = false) } }
+    fun onCardBindingStarted() { linkCardDialogHandledInSession = true; _uiState.update { it.copy(showLinkCardDialog = false) } }
+
+    fun logout() { viewModelScope.launch { logoutUseCase(); events.send(HomeEvent.NavigateToLogin) } }
 }

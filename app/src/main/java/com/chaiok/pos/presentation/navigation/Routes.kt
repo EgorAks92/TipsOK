@@ -9,4 +9,8 @@ object Routes {
     const val Tips = "tips"
     const val Integration = "integration"
     const val Background = "background"
+    const val TipSelection = "tip_selection"
+    const val TipSelectionWithArg = "tip_selection/{billAmountRub}"
+
+    fun tipSelection(billAmount: Double): String = "tip_selection/${billAmount.toInt()}"
 }
