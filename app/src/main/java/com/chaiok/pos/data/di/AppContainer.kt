@@ -1,6 +1,7 @@
 package com.chaiok.pos.data.di
 
 import android.content.Context
+import android.util.Log
 import com.chaiok.pos.data.remote.TerminalNetworkFactory
 import com.chaiok.pos.data.repository.BackendAuthRepository
 import com.chaiok.pos.data.repository.DataStoreSettingsRepository
@@ -57,6 +58,14 @@ class AppContainer(context: Context) {
     val tipsRepository: TipsRepository = MockTipsRepository()
     val settingsRepository: SettingsRepository = DataStoreSettingsRepository(appDataStore)
     val cardReaderRepository: CardReaderRepository = MockCardReaderRepository(MockCardReaderRepository.Mode.AlwaysSuccess)
+
+
+
+    init {
+        Log.e("LoginFlow", "USE_MOCK_AUTH=$USE_MOCK_AUTH USE_MOCK_TERMINAL_DATA=$USE_MOCK_TERMINAL_DATA")
+        Log.e("LoginFlow", "authRepository=${authRepository::class.java.simpleName}")
+        Log.e("LoginFlow", "terminalDataProvider=${terminalDataProvider::class.java.simpleName}")
+    }
 
     val loginWithPinUseCase = LoginWithPinUseCase(
         authRepository,

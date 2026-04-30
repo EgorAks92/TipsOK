@@ -1,5 +1,6 @@
 package com.chaiok.pos.data.repository
 
+import android.util.Log
 import com.chaiok.pos.data.remote.TerminalApi
 import com.chaiok.pos.data.remote.dto.TerminalAuthRequestDto
 import com.chaiok.pos.domain.error.DomainError
@@ -22,7 +23,12 @@ class BackendAuthRepository(
                 tid = terminalInfo.tid
             )
 
+            Log.e(
+                "LoginFlow",
+                "terminalLogin request started serial=***${terminalInfo.serialNumber.takeLast(4)} tid=***${terminalInfo.tid.takeLast(4)}"
+            )
             val response = api.terminalLogin(request)
+            Log.e("LoginFlow", "terminalLogin response httpCode=${response.code()} isSuccessful=${response.isSuccessful}")
             if (!response.isSuccessful) {
                 throw when (response.code()) {
                     400 -> DomainError.InvalidPin
@@ -30,12 +36,22 @@ class BackendAuthRepository(
                 }
             }
 
-            val body = response.body() ?: throw DomainError.LoginFailed
-            if (body.status != "OK") throw DomainError.LoginFailed
+            val body = response.body() ?: run {
+                Log.e("LoginFlow", "terminalLogin body is null")
+                throw DomainError.LoginFailed
+            }
+            if (body.status != "OK") {
+                Log.e("LoginFlow", "terminalLogin status is not OK: ${body.status}")
+                throw DomainError.LoginFailed
+            }
 
             val payload = body.data ?: throw DomainError.LoginFailed
             val waiterId = payload.extractWaiterId()
-                ?: throw DomainError.LoginFailed // TODO: replace flexible parsing after backend provides exact TerminalLogin response schema.
+                ?: run {
+                    Log.e("LoginFlow", "terminalLogin waiterId not found in data")
+                    throw DomainError.LoginFailed
+                } // TODO: replace flexible parsing after backend provides exact TerminalLogin response schema.
+            Log.e("LoginFlow", "terminalLogin waiterId extracted=$waiterId")
 
             payload.extractAuthToken()?.let {
                 // TODO: store auth token in SessionRepository when protected endpoints are connected.
@@ -45,8 +61,14 @@ class BackendAuthRepository(
         }.recoverCatching { error ->
             throw when (error) {
                 is DomainError -> error
-                is IOException -> DomainError.LoginFailed
-                else -> DomainError.LoginFailed
+                is IOException -> {
+                    Log.e("LoginFlow", "terminalLogin IOException: ${error.message}", error)
+                    DomainError.LoginFailed
+                }
+                else -> {
+                    Log.e("LoginFlow", "terminalLogin failed: ${error.message}", error)
+                    DomainError.LoginFailed
+                }
             }
         }
     }

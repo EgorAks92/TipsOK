@@ -1,5 +1,6 @@
 package com.chaiok.pos.data.repository
 
+import android.util.Log
 import com.chaiok.pos.domain.error.DomainError
 import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.repository.TerminalDataProvider
@@ -9,11 +10,19 @@ class PaymentTerminalDataProvider(
 ) : TerminalDataProvider {
 
     override suspend fun getTerminalInfo(): TerminalInfo {
+        Log.e("LoginFlow", "PaymentTerminalDataProvider called")
         val result = paymentApi.getTerminalData()
 
         val terminalData = when (result) {
-            is PaymentTerminalDataResult.Success -> result.data
+            is PaymentTerminalDataResult.Success -> {
+                Log.e("LoginFlow", "PaymentTerminalDataResult.Success")
+                result.data
+            }
             is PaymentTerminalDataResult.Error -> {
+                Log.e(
+                    "LoginFlow",
+                    "PaymentTerminalDataResult.Error type=${result.type} reason=${result.reason}"
+                )
                 throw when (result.type) {
                     PaymentTerminalDataErrorType.NotReady -> DomainError.TerminalDataNotReady
                     PaymentTerminalDataErrorType.InvalidData -> DomainError.TerminalDataInvalid
@@ -22,9 +31,14 @@ class PaymentTerminalDataProvider(
         }
 
         if (terminalData.serialNumber.isBlank() || terminalData.tid.isBlank()) {
+            Log.e("LoginFlow", "terminal data invalid: empty serial or tid")
             throw DomainError.TerminalDataInvalid
         }
 
+        Log.e(
+            "LoginFlow",
+            "PaymentTerminalDataProvider returning serial=***${terminalData.serialNumber.takeLast(4)} tid=***${terminalData.tid.takeLast(4)}"
+        )
         return TerminalInfo(
             serialNumber = terminalData.serialNumber,
             tid = terminalData.tid

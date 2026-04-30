@@ -1,5 +1,6 @@
 package com.chaiok.pos.presentation.login
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.error.DomainError
@@ -46,15 +47,22 @@ class LoginViewModel(
     }
 
     fun onLoginPressed() {
-        val pin = _uiState.value.pin
-        if (pin.length < 4) return
+        val state = _uiState.value
+        if (state.isLoading || state.pin.length < 4) {
+            Log.e("LoginFlow", "onLoginPressed ignored: loading=${state.isLoading} pinLength=${state.pin.length}")
+            return
+        }
+        Log.e("LoginFlow", "onLoginPressed called pinLength=${state.pin.length}")
+        val pin = state.pin
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val result = loginWithPinUseCase(pin)
             result.onSuccess {
+                Log.e("LoginFlow", "login usecase success")
                 _uiState.update { state -> state.copy(isLoading = false, errorMessage = null, pin = "") }
                 events.send(LoginEvent.NavigateToHome)
             }.onFailure { throwable ->
+                Log.e("LoginFlow", "login usecase failed: ${throwable.message}", throwable)
                 val message = (throwable as? DomainError)?.message ?: DomainError.InvalidPin.message
                 _uiState.update { state ->
                     state.copy(
