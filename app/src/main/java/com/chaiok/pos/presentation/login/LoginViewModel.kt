@@ -25,7 +25,8 @@ sealed interface LoginEvent {
 }
 
 class LoginViewModel(
-    private val loginWithPinUseCase: LoginWithPinUseCase
+    private val loginWithPinUseCase: LoginWithPinUseCase,
+    private val refreshTipRangeAfterLogin: () -> Unit
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -59,6 +60,7 @@ class LoginViewModel(
             val result = loginWithPinUseCase(pin)
             result.onSuccess {
                 Log.e("LoginFlow", "login usecase success")
+                refreshTipRangeAfterLogin()
                 _uiState.update { state -> state.copy(isLoading = false, errorMessage = null, pin = "") }
                 events.send(LoginEvent.NavigateToHome)
             }.onFailure { throwable ->

@@ -43,12 +43,26 @@ class TipSelectionViewModel(
             observeProfileUseCase().first()?.let { p ->
                 _uiState.update { it.copy(waiterName = listOf(p.firstName, p.lastName).filter { s -> !s.isNullOrBlank() }.joinToString(" ").ifBlank { "Ваш официант" }, waiterStatus = p.status.ifBlank { "Коплю на отпуск!" }) }
             }
-            getTransactionRangeUseCase().onSuccess { range ->
-                val percents = range.percents
-                val idx = if (percents.isEmpty()) 0 else range.defaultIndex.coerceIn(0, percents.lastIndex)
-                _uiState.update { it.copy(isLoading = false, availablePercents = percents, selectedPercentIndex = idx) }
-            }.onFailure {
-                _uiState.update { it.copy(isLoading = false, errorMessage = "Не удалось загрузить диапазон чаевых") }
+            val fallbackPercents = listOf(5.0, 10.0, 15.0)
+            val fallbackDefaultIndex = 1
+
+            getTransactionRangeUseCase.observe().collect { range ->
+                val percents = range?.percents?.takeIf { it.isNotEmpty() } ?: fallbackPercents
+                val defaultIndex = range?.defaultIndex ?: fallbackDefaultIndex
+                _uiState.update {
+                    val shouldUseDefaultIndex = it.availablePercents.isEmpty()
+                    val nextSelectedIndex = if (shouldUseDefaultIndex) {
+                        defaultIndex.coerceIn(0, percents.lastIndex)
+                    } else {
+                        it.selectedPercentIndex.coerceIn(0, percents.lastIndex)
+                    }
+
+                    it.copy(
+                        isLoading = false,
+                        availablePercents = percents,
+                        selectedPercentIndex = nextSelectedIndex
+                    )
+                }
             }
         }
     }

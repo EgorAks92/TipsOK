@@ -39,8 +39,13 @@ import com.chaiok.pos.domain.usecase.UpdateIntegrationModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateStatusUseCase
 import com.chaiok.pos.domain.usecase.UpdateTableModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateTileBackgroundUseCase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class AppContainer(context: Context) {
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val appDataStore = AppDataStore(context)
     private val sensitiveStorage = EncryptedPrefsSensitiveStorage(context)
     private val terminalApi = TerminalNetworkFactory.createTerminalApi()
@@ -61,7 +66,7 @@ class AppContainer(context: Context) {
     val waiterRepository: WaiterRepository = MockWaiterRepository(appDataStore, sensitiveStorage)
     val tipsRepository: TipsRepository =
         if (USE_MOCK_TIPS) MockTipsRepository() else BackendTipsRepository(terminalApi, sessionRepository)
-    val tipRangeRepository: TipRangeRepository = BackendTipRangeRepository(terminalApi, sessionRepository)
+    val tipRangeRepository: TipRangeRepository = BackendTipRangeRepository(terminalApi, sessionRepository, appDataStore)
     val settingsRepository: SettingsRepository = DataStoreSettingsRepository(appDataStore)
     val cardReaderRepository: CardReaderRepository = MockCardReaderRepository(MockCardReaderRepository.Mode.AlwaysSuccess)
 
@@ -91,6 +96,13 @@ class AppContainer(context: Context) {
     val updateIntegrationModeUseCase = UpdateIntegrationModeUseCase(settingsRepository)
     val updateTableModeUseCase = UpdateTableModeUseCase(settingsRepository)
     val updateTileBackgroundUseCase = UpdateTileBackgroundUseCase(settingsRepository)
+
+    fun refreshTipRangeAfterLogin() {
+        appScope.launch {
+            getTransactionRangeUseCase.refresh()
+                .onFailure { Log.e("LoginFlow", "refreshTransactionRange failed after login", it) }
+        }
+    }
 
     private companion object {
         private const val USE_MOCK_AUTH = false
