@@ -6,6 +6,7 @@ import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.TerminalDataProvider
+import com.chaiok.pos.domain.repository.TipRangeRepository
 import com.chaiok.pos.domain.repository.WaiterRepository
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import kotlinx.coroutines.flow.Flow
@@ -17,10 +18,15 @@ import org.junit.Test
 class LoginWithPinUseCaseTest {
     @Test
     fun `successful login returns profile`() = runTest {
-        val useCase = LoginWithPinUseCase(FakeAuthRepo(), FakeTerminalDataProvider(), FakeWaiterRepo(), FakeSessionRepo())
+        val useCase = LoginWithPinUseCase(FakeAuthRepo(), FakeTerminalDataProvider(), FakeWaiterRepo(), FakeSessionRepo(), FakeTipRangeRepo())
         val result = useCase("1234")
         assertTrue(result.isSuccess)
     }
+}
+
+private class FakeTipRangeRepo : TipRangeRepository {
+    override suspend fun refreshTransactionRange() = Result.failure<Nothing>(IllegalStateException("not needed"))
+    override fun observeCachedTransactionRange() = MutableStateFlow(null)
 }
 
 private class FakeAuthRepo : AuthRepository {

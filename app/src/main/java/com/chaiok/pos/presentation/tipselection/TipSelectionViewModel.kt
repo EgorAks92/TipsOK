@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -43,12 +44,16 @@ class TipSelectionViewModel(
             observeProfileUseCase().first()?.let { p ->
                 _uiState.update { it.copy(waiterName = listOf(p.firstName, p.lastName).filter { s -> !s.isNullOrBlank() }.joinToString(" ").ifBlank { "Ваш официант" }, waiterStatus = p.status.ifBlank { "Коплю на отпуск!" }) }
             }
-            getTransactionRangeUseCase().onSuccess { range ->
+
+            val fallbackPercents = listOf(5.0, 10.0, 15.0)
+            _uiState.update { it.copy(isLoading = false, availablePercents = fallbackPercents, selectedPercentIndex = 1.coerceAtMost(fallbackPercents.lastIndex)) }
+
+            getTransactionRangeUseCase.observe().filterNotNull().collect { range ->
                 val percents = range.percents
                 val idx = if (percents.isEmpty()) 0 else range.defaultIndex.coerceIn(0, percents.lastIndex)
-                _uiState.update { it.copy(isLoading = false, availablePercents = percents, selectedPercentIndex = idx) }
-            }.onFailure {
-                _uiState.update { it.copy(isLoading = false, errorMessage = "Не удалось загрузить диапазон чаевых") }
+                if (percents.isNotEmpty()) {
+                    _uiState.update { it.copy(availablePercents = percents, selectedPercentIndex = idx) }
+                }
             }
         }
     }

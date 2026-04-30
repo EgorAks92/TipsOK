@@ -61,7 +61,7 @@ class AppContainer(context: Context) {
     val waiterRepository: WaiterRepository = MockWaiterRepository(appDataStore, sensitiveStorage)
     val tipsRepository: TipsRepository =
         if (USE_MOCK_TIPS) MockTipsRepository() else BackendTipsRepository(terminalApi, sessionRepository)
-    val tipRangeRepository: TipRangeRepository = BackendTipRangeRepository(terminalApi, sessionRepository)
+    val tipRangeRepository: TipRangeRepository = BackendTipRangeRepository(terminalApi, sessionRepository, appDataStore)
     val settingsRepository: SettingsRepository = DataStoreSettingsRepository(appDataStore)
     val cardReaderRepository: CardReaderRepository = MockCardReaderRepository(MockCardReaderRepository.Mode.AlwaysSuccess)
 
@@ -77,7 +77,8 @@ class AppContainer(context: Context) {
         authRepository,
         terminalDataProvider,
         waiterRepository,
-        sessionRepository
+        sessionRepository,
+        tipRangeRepository
     )
     val logoutUseCase = LogoutUseCase(authRepository, sessionRepository)
     val observeProfileUseCase = ObserveProfileUseCase(waiterRepository)

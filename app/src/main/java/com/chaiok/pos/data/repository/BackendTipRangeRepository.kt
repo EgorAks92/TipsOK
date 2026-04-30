@@ -2,17 +2,20 @@ package com.chaiok.pos.data.repository
 
 import android.util.Log
 import com.chaiok.pos.data.remote.TerminalApi
+import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.domain.error.DomainError
 import com.chaiok.pos.domain.model.TipRange
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.TipRangeRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
 class BackendTipRangeRepository(
     private val api: TerminalApi,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val appDataStore: AppDataStore
 ) : TipRangeRepository {
-    override suspend fun getTransactionRange(): Result<TipRange> = runCatching {
+    override suspend fun refreshTransactionRange(): Result<TipRange> = runCatching {
         val token = sessionRepository.accessToken.first()
         if (token.isNullOrBlank()) throw DomainError.LoginFailed
 
@@ -28,11 +31,18 @@ class BackendTipRangeRepository(
 
         val data = body.data ?: throw DomainError.LoginFailed
         Log.e("TipsFlow", "getTransactionRange percents count=${data.allTransactionRange.orEmpty().size}")
-        TipRange(
+        val remoteRange = TipRange(
             percents = data.allTransactionRange.orEmpty(),
             startRange = data.startRange ?: 0,
             finishRange = data.finishRange ?: 0,
             defaultIndex = data.defaultIndex ?: 0
         )
+        val cachedRange = appDataStore.tipRangeFlow.first()
+        if (cachedRange != remoteRange) {
+            appDataStore.setTipRange(remoteRange)
+        }
+        remoteRange
     }.onFailure { Log.e("TipsFlow", "getTransactionRange failed: ${it.message}", it) }
+
+    override fun observeCachedTransactionRange(): Flow<TipRange?> = appDataStore.tipRangeFlow
 }
