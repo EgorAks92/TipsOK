@@ -15,8 +15,11 @@ class LoginWithPinUseCase(
     private val sessionRepository: SessionRepository
 ) {
     suspend operator fun invoke(pin: String): Result<WaiterProfile> {
+        Log.e("LoginFlow", "LoginWithPinUseCase started")
+        Log.e("LoginFlow", "getTerminalInfo started")
         val terminalInfo = runCatching { terminalDataProvider.getTerminalInfo() }
             .getOrElse { error ->
+                Log.e("LoginFlow", "getTerminalInfo failed: ${error.message}", error)
                 val domainError = when (error) {
                     is DomainError.TerminalDataNotReady -> DomainError.TerminalDataNotReady
                     is DomainError.TerminalDataInvalid -> DomainError.TerminalDataInvalid
@@ -25,8 +28,21 @@ class LoginWithPinUseCase(
                 return Result.failure(domainError)
             }
 
-        val waiterId = authRepository.login(pin, terminalInfo).getOrElse { return Result.failure(it) }
+        Log.e(
+            "LoginFlow",
+            "terminalInfo received serial=***${terminalInfo.serialNumber.takeLast(4)} tid=***${terminalInfo.tid.takeLast(4)}"
+        )
+
+        Log.e("LoginFlow", "backend login started")
+        val waiterId = authRepository.login(pin, terminalInfo).getOrElse { error ->
+            Log.e("LoginFlow", "backend login failed: ${error.message}", error)
+            return Result.failure(error)
+        }
+        Log.e("LoginFlow", "backend login success waiterId=$waiterId")
+
         sessionRepository.setActiveWaiter(waiterId)
-        return waiterRepository.loadProfile(waiterId)
+        val profileResult = waiterRepository.loadProfile(waiterId)
+        Log.e("LoginFlow", "loadProfile result success=${profileResult.isSuccess}")
+        return profileResult
     }
 }

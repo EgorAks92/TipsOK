@@ -29,14 +29,17 @@ class SmartSkyPosTerminalApi(
         )
 
         try {
+            Log.e(TAG, "getTerminalData started")
             val terminalData = service.getTerminalData() ?: return@withContext PaymentTerminalDataResult.Error(
                 reason = "TerminalData is null",
                 type = PaymentTerminalDataErrorType.NotReady
-            )
+            ).also {
+                Log.e(TAG, "TerminalData is null")
+            }
 
             val code = terminalData.getCode()
             val message = terminalData.getMessage()
-            Log.d(TAG, "getTerminalData code=$code, message=$message")
+            Log.e(TAG, "getTerminalData code=$code, message=$message")
             if (code != 0) {
                 return@withContext PaymentTerminalDataResult.Error(
                     reason = message,
@@ -54,13 +57,14 @@ class SmartSkyPosTerminalApi(
             val tid = tidFromData.ifBlank { tidFromFirstTerminal }
 
             if (serialNumber.isBlank() || tid.isBlank()) {
+                Log.e(TAG, "TerminalData missing serialNumber or tid")
                 return@withContext PaymentTerminalDataResult.Error(
                     reason = "TerminalData is missing serialNumber or tid",
                     type = PaymentTerminalDataErrorType.InvalidData
                 )
             }
 
-            Log.d(TAG, "terminal data loaded serial=***${serialNumber.takeLast(4)} tid=***${tid.takeLast(4)}")
+            Log.e(TAG, "terminal data loaded serial=***${serialNumber.takeLast(4)} tid=***${tid.takeLast(4)}")
             PaymentTerminalDataResult.Success(
                 PaymentTerminalData(
                     serialNumber = serialNumber,
@@ -68,13 +72,19 @@ class SmartSkyPosTerminalApi(
                 )
             )
         } catch (error: RemoteException) {
-            Log.w(TAG, "getTerminalData RemoteException", error)
+            Log.e(TAG, "getTerminalData RemoteException", error)
             PaymentTerminalDataResult.Error(
                 reason = error.message,
                 type = PaymentTerminalDataErrorType.NotReady
             )
         } catch (error: SecurityException) {
-            Log.w(TAG, "getTerminalData SecurityException", error)
+            Log.e(TAG, "getTerminalData SecurityException", error)
+            PaymentTerminalDataResult.Error(
+                reason = error.message,
+                type = PaymentTerminalDataErrorType.NotReady
+            )
+        } catch (error: Exception) {
+            Log.e(TAG, "getTerminalData unexpected error", error)
             PaymentTerminalDataResult.Error(
                 reason = error.message,
                 type = PaymentTerminalDataErrorType.NotReady
@@ -85,21 +95,23 @@ class SmartSkyPosTerminalApi(
     private suspend fun connectIfNeeded(): ISmartSkyPos? = bindMutex.withLock {
         smartSkyPos?.let { return it }
 
-        Log.d(TAG, "bind started")
+        Log.e(TAG, "bind started")
         val deferred = CompletableDeferred<ISmartSkyPos?>()
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
                 val api = ISmartSkyPos.Stub.asInterface(binder)
                 smartSkyPos = api
-                Log.d(TAG, "bind success")
+                Log.e(TAG, "bind success")
                 if (!deferred.isCompleted) deferred.complete(api)
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
                 smartSkyPos = null
+                Log.e(TAG, "service disconnected")
             }
 
             override fun onNullBinding(name: ComponentName?) {
+                Log.e(TAG, "bind null binding")
                 smartSkyPos = null
                 if (!deferred.isCompleted) deferred.complete(null)
             }
@@ -110,21 +122,22 @@ class SmartSkyPosTerminalApi(
         val bound = try {
             context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         } catch (error: SecurityException) {
-            Log.w(TAG, "bind security exception", error)
+            Log.e(TAG, "bind security exception", error)
             false
         } catch (error: Exception) {
-            Log.w(TAG, "bind failed", error)
+            Log.e(TAG, "bind failed", error)
             false
         }
 
         if (!bound) {
-            Log.w(TAG, "bind failed: service unavailable")
+            Log.e(TAG, "bind failed: service unavailable")
             return null
         }
+        Log.e(TAG, "bind success")
 
         val api = withTimeoutOrNull(SERVICE_BIND_TIMEOUT_MS) { deferred.await() }
         if (api == null) {
-            Log.w(TAG, "bind timeout")
+            Log.e(TAG, "bind timeout")
             runCatching { context.unbindService(connection) }
         }
 
