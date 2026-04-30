@@ -94,7 +94,6 @@ fun TipsScreen(
                         items(state.tips) { tip ->
                             TipsHistoryItem(
                                 date = tip.dateTime.format(dateFormatter),
-                                billAmount = formatMoney(tip.billAmount),
                                 tipAmount = formatMoney(tip.tipAmount),
                                 tipPercent = "${tip.tipPercent}%"
                             )
@@ -304,7 +303,6 @@ private fun SummaryColumn(
 @Composable
 private fun TipsHistoryItem(
     date: String,
-    billAmount: String,
     tipAmount: String,
     tipPercent: String
 ) {
@@ -334,14 +332,6 @@ private fun TipsHistoryItem(
         )
 
         Spacer(modifier = Modifier.height(10.dp))
-
-        TipsRow(
-            title = "Счёт",
-            value = billAmount,
-            valueColor = TipsPrimaryTextColor
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
 
         TipsRow(
             title = "Чаевые",
