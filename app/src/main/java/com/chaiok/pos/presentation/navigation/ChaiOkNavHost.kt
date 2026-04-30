@@ -1,5 +1,9 @@
 package com.chaiok.pos.presentation.navigation
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +36,11 @@ import com.chaiok.pos.presentation.tips.TipsViewModel
 import com.chaiok.pos.presentation.tipselection.TipSelectionScreen
 import com.chaiok.pos.presentation.tipselection.TipSelectionViewModel
 import androidx.navigation.NavHostController
+import com.skytech.smartskyposlib.Constants
+import com.skytech.smartskyposlib.TransactionParams
+import com.skytech.smartskyposlib.TransactionResult
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 @Composable
 fun ChaiOkNavHost(container: AppContainer) {
@@ -222,11 +231,19 @@ fun ChaiOkNavHost(container: AppContainer) {
                 TipSelectionViewModel(
                     billAmount = billAmount,
                     getTransactionRangeUseCase = container.getTransactionRangeUseCase,
-                    observeProfileUseCase = container.observeProfileUseCase,
-                    payTipsUseCase = container.payTipsUseCase
+                    observeProfileUseCase = container.observeProfileUseCase
                 )
             })
             val state by vm.uiState.collectAsStateWithLifecycle()
+            val paymentLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.StartActivityForResult()
+            ) { result ->
+                val mapped = mapSmartSkyPaymentResult(result.resultCode, result.data)
+                when (mapped) {
+                    is SmartSkyPaymentUiResult.Approved -> vm.onPaymentApproved(mapped.message)
+                    is SmartSkyPaymentUiResult.Declined -> vm.onPaymentDeclined(mapped.message)
+                }
+            }
             TipSelectionScreen(
                 state = state,
                 onBack = { navController.popBackStack() },
@@ -234,7 +251,21 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onCustomStart = vm::openCustomDialog,
                 onCustomSet = vm::applyCustom,
                 onDismissCustom = vm::dismissCustomDialog,
-                onPay = vm::pay,
+                onPay = {
+                    if (vm.startExternalPayment()) {
+                        val paymentIntent = createSmartSkyPaymentIntent(state.totalAmount)
+                        try {
+                            paymentLauncher.launch(paymentIntent)
+                            vm.onPaymentUiOpened()
+                        } catch (_: ActivityNotFoundException) {
+                            vm.handlePaymentLaunchError("Платёжное приложение не найдено")
+                        } catch (_: SecurityException) {
+                            vm.handlePaymentLaunchError("Нет доступа к платёжному приложению")
+                        } catch (_: Throwable) {
+                            vm.handlePaymentLaunchError("Не удалось открыть оплату")
+                        }
+                    }
+                },
                 onSnackbarShown = vm::onMessageShown,
                 onDone = {
                     val popped = navController.popBackStack(route = Routes.Home, inclusive = false)
@@ -270,5 +301,32 @@ fun ChaiOkNavHost(container: AppContainer) {
 private fun NavHostController.navigateSingleTopTo(route: String) {
     navigate(route) {
         launchSingleTop = true
+    }
+}
+
+
+private sealed interface SmartSkyPaymentUiResult {
+    data class Approved(val message: String) : SmartSkyPaymentUiResult
+    data class Declined(val message: String) : SmartSkyPaymentUiResult
+}
+
+private fun createSmartSkyPaymentIntent(amountRub: Double): Intent {
+    val totalAmount = BigDecimal.valueOf(amountRub).setScale(2, RoundingMode.HALF_UP)
+    return Intent("com.skytech.smartskypos.PAYMENT").apply {
+        putExtra(Constants.PARAMS_KEY, TransactionParams(totalAmount))
+        putExtra(Constants.TYPE_KEY, Constants.TYPE_PAYMENT)
+    }
+}
+
+private fun mapSmartSkyPaymentResult(resultCode: Int, data: Intent?): SmartSkyPaymentUiResult {
+    val transactionResult = data?.getParcelableExtra(Constants.TRANSACTION_RESULT_KEY, TransactionResult::class.java)
+    val message = transactionResult?.message?.takeIf { it.isNotBlank() }
+    val approved = transactionResult?.isApproved
+
+    return if (resultCode == android.app.Activity.RESULT_OK) {
+        if (approved == false) SmartSkyPaymentUiResult.Declined(message ?: "Оплата отклонена")
+        else SmartSkyPaymentUiResult.Approved(message ?: "Оплата завершена")
+    } else {
+        SmartSkyPaymentUiResult.Declined(message ?: "Оплата отменена или отклонена")
     }
 }

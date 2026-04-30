@@ -131,10 +131,22 @@ fun TipSelectionScreen(
 
                     Spacer(modifier = Modifier.weight(1f))
 
+                    if (state.paymentState is TipPaymentUiState.Processing) {
+                        Text(
+                            text = state.paymentState.message,
+                            color = TipSelectionSecondaryTextColor,
+                            fontFamily = MontserratFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp,
+                            lineHeight = 19.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
                     GradientPayButton(
                         amount = state.totalAmount,
                         enabled = state.isPayEnabled,
-                        loading = state.paymentState == TipPaymentUiState.Processing,
+                        loading = state.paymentState is TipPaymentUiState.Processing,
                         onClick = onPay
                     )
                 }
