@@ -205,11 +205,11 @@ private fun TipSelectionContentCard(
         ) {
             itemsIndexed(state.availablePercents) { index, percent ->
                 val selected = !state.isCustomSelected && state.selectedPercentIndex == index
-                val tipAmount = state.calculateTipByPercent(percent).toInt()
+                val tipAmount = state.calculateTipByPercent(percent)
 
                 TipPercentCard(
                     percentText = "${percent.toInt()}%",
-                    amountText = formatRubles(tipAmount.toDouble()),
+                    amountText = formatRubles(tipAmount),
                     selected = selected,
                     onClick = { onPreset(index) }
                 )
@@ -485,7 +485,12 @@ private fun GradientPayButton(
 
 
 @Composable
-private fun PaymentResultContent(state: TipSelectionUiState, onDone: () -> Unit, onRetry: () -> Unit, onBack: () -> Unit) {
+private fun PaymentResultContent(
+    state: TipSelectionUiState,
+    onDone: () -> Unit,
+    onRetry: () -> Unit,
+    onBack: () -> Unit
+) {
     val approved = state.paymentState is TipPaymentUiState.Approved
     val shown = state.paymentState is TipPaymentUiState.Approved || state.paymentState is TipPaymentUiState.Declined
     val scale by animateFloatAsState(
@@ -498,9 +503,17 @@ private fun PaymentResultContent(state: TipSelectionUiState, onDone: () -> Unit,
         animationSpec = tween(durationMillis = 420),
         label = "resultAlpha"
     )
-    val accent = if (approved) Brush.linearGradient(listOf(TipSelectionGreenColor, TipSelectionAccentColor)) else Brush.linearGradient(listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E)))
+    val accent = if (approved) {
+        Brush.linearGradient(listOf(TipSelectionGreenColor, TipSelectionAccentColor))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E)))
+    }
 
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+    ) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -514,26 +527,76 @@ private fun PaymentResultContent(state: TipSelectionUiState, onDone: () -> Unit,
                 .background(TipSelectionCardColor)
                 .padding(22.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.size(88.dp).clip(RoundedCornerShape(44.dp)).background(accent), contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(88.dp)
+                        .clip(RoundedCornerShape(44.dp))
+                        .background(accent),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(imageVector = if (approved) Icons.Default.Check else Icons.Default.Close, contentDescription = null, tint = Color.White)
                 }
                 Spacer(Modifier.height(14.dp))
-                Text(if (approved) "Оплата одобрена" else "Оплата отклонена", fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, color = TipSelectionPrimaryTextColor, fontSize = 24.sp, lineHeight = 28.sp)
+                Text(
+                    text = if (approved) "Оплата одобрена" else "Оплата отклонена",
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    color = TipSelectionPrimaryTextColor,
+                    fontSize = 24.sp,
+                    lineHeight = 28.sp
+                )
                 Spacer(Modifier.height(8.dp))
-                Text(formatRubles(state.totalAmount), fontFamily = MontserratFontFamily, color = TipSelectionPrimaryTextColor, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-                val msg = when (val ps = state.paymentState) { is TipPaymentUiState.Approved -> ps.message; is TipPaymentUiState.Declined -> ps.message; else -> null }
+                Text(
+                    text = formatRubles(state.totalAmount),
+                    fontFamily = MontserratFontFamily,
+                    color = TipSelectionPrimaryTextColor,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp
+                )
+                val msg = when (val ps = state.paymentState) {
+                    is TipPaymentUiState.Approved -> ps.message
+                    is TipPaymentUiState.Declined -> ps.message
+                    else -> null
+                }
                 if (!msg.isNullOrBlank()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(msg, color = TipSelectionSecondaryTextColor, textAlign = TextAlign.Center, fontFamily = MontserratFontFamily, fontSize = 14.sp, lineHeight = 19.sp)
+                    Text(
+                        text = msg,
+                        color = TipSelectionSecondaryTextColor,
+                        textAlign = TextAlign.Center,
+                        fontFamily = MontserratFontFamily,
+                        fontSize = 14.sp,
+                        lineHeight = 19.sp
+                    )
                 }
                 Spacer(Modifier.height(18.dp))
                 if (approved) {
-                    ResultActionButton(text = "Готово", onClick = onDone, gradient = Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor)))
+                    ResultActionButton(
+                        text = "Готово",
+                        onClick = onDone,
+                        gradient = Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor))
+                    )
                 } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ResultActionButton(text = "Попробовать снова", onClick = onRetry, modifier = Modifier.weight(1f), gradient = Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor)))
-                        ResultActionButton(text = "Назад", onClick = onBack, modifier = Modifier.weight(1f), gradient = Brush.linearGradient(listOf(Color(0xFFE1E7EF), Color(0xFFE1E7EF))), textColor = TipSelectionSecondaryTextColor)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ResultActionButton(
+                            text = "Попробовать снова",
+                            onClick = onRetry,
+                            modifier = Modifier.weight(1f),
+                            gradient = Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor))
+                        )
+                        ResultActionButton(
+                            text = "Назад",
+                            onClick = onBack,
+                            modifier = Modifier.weight(1f),
+                            gradient = Brush.linearGradient(listOf(Color(0xFFE1E7EF), Color(0xFFE1E7EF))),
+                            textColor = TipSelectionSecondaryTextColor
+                        )
                     }
                 }
             }
@@ -785,7 +848,8 @@ private fun TopIcon(
 
 private fun formatRubles(amount: Double): String = formatKopecks(amountToKopecks(amount))
 
-private fun amountToKopecks(amount: Double): Int = kotlin.math.round(amount * 100.0).toInt()
+private fun amountToKopecks(amount: Double): Int =
+    kotlin.math.round(amount.coerceAtLeast(0.0) * 100.0).toInt()
 
 private fun formatKopecks(kopecks: Int): String {
     val rubles = kopecks / 100

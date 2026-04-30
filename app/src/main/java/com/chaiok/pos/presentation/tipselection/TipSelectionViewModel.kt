@@ -50,7 +50,7 @@ class TipSelectionViewModel(
     private val _uiState = MutableStateFlow(TipSelectionUiState(billAmount = billAmount))
     val uiState: StateFlow<TipSelectionUiState> = _uiState.asStateFlow()
 
-    init { /* unchanged */
+    init {
         viewModelScope.launch {
             observeProfileUseCase().first()?.let { p ->
                 _uiState.update { it.copy(waiterName = listOf(p.firstName, p.lastName).filter { s -> !s.isNullOrBlank() }.joinToString(" ").ifBlank { "Ваш официант" }, waiterStatus = p.status.ifBlank { "Коплю на отпуск!" }) }
