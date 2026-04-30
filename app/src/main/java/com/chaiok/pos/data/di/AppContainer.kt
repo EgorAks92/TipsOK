@@ -16,10 +16,12 @@ import com.chaiok.pos.data.repository.MockWaiterRepository
 import com.chaiok.pos.data.repository.PaymentTerminalApi
 import com.chaiok.pos.data.repository.PaymentTerminalDataProvider
 import com.chaiok.pos.data.repository.SmartSkyPosTerminalApi
+import com.chaiok.pos.data.repository.TerminalPaymentRepository
 import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.data.storage.EncryptedPrefsSensitiveStorage
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.chaiok.pos.domain.repository.CardReaderRepository
+import com.chaiok.pos.domain.repository.PaymentRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.SettingsRepository
 import com.chaiok.pos.domain.repository.TerminalDataProvider
@@ -97,7 +99,8 @@ class AppContainer(context: Context) {
     val updateIntegrationModeUseCase = UpdateIntegrationModeUseCase(settingsRepository)
     val updateTableModeUseCase = UpdateTableModeUseCase(settingsRepository)
     val updateTileBackgroundUseCase = UpdateTileBackgroundUseCase(settingsRepository)
-    val payTipsUseCase = PayTipsUseCase(paymentTerminalApi)
+    val paymentRepository: PaymentRepository = TerminalPaymentRepository(paymentTerminalApi)
+    val payTipsUseCase = PayTipsUseCase(paymentRepository)
 
     fun refreshTipRangeAfterLogin() {
         appScope.launch {

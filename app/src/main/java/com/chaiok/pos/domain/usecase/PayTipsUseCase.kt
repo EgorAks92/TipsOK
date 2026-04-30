@@ -1,10 +1,10 @@
 package com.chaiok.pos.domain.usecase
 
-import com.chaiok.pos.data.repository.PaymentTerminalApi
 import com.chaiok.pos.domain.model.PaymentResult
+import com.chaiok.pos.domain.repository.PaymentRepository
 
 class PayTipsUseCase(
-    private val paymentTerminalApi: PaymentTerminalApi
+    private val paymentRepository: PaymentRepository
 ) {
-    suspend operator fun invoke(amountRub: Double): PaymentResult = paymentTerminalApi.pay(amountRub)
+    suspend operator fun invoke(amountRub: Double): PaymentResult = paymentRepository.payTips(amountRub)
 }

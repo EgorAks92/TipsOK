@@ -2,7 +2,6 @@ package com.chaiok.pos.data.repository
 
 import android.util.Log
 import com.chaiok.pos.domain.error.DomainError
-import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.repository.TerminalDataProvider
 
