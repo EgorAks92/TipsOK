@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.error.DomainError
-import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +26,7 @@ sealed interface LoginEvent {
 
 class LoginViewModel(
     private val loginWithPinUseCase: LoginWithPinUseCase,
-    private val getTransactionRangeUseCase: GetTransactionRangeUseCase
+    private val refreshTipRangeAfterLogin: () -> Unit
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -61,12 +60,7 @@ class LoginViewModel(
             val result = loginWithPinUseCase(pin)
             result.onSuccess {
                 Log.e("LoginFlow", "login usecase success")
-                viewModelScope.launch {
-                    getTransactionRangeUseCase.refresh()
-                        .onFailure { refreshError ->
-                            Log.e("LoginFlow", "refreshTransactionRange failed after login", refreshError)
-                        }
-                }
+                refreshTipRangeAfterLogin()
                 _uiState.update { state -> state.copy(isLoading = false, errorMessage = null, pin = "") }
                 events.send(LoginEvent.NavigateToHome)
             }.onFailure { throwable ->

@@ -19,30 +19,34 @@ class BackendTipRangeRepository(
         val token = sessionRepository.accessToken.first()
         if (token.isNullOrBlank()) throw DomainError.LoginFailed
 
-        Log.e("TipsFlow", "getTransactionRange started accessToken found=true")
+        Log.e("TipsFlow", "refreshTransactionRange started accessToken found=true")
         val response = api.getTransactionRange(authorization = "Bearer $token")
-        Log.e("TipsFlow", "getTransactionRange response httpCode=${response.code()} isSuccessful=${response.isSuccessful}")
+        Log.e("TipsFlow", "refreshTransactionRange response httpCode=${response.code()} isSuccessful=${response.isSuccessful}")
         if (!response.isSuccessful) throw DomainError.LoginFailed
 
         val body = response.body() ?: throw DomainError.LoginFailed
-        Log.e("TipsFlow", "getTransactionRange status=${body.status} statusCode=${body.statusCode}")
+        Log.e("TipsFlow", "refreshTransactionRange status=${body.status} statusCode=${body.statusCode}")
         val ok = body.status.equals("SUCCESS", true) || body.statusCode.equals("SUCCESS", true)
         if (!ok) throw DomainError.LoginFailed
 
         val data = body.data ?: throw DomainError.LoginFailed
-        Log.e("TipsFlow", "getTransactionRange percents count=${data.allTransactionRange.orEmpty().size}")
+        Log.e("TipsFlow", "refreshTransactionRange percents count=${data.allTransactionRange.orEmpty().size}")
         val remoteRange = TipRange(
             percents = data.allTransactionRange.orEmpty(),
             startRange = data.startRange ?: 0,
             finishRange = data.finishRange ?: 0,
             defaultIndex = data.defaultIndex ?: 0
         )
+        if (remoteRange.percents.isEmpty()) {
+            return@runCatching remoteRange
+        }
+
         val cachedRange = appDataStore.tipRangeFlow.first()
         if (cachedRange != remoteRange) {
             appDataStore.setTipRange(remoteRange)
         }
         remoteRange
-    }.onFailure { Log.e("TipsFlow", "getTransactionRange failed: ${it.message}", it) }
+    }.onFailure { Log.e("TipsFlow", "refreshTransactionRange failed: ${it.message}", it) }
 
     override fun observeCachedTransactionRange(): Flow<TipRange?> = appDataStore.tipRangeFlow
 }

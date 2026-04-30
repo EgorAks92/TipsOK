@@ -46,7 +46,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                 factory = SimpleFactory {
                     LoginViewModel(
                         container.loginWithPinUseCase,
-                        container.getTransactionRangeUseCase
+                        container::refreshTipRangeAfterLogin
                     )
                 }
             )
