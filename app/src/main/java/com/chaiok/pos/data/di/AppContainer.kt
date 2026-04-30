@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.chaiok.pos.data.remote.TerminalNetworkFactory
 import com.chaiok.pos.data.repository.BackendAuthRepository
+import com.chaiok.pos.data.repository.BackendTipsRepository
 import com.chaiok.pos.data.repository.DataStoreSettingsRepository
 import com.chaiok.pos.data.repository.InMemorySessionRepository
 import com.chaiok.pos.data.repository.MockAuthRepository
@@ -55,7 +56,8 @@ class AppContainer(context: Context) {
 
     val sessionRepository: SessionRepository = InMemorySessionRepository()
     val waiterRepository: WaiterRepository = MockWaiterRepository(appDataStore, sensitiveStorage)
-    val tipsRepository: TipsRepository = MockTipsRepository()
+    val tipsRepository: TipsRepository =
+        if (USE_MOCK_TIPS) MockTipsRepository() else BackendTipsRepository(terminalApi, sessionRepository)
     val settingsRepository: SettingsRepository = DataStoreSettingsRepository(appDataStore)
     val cardReaderRepository: CardReaderRepository = MockCardReaderRepository(MockCardReaderRepository.Mode.AlwaysSuccess)
 
@@ -88,5 +90,6 @@ class AppContainer(context: Context) {
     private companion object {
         private const val USE_MOCK_AUTH = false
         private const val USE_MOCK_TERMINAL_DATA = false
+        private const val USE_MOCK_TIPS = false
     }
 }

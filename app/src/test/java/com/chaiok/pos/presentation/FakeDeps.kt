@@ -1,6 +1,8 @@
 package com.chaiok.pos.presentation
 
 import com.chaiok.pos.domain.model.AppSettings
+import com.chaiok.pos.domain.model.AuthSession
+import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.chaiok.pos.domain.repository.SessionRepository
@@ -24,11 +26,17 @@ class FakeSettingsRepo(private val settingsFlow: MutableStateFlow<AppSettings>) 
 }
 
 class FakeAuthRepo2 : AuthRepository {
-    override suspend fun login(pin: String): Result<String> = Result.success("1")
+    override suspend fun login(pin: String, terminalInfo: TerminalInfo): Result<AuthSession> =
+        Result.success(AuthSession("1", 10019L, "token"))
     override suspend fun logout() = Unit
 }
 
 class FakeSessionRepo2 : SessionRepository {
     override val activeWaiterId: Flow<String?> = MutableStateFlow(null)
+    override val profileId: Flow<Long?> = MutableStateFlow(null)
+    override val accessToken: Flow<String?> = MutableStateFlow(null)
     override suspend fun setActiveWaiter(waiterId: String?) = Unit
+    override suspend fun setProfileId(profileId: Long?) = Unit
+    override suspend fun setAccessToken(accessToken: String?) = Unit
+    override suspend fun clear() = Unit
 }
