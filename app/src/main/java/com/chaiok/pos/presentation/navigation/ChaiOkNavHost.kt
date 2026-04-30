@@ -222,7 +222,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                 TipSelectionViewModel(
                     billAmount = billAmount,
                     getTransactionRangeUseCase = container.getTransactionRangeUseCase,
-                    observeProfileUseCase = container.observeProfileUseCase
+                    observeProfileUseCase = container.observeProfileUseCase,
+                    payTipsUseCase = container.payTipsUseCase
                 )
             })
             val state by vm.uiState.collectAsStateWithLifecycle()
@@ -233,8 +234,13 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onCustomStart = vm::openCustomDialog,
                 onCustomSet = vm::applyCustom,
                 onDismissCustom = vm::dismissCustomDialog,
-                onPay = { },
-                onSnackbarShown = vm::onMessageShown
+                onPay = vm::pay,
+                onSnackbarShown = vm::onMessageShown,
+                onDone = {
+                    val popped = navController.popBackStack(route = Routes.Home, inclusive = false)
+                    if (!popped) navController.navigateSingleTopTo(Routes.Home)
+                },
+                onRetry = vm::resetPaymentState
             )
         }
 
