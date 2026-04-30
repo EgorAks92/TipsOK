@@ -6,6 +6,7 @@ import com.chaiok.pos.data.remote.dto.TerminalAuthRequestDto
 import com.chaiok.pos.domain.error.DomainError
 import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.repository.AuthRepository
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -40,8 +41,8 @@ class BackendAuthRepository(
                 Log.e("LoginFlow", "terminalLogin body is null")
                 throw DomainError.LoginFailed
             }
-            if (body.status != "OK") {
-                Log.e("LoginFlow", "terminalLogin status is not OK: ${body.status}")
+            if (!body.status.isSuccessStatus()) {
+                Log.e("LoginFlow", "terminalLogin status is not success: ${body.status}")
                 throw DomainError.LoginFailed
             }
 
@@ -53,8 +54,12 @@ class BackendAuthRepository(
                 } // TODO: replace flexible parsing after backend provides exact TerminalLogin response schema.
             Log.e("LoginFlow", "terminalLogin waiterId extracted=$waiterId")
 
-            payload.extractAuthToken()?.let {
+            val token = payload.extractAuthToken()
+            if (token != null) {
+                Log.e("LoginFlow", "terminalLogin accessToken found=true")
                 // TODO: store auth token in SessionRepository when protected endpoints are connected.
+            } else {
+                Log.e("LoginFlow", "terminalLogin accessToken found=false")
             }
 
             waiterId
@@ -76,28 +81,43 @@ class BackendAuthRepository(
     override suspend fun logout() = Unit
 }
 
+private fun String?.isSuccessStatus(): Boolean {
+    return equals("OK", ignoreCase = true) ||
+        equals("SUCCESS", ignoreCase = true)
+}
+
+private fun JsonElement.asStringOrNumberString(): String? {
+    return when {
+        isJsonPrimitive && asJsonPrimitive.isString -> asString
+        isJsonPrimitive && asJsonPrimitive.isNumber -> asNumber.toString()
+        else -> null
+    }
+}
+
 private fun JsonObject.extractWaiterId(): String? {
-    val fields = listOf("waiterId", "profileId", "id", "userId")
-    return fields.asSequence()
-        .mapNotNull { key -> this.get(key) }
-        .firstNotNullOfOrNull { element ->
-            when {
-                element.isJsonPrimitive && element.asJsonPrimitive.isString -> element.asString
-                element.isJsonPrimitive && element.asJsonPrimitive.isNumber -> element.asNumber.toString()
-                else -> null
-            }
-        }
+    val directFields = listOf("waiterId", "profileId", "id", "userId")
+
+    directFields.asSequence()
+        .mapNotNull { key -> get(key) }
+        .firstNotNullOfOrNull { element -> element.asStringOrNumberString() }
+        ?.let { return it }
+
+    val profile = getAsJsonObject("profile")
+
+    if (profile != null) {
+        listOf("waiterId", "id", "profileId", "userId")
+            .asSequence()
+            .mapNotNull { key -> profile.get(key) }
+            .firstNotNullOfOrNull { element -> element.asStringOrNumberString() }
+            ?.let { return it }
+    }
+
+    return null
 }
 
 private fun JsonObject.extractAuthToken(): String? {
     val fields = listOf("token", "accessToken", "authToken", "authorization")
     return fields.asSequence()
         .mapNotNull { key -> this.get(key) }
-        .firstNotNullOfOrNull { element ->
-            when {
-                element.isJsonPrimitive && element.asJsonPrimitive.isString -> element.asString
-                element.isJsonPrimitive && element.asJsonPrimitive.isNumber -> element.asNumber.toString()
-                else -> null
-            }
-        }
+        .firstNotNullOfOrNull { element -> element.asStringOrNumberString() }
 }
