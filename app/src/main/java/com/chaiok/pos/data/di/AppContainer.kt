@@ -23,6 +23,7 @@ import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.SettingsRepository
 import com.chaiok.pos.domain.repository.TerminalDataProvider
 import com.chaiok.pos.domain.repository.TipsRepository
+import com.chaiok.pos.domain.repository.TipRangeRepository
 import com.chaiok.pos.domain.repository.WaiterRepository
 import com.chaiok.pos.domain.usecase.GetTipsUseCase
 import com.chaiok.pos.domain.usecase.LinkCardUseCase
@@ -31,6 +32,7 @@ import com.chaiok.pos.domain.usecase.LogoutUseCase
 import com.chaiok.pos.domain.usecase.ObserveCurrentStatusUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
+import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ReadCardUseCase
 import com.chaiok.pos.domain.usecase.UpdateIntegrationModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateStatusUseCase
@@ -58,6 +60,7 @@ class AppContainer(context: Context) {
     val waiterRepository: WaiterRepository = MockWaiterRepository(appDataStore, sensitiveStorage)
     val tipsRepository: TipsRepository =
         if (USE_MOCK_TIPS) MockTipsRepository() else BackendTipsRepository(terminalApi, sessionRepository)
+    val tipRangeRepository: TipRangeRepository = BackendTipRangeRepository(terminalApi, sessionRepository)
     val settingsRepository: SettingsRepository = DataStoreSettingsRepository(appDataStore)
     val cardReaderRepository: CardReaderRepository = MockCardReaderRepository(MockCardReaderRepository.Mode.AlwaysSuccess)
 
@@ -82,6 +85,7 @@ class AppContainer(context: Context) {
     val linkCardUseCase = LinkCardUseCase(waiterRepository)
     val readCardUseCase = ReadCardUseCase(cardReaderRepository)
     val getTipsUseCase = GetTipsUseCase(tipsRepository)
+    val getTransactionRangeUseCase = GetTransactionRangeUseCase(tipRangeRepository)
     val observeSettingsUseCase = ObserveSettingsUseCase(settingsRepository)
     val updateIntegrationModeUseCase = UpdateIntegrationModeUseCase(settingsRepository)
     val updateTableModeUseCase = UpdateTableModeUseCase(settingsRepository)

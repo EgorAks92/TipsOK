@@ -5,8 +5,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
 import com.chaiok.pos.data.di.AppContainer
 import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
@@ -27,6 +29,8 @@ import com.chaiok.pos.presentation.status.StatusScreen
 import com.chaiok.pos.presentation.status.StatusViewModel
 import com.chaiok.pos.presentation.tips.TipsScreen
 import com.chaiok.pos.presentation.tips.TipsViewModel
+import com.chaiok.pos.presentation.tipselection.TipSelectionScreen
+import com.chaiok.pos.presentation.tipselection.TipSelectionViewModel
 import androidx.navigation.NavHostController
 
 @Composable
@@ -79,10 +83,11 @@ fun ChaiOkNavHost(container: AppContainer) {
 
             LaunchedEffect(Unit) {
                 vm.oneTimeEvents.collect { event ->
-                    if (event is HomeEvent.NavigateToLogin) {
-                        navController.navigate(Routes.Login) {
+                    when (event) {
+                        is HomeEvent.NavigateToLogin -> navController.navigate(Routes.Login) {
                             popUpTo(Routes.Home) { inclusive = true }
                         }
+                        is HomeEvent.NavigateToTipSelection -> navController.navigate(Routes.tipSelection(event.billAmount))
                     }
                 }
             }
@@ -200,6 +205,32 @@ fun ChaiOkNavHost(container: AppContainer) {
                 state = state,
                 onBack = { navController.popBackStack() },
                 onSelect = vm::setBackground
+            )
+        }
+
+
+
+        composable(
+            route = Routes.TipSelectionWithArg,
+            arguments = listOf(navArgument("billAmount") { type = NavType.FloatType })
+        ) { backStack ->
+            val billAmount = backStack.arguments?.getFloat("billAmount")?.toDouble() ?: 0.0
+            val vm: TipSelectionViewModel = viewModel(factory = SimpleFactory {
+                TipSelectionViewModel(
+                    billAmount = billAmount,
+                    getTransactionRangeUseCase = container.getTransactionRangeUseCase,
+                    observeProfileUseCase = container.observeProfileUseCase
+                )
+            })
+            val state by vm.uiState.collectAsStateWithLifecycle()
+            TipSelectionScreen(
+                state = state,
+                onPreset = vm::selectPreset,
+                onCustomStart = vm::openCustomDialog,
+                onCustomSet = vm::applyCustom,
+                onDismissCustom = vm::dismissCustomDialog,
+                onPay = { },
+                onSnackbarShown = vm::onMessageShown
             )
         }
 
