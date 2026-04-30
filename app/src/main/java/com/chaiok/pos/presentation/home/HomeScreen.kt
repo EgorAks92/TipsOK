@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -43,8 +44,6 @@ import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
-import androidx.compose.foundation.layout.widthIn
-
 
 private data class HomeLayoutMetrics(
     val amountLabelSize: Int,
@@ -322,34 +321,41 @@ private fun HomeTopAppBar(
             .padding(
                 start = 32.dp,
                 end = 32.dp,
-                top = 14.dp,
-                bottom = 12.dp
+                top = 10.dp,
+                bottom = 10.dp
             )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.Center),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        TopActionIcon(
+            onClick = onOpenSettings,
+            modifier = Modifier.align(Alignment.CenterStart)
         ) {
-            TopActionIcon(onClick = onOpenSettings) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_home_settings),
-                    contentDescription = "Настройки",
-                    modifier = Modifier.size(iconSize),
-                    colorFilter = ColorFilter.tint(Color(0xFF1B2128))
-                )
-            }
+            Image(
+                painter = painterResource(id = R.drawable.ic_home_settings),
+                contentDescription = "Настройки",
+                modifier = Modifier.size(iconSize),
+                colorFilter = ColorFilter.tint(Color(0xFF1B2128))
+            )
+        }
 
-            TopActionIcon(onClick = onLogout) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_home_logout),
-                    contentDescription = "Выйти",
-                    modifier = Modifier.size(iconSize),
-                    colorFilter = ColorFilter.tint(Color(0xFF1B2128))
-                )
-            }
+        Image(
+            painter = painterResource(id = R.drawable.tiply_logo_black),
+            contentDescription = "Tiply",
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(width = 100.dp, height = 34.dp),
+            contentScale = ContentScale.Fit
+        )
+
+        TopActionIcon(
+            onClick = onLogout,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_home_logout),
+                contentDescription = "Выйти",
+                modifier = Modifier.size(iconSize),
+                colorFilter = ColorFilter.tint(Color(0xFF1B2128))
+            )
         }
     }
 }
@@ -357,12 +363,13 @@ private fun HomeTopAppBar(
 @Composable
 private fun TopActionIcon(
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(48.dp)
             .clickable(
                 interactionSource = interactionSource,
