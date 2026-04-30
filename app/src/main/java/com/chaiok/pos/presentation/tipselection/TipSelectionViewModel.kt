@@ -49,9 +49,19 @@ class TipSelectionViewModel(
             getTransactionRangeUseCase.observe().collect { range ->
                 val percents = range?.percents?.takeIf { it.isNotEmpty() } ?: fallbackPercents
                 val defaultIndex = range?.defaultIndex ?: fallbackDefaultIndex
-                val selectedIndex = defaultIndex.coerceIn(0, percents.lastIndex)
                 _uiState.update {
-                    it.copy(isLoading = false, availablePercents = percents, selectedPercentIndex = selectedIndex)
+                    val shouldUseDefaultIndex = it.availablePercents.isEmpty()
+                    val nextSelectedIndex = if (shouldUseDefaultIndex) {
+                        defaultIndex.coerceIn(0, percents.lastIndex)
+                    } else {
+                        it.selectedPercentIndex.coerceIn(0, percents.lastIndex)
+                    }
+
+                    it.copy(
+                        isLoading = false,
+                        availablePercents = percents,
+                        selectedPercentIndex = nextSelectedIndex
+                    )
                 }
             }
         }
