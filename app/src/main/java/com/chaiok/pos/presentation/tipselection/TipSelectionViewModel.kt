@@ -1,12 +1,10 @@
 package com.chaiok.pos.presentation.tipselection
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
-import com.chaiok.pos.domain.usecase.PayTipsUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,8 +42,7 @@ data class TipSelectionUiState(
 class TipSelectionViewModel(
     private val billAmount: Double,
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
-    private val observeProfileUseCase: ObserveProfileUseCase,
-    private val payTipsUseCase: PayTipsUseCase
+    private val observeProfileUseCase: ObserveProfileUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(TipSelectionUiState(billAmount = billAmount))
     val uiState: StateFlow<TipSelectionUiState> = _uiState.asStateFlow()
@@ -69,25 +66,27 @@ class TipSelectionViewModel(
         }
     }
 
-    fun pay() {
+    fun startExternalPayment(): Boolean {
         val current = _uiState.value
-        if (current.paymentState == TipPaymentUiState.Processing) return
+        if (current.paymentState == TipPaymentUiState.Processing) return false
         if (current.totalAmount <= 0.0) {
             _uiState.update { it.copy(errorMessage = "Сумма должна быть больше 0") }
-            return
+            return false
         }
+        _uiState.update { it.copy(paymentState = TipPaymentUiState.Processing) }
+        return true
+    }
 
-        viewModelScope.launch {
-            _uiState.update { it.copy(paymentState = TipPaymentUiState.Processing) }
-            when (val result = payTipsUseCase(_uiState.value.totalAmount)) {
-                is PaymentResult.Approved -> _uiState.update { it.copy(paymentState = TipPaymentUiState.Approved(result.rawMessage ?: "Оплата одобрена")) }
-                is PaymentResult.Declined -> _uiState.update { it.copy(paymentState = TipPaymentUiState.Declined(result.reason ?: "Оплата отклонена")) }
-                is PaymentResult.Error -> {
-                    Log.e("TipsPaymentFlow", "pay failed", result.cause)
-                    _uiState.update { it.copy(paymentState = TipPaymentUiState.Declined(result.message)) }
-                }
-            }
+    fun handlePaymentResult(result: PaymentResult) {
+        when (result) {
+            is PaymentResult.Approved -> _uiState.update { it.copy(paymentState = TipPaymentUiState.Approved(result.rawMessage ?: "Оплата одобрена")) }
+            is PaymentResult.Declined -> _uiState.update { it.copy(paymentState = TipPaymentUiState.Declined(result.reason ?: "Оплата отклонена")) }
+            is PaymentResult.Error -> _uiState.update { it.copy(paymentState = TipPaymentUiState.Declined(result.message)) }
         }
+    }
+
+    fun handlePaymentLaunchError(message: String) {
+        _uiState.update { it.copy(paymentState = TipPaymentUiState.Declined(message)) }
     }
 
     fun resetPaymentState() { _uiState.update { it.copy(paymentState = TipPaymentUiState.Idle) } }
