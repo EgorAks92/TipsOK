@@ -31,4 +31,5 @@ private class CapturingWaiterRepo : WaiterRepository {
         called = true
         return Result.success(Unit)
     }
+    override suspend fun setCardConnected(isConnected: Boolean): Result<Unit> = Result.success(Unit)
 }
