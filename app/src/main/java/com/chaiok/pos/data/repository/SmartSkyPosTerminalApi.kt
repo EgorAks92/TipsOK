@@ -30,16 +30,20 @@ class SmartSkyPosTerminalApi(
 
         try {
             Log.e(TAG, "getTerminalData started")
-            val terminalData = service.getTerminalData() ?: return@withContext PaymentTerminalDataResult.Error(
-                reason = "TerminalData is null",
-                type = PaymentTerminalDataErrorType.NotReady
-            ).also {
-                Log.e(TAG, "TerminalData is null")
-            }
+
+            val terminalData = service.getTerminalData()
+                ?: return@withContext PaymentTerminalDataResult.Error(
+                    reason = "TerminalData is null",
+                    type = PaymentTerminalDataErrorType.NotReady
+                ).also {
+                    Log.e(TAG, "TerminalData is null")
+                }
 
             val code = terminalData.getCode()
             val message = terminalData.getMessage()
+
             Log.e(TAG, "getTerminalData code=$code, message=$message")
+
             if (code != 0) {
                 return@withContext PaymentTerminalDataResult.Error(
                     reason = message,
@@ -47,19 +51,29 @@ class SmartSkyPosTerminalApi(
                 )
             }
 
-            val serialNumber = terminalData.getSerialNumber().orEmpty().trim()
+            val serialNumber = terminalData.getTmsId()
+                .orEmpty()
+                .trim()
 
-            val tid = "47310967"
+            val tid = HARDCODED_TID
 
             if (serialNumber.isBlank() || tid.isBlank()) {
-                Log.e(TAG, "TerminalData missing serialNumber or tid")
+                Log.e(
+                    TAG,
+                    "TerminalData missing tmsId or tid: tmsId=${terminalData.getTmsId()} tid=$tid"
+                )
+
                 return@withContext PaymentTerminalDataResult.Error(
-                    reason = "TerminalData is missing serialNumber or tid",
+                    reason = "TerminalData is missing tmsId or tid",
                     type = PaymentTerminalDataErrorType.InvalidData
                 )
             }
 
-            Log.e(TAG, "terminal data loaded serial=***${serialNumber.takeLast(4)} tid=***${tid.takeLast(4)}")
+            Log.e(
+                TAG,
+                "terminal data loaded serial=***${serialNumber.takeLast(4)} tid=***${tid.takeLast(4)}"
+            )
+
             PaymentTerminalDataResult.Success(
                 PaymentTerminalData(
                     serialNumber = serialNumber,
@@ -68,18 +82,21 @@ class SmartSkyPosTerminalApi(
             )
         } catch (error: RemoteException) {
             Log.e(TAG, "getTerminalData RemoteException", error)
+
             PaymentTerminalDataResult.Error(
                 reason = error.message,
                 type = PaymentTerminalDataErrorType.NotReady
             )
         } catch (error: SecurityException) {
             Log.e(TAG, "getTerminalData SecurityException", error)
+
             PaymentTerminalDataResult.Error(
                 reason = error.message,
                 type = PaymentTerminalDataErrorType.NotReady
             )
         } catch (error: Exception) {
             Log.e(TAG, "getTerminalData unexpected error", error)
+
             PaymentTerminalDataResult.Error(
                 reason = error.message,
                 type = PaymentTerminalDataErrorType.NotReady
@@ -91,13 +108,20 @@ class SmartSkyPosTerminalApi(
         smartSkyPos?.let { return it }
 
         Log.e(TAG, "bind started")
+
         val deferred = CompletableDeferred<ISmartSkyPos?>()
+
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
                 val api = ISmartSkyPos.Stub.asInterface(binder)
+
                 smartSkyPos = api
+
                 Log.e(TAG, "bind success")
-                if (!deferred.isCompleted) deferred.complete(api)
+
+                if (!deferred.isCompleted) {
+                    deferred.complete(api)
+                }
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
@@ -106,15 +130,24 @@ class SmartSkyPosTerminalApi(
             }
 
             override fun onNullBinding(name: ComponentName?) {
-                Log.e(TAG, "bind null binding")
                 smartSkyPos = null
-                if (!deferred.isCompleted) deferred.complete(null)
+                Log.e(TAG, "bind null binding")
+
+                if (!deferred.isCompleted) {
+                    deferred.complete(null)
+                }
             }
         }
 
-        val intent = Intent(SMART_SKY_POS_ACTION).setPackage(SMART_SKY_POS_PACKAGE)
+        val intent = Intent(SMART_SKY_POS_ACTION)
+            .setPackage(SMART_SKY_POS_PACKAGE)
+
         val bound = try {
-            context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+            context.bindService(
+                intent,
+                connection,
+                Context.BIND_AUTO_CREATE
+            )
         } catch (error: SecurityException) {
             Log.e(TAG, "bind security exception", error)
             false
@@ -127,9 +160,11 @@ class SmartSkyPosTerminalApi(
             Log.e(TAG, "bind failed: service unavailable")
             return null
         }
-        Log.e(TAG, "bind success")
 
-        val api = withTimeoutOrNull(SERVICE_BIND_TIMEOUT_MS) { deferred.await() }
+        val api = withTimeoutOrNull(SERVICE_BIND_TIMEOUT_MS) {
+            deferred.await()
+        }
+
         if (api == null) {
             Log.e(TAG, "bind timeout")
             runCatching { context.unbindService(connection) }
@@ -140,8 +175,12 @@ class SmartSkyPosTerminalApi(
 
     companion object {
         private const val TAG = "SmartSkyPosTerminalApi"
+
         private const val SMART_SKY_POS_PACKAGE = "com.skytech.smartskypos"
         private const val SMART_SKY_POS_ACTION = "com.skytech.smartskypos.ISmartSkyPos"
+
         private const val SERVICE_BIND_TIMEOUT_MS = 3_000L
+
+        private const val HARDCODED_TID = "47310967"
     }
 }
