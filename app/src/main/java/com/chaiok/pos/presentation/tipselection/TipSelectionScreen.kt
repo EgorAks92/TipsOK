@@ -1,6 +1,8 @@
 package com.chaiok.pos.presentation.tipselection
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -19,6 +21,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,7 +77,9 @@ fun TipSelectionScreen(
     onCustomSet: (String) -> Unit,
     onDismissCustom: () -> Unit,
     onPay: () -> Unit,
-    onSnackbarShown: () -> Unit
+    onSnackbarShown: () -> Unit,
+    onDone: () -> Unit,
+    onRetry: () -> Unit
 ) {
     val snackState = remember { SnackbarHostState() }
 
@@ -108,19 +118,24 @@ fun TipSelectionScreen(
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 24.dp)
             ) {
-                TipSelectionContentCard(
-                    state = state,
-                    onPreset = onPreset,
-                    onCustomStart = onCustomStart
-                )
+                if (state.paymentState == TipPaymentUiState.Approved || state.paymentState == TipPaymentUiState.Declined) {
+                    PaymentResultContent(state = state, onDone = onDone, onRetry = onRetry, onBack = onBack)
+                } else {
+                    TipSelectionContentCard(
+                        state = state,
+                        onPreset = onPreset,
+                        onCustomStart = onCustomStart
+                    )
 
-                Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.weight(1f))
 
-                GradientPayButton(
-                    amount = state.totalAmount.toInt(),
-                    enabled = state.isPayEnabled,
-                    onClick = onPay
-                )
+                    GradientPayButton(
+                        amount = state.totalAmount.toInt(),
+                        enabled = state.isPayEnabled,
+                        loading = state.paymentState == TipPaymentUiState.Processing,
+                        onClick = onPay
+                    )
+                }
             }
         }
 
@@ -403,6 +418,7 @@ private fun CustomTipCard(
 private fun GradientPayButton(
     amount: Int,
     enabled: Boolean,
+    loading: Boolean,
     onClick: () -> Unit
 ) {
     val animatedAmount by animateIntAsState(
@@ -454,7 +470,7 @@ private fun GradientPayButton(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "Оплатить ${formatRubles(animatedAmount)}",
+            text = if (loading) "Оплата..." else "Оплатить ${formatRubles(animatedAmount)}",
             color = if (enabled) Color.White else Color(0xFF8B96A5),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
@@ -462,6 +478,39 @@ private fun GradientPayButton(
             lineHeight = 20.sp,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+
+@Composable
+private fun PaymentResultContent(state: TipSelectionUiState, onDone: () -> Unit, onRetry: () -> Unit, onBack: () -> Unit) {
+    val approved = state.paymentState is TipPaymentUiState.Approved
+    val scale by animateFloatAsState(if (approved || state.paymentState is TipPaymentUiState.Declined) 1f else 0.85f, label = "resultScale")
+    val alpha by animateFloatAsState(if (approved || state.paymentState is TipPaymentUiState.Declined) 1f else 0f, label = "resultAlpha")
+    val accent = if (approved) Brush.linearGradient(listOf(TipSelectionGreenColor, TipSelectionAccentColor)) else Brush.linearGradient(listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E)))
+
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Box(Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(28.dp)).clip(RoundedCornerShape(28.dp)).background(Color.White).padding(20.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.size(88.dp).background(accent, RoundedCornerShape(44.dp)).align(Alignment.CenterHorizontally)) {
+                    Icon(imageVector = if (approved) Icons.Default.Check else Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.align(Alignment.Center))
+                }
+                Spacer(Modifier.height(14.dp))
+                Text(if (approved) "Оплата одобрена" else "Оплата отклонена", fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, color = TipSelectionPrimaryTextColor, fontSize = 24.sp)
+                Text(formatRubles(state.totalAmount.toInt()), fontFamily = MontserratFontFamily, color = TipSelectionSecondaryTextColor)
+                val msg = when (val ps = state.paymentState) { is TipPaymentUiState.Approved -> ps.message; is TipPaymentUiState.Declined -> ps.message; else -> null }
+                if (!msg.isNullOrBlank()) Text(msg, color = TipSelectionSecondaryTextColor, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                if (approved) {
+                    Button(onClick = onDone, colors = ButtonDefaults.buttonColors(containerColor = TipSelectionAccentColor)) { Text("Готово") }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = TipSelectionAccentColor)) { Text("Попробовать снова") }
+                        Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF69707A))) { Text("Назад") }
+                    }
+                }
+            }
+        }
     }
 }
 
