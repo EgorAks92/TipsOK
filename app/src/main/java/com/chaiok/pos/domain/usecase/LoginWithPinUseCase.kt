@@ -1,27 +1,24 @@
 package com.chaiok.pos.domain.usecase
 
+import com.chaiok.pos.domain.error.DomainError
 import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.TerminalDataProvider
 import com.chaiok.pos.domain.repository.WaiterRepository
-import com.chaiok.pos.domain.error.DomainError
-import com.chaiok.pos.domain.error.TerminalDataInvalidException
-import com.chaiok.pos.domain.error.TerminalDataNotReadyException
 
 class LoginWithPinUseCase(
     private val authRepository: AuthRepository,
     private val terminalDataProvider: TerminalDataProvider,
     private val waiterRepository: WaiterRepository,
-    private val sessionRepository: SessionRepository,
-    private val terminalDataProvider: TerminalDataProvider
+    private val sessionRepository: SessionRepository
 ) {
     suspend operator fun invoke(pin: String): Result<WaiterProfile> {
         val terminalInfo = runCatching { terminalDataProvider.getTerminalInfo() }
             .getOrElse { error ->
                 val domainError = when (error) {
-                    is TerminalDataNotReadyException -> DomainError.TerminalDataNotReady
-                    is TerminalDataInvalidException -> DomainError.TerminalDataInvalid
+                    is DomainError.TerminalDataNotReady -> DomainError.TerminalDataNotReady
+                    is DomainError.TerminalDataInvalid -> DomainError.TerminalDataInvalid
                     else -> DomainError.LoginFailed
                 }
                 return Result.failure(domainError)

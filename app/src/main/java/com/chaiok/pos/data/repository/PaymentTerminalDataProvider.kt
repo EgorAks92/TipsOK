@@ -1,20 +1,28 @@
 package com.chaiok.pos.data.repository
 
-import com.chaiok.pos.domain.error.TerminalDataInvalidException
-import com.chaiok.pos.domain.error.TerminalDataNotReadyException
+import com.chaiok.pos.domain.error.DomainError
 import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.repository.TerminalDataProvider
 
 class PaymentTerminalDataProvider(
     private val paymentApi: PaymentTerminalApi
 ) : TerminalDataProvider {
+
     override suspend fun getTerminalInfo(): TerminalInfo {
-        val terminalData = when (val result = paymentApi.getTerminalData()) {
+        val result = paymentApi.getTerminalData()
+
+        val terminalData = when (result) {
             is PaymentTerminalDataResult.Success -> result.data
-            is PaymentTerminalDataResult.Error -> throw TerminalDataNotReadyException()
+            is PaymentTerminalDataResult.Error -> {
+                throw when (result.type) {
+                    PaymentTerminalDataErrorType.NotReady -> DomainError.TerminalDataNotReady
+                    PaymentTerminalDataErrorType.InvalidData -> DomainError.TerminalDataInvalid
+                }
+            }
         }
+
         if (terminalData.serialNumber.isBlank() || terminalData.tid.isBlank()) {
-            throw TerminalDataInvalidException()
+            throw DomainError.TerminalDataInvalid
         }
 
         return TerminalInfo(
@@ -30,7 +38,15 @@ interface PaymentTerminalApi {
 
 sealed interface PaymentTerminalDataResult {
     data class Success(val data: PaymentTerminalData) : PaymentTerminalDataResult
-    data class Error(val reason: String? = null) : PaymentTerminalDataResult
+    data class Error(
+        val reason: String? = null,
+        val type: PaymentTerminalDataErrorType = PaymentTerminalDataErrorType.NotReady
+    ) : PaymentTerminalDataResult
+}
+
+enum class PaymentTerminalDataErrorType {
+    NotReady,
+    InvalidData
 }
 
 data class PaymentTerminalData(
