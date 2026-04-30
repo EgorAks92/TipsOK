@@ -9,7 +9,7 @@ import kotlinx.coroutines.delay
 class MockAuthRepository : AuthRepository {
     override suspend fun login(pin: String, terminalInfo: TerminalInfo): Result<AuthSession> = runCatching {
         delay(600)
-        if (pin == "1234") AuthSession("waiter-001", 10019L, "mock-token") else throw DomainError.InvalidPin
+        if (pin == "1234") AuthSession("waiter-001", 10019L, "mock-token", true) else throw DomainError.InvalidPin
     }
 
     override suspend fun logout() = Unit

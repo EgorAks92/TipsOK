@@ -25,7 +25,7 @@ class LoginWithPinUseCaseTest {
 
 private class FakeAuthRepo : AuthRepository {
     override suspend fun login(pin: String, terminalInfo: TerminalInfo): Result<AuthSession> =
-        Result.success(AuthSession("w1", 10019L, "token"))
+        Result.success(AuthSession("w1", 10019L, "token", false))
     override suspend fun logout() = Unit
 }
 
@@ -50,4 +50,5 @@ private class FakeWaiterRepo : WaiterRepository {
     override fun observeProfile(): Flow<WaiterProfile?> = MutableStateFlow(null)
     override suspend fun updateStatus(status: String): Result<Unit> = Result.success(Unit)
     override suspend fun linkCard(cardSha256: String, cardToken: String): Result<Unit> = Result.success(Unit)
+    override suspend fun setCardConnected(isConnected: Boolean): Result<Unit> = Result.success(Unit)
 }

@@ -30,6 +30,7 @@ class LoginWithPinUseCase(
         sessionRepository.setActiveWaiter(authSession.waiterId)
         sessionRepository.setProfileId(authSession.profileId)
         sessionRepository.setAccessToken(authSession.accessToken)
+        waiterRepository.setCardConnected(authSession.isCardConnected)
 
         return waiterRepository.loadProfile(authSession.waiterId)
     }

@@ -32,12 +32,14 @@ class BackendAuthRepository(
             val waiterId = payload.extractWaiterId() ?: throw DomainError.LoginFailed
             val profileId = payload.extractProfileId() ?: throw DomainError.LoginFailed
             val token = payload.extractAuthToken()?.takeIf { it.isNotBlank() } ?: throw DomainError.LoginFailed
+            val isCardConnected = payload.extractIsCardConnected()
 
             Log.e("LoginFlow", "terminalLogin waiterId extracted=$waiterId")
             Log.e("LoginFlow", "terminalLogin profileId extracted=$profileId")
             Log.e("LoginFlow", "terminalLogin accessToken found=true")
+            Log.e("LoginFlow", "terminalLogin isCardConnected=$isCardConnected")
 
-            AuthSession(waiterId = waiterId, profileId = profileId, accessToken = token)
+            AuthSession(waiterId = waiterId, profileId = profileId, accessToken = token, isCardConnected = isCardConnected)
         }.recoverCatching { error ->
             throw when (error) {
                 is DomainError -> error
@@ -78,4 +80,23 @@ private fun JsonObject.extractProfileId(): Long? {
 private fun JsonObject.extractAuthToken(): String? {
     val fields = listOf("accessToken", "token", "authToken", "authorization")
     return fields.asSequence().mapNotNull { get(it) }.firstNotNullOfOrNull { it.asStringOrNumberString() }
+}
+
+private fun JsonObject.extractIsCardConnected(): Boolean {
+    val profile = get("profile")?.takeIf { it.isJsonObject }?.asJsonObject
+
+    val value = profile?.get("isCardConnected")
+        ?: profile?.get("cardConnected")
+        ?: profile?.get("isCardLinked")
+        ?: get("isCardConnected")
+        ?: get("cardConnected")
+        ?: get("isCardLinked")
+
+    return when {
+        value == null || value.isJsonNull -> false
+        value.isJsonPrimitive && value.asJsonPrimitive.isBoolean -> value.asBoolean
+        value.isJsonPrimitive && value.asJsonPrimitive.isString -> value.asString.equals("true", ignoreCase = true)
+        value.isJsonPrimitive && value.asJsonPrimitive.isNumber -> value.asInt == 1
+        else -> false
+    }
 }

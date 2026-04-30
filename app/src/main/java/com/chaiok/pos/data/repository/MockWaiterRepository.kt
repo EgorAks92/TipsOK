@@ -16,6 +16,7 @@ class MockWaiterRepository(
 ) : WaiterRepository {
 
     private val baseProfile = MutableStateFlow<WaiterProfile?>(null)
+    private val loginCardConnected = MutableStateFlow(false)
 
     override suspend fun loadProfile(waiterId: String): Result<WaiterProfile> = runCatching {
         // TODO: Replace with real waiter profile API.
@@ -24,7 +25,7 @@ class MockWaiterRepository(
             firstName = "Ваш",
             lastName = "Официант",
             status = "Коплю на отпуск!",
-            hasLinkedCard = false,
+            hasLinkedCard = loginCardConnected.value,
             cardSha256 = null
         )
         baseProfile.value = loaded
@@ -34,12 +35,13 @@ class MockWaiterRepository(
     override fun observeProfile(): Flow<WaiterProfile?> = combine(
         baseProfile,
         dataStore.waiterStatusFlow,
+        loginCardConnected,
         dataStore.hasLinkedCardFlow,
         dataStore.cardShaFlow
-    ) { profile, status, hasLinkedCard, cardSha ->
+    ) { profile, status, loginHasCard, persistedHasCard, cardSha ->
         profile?.copy(
             status = status,
-            hasLinkedCard = hasLinkedCard,
+            hasLinkedCard = loginHasCard || persistedHasCard,
             cardSha256 = cardSha
         )
     }
@@ -50,9 +52,21 @@ class MockWaiterRepository(
         Unit
     }
 
+
+    override suspend fun setCardConnected(isConnected: Boolean): Result<Unit> = runCatching {
+        loginCardConnected.value = isConnected
+        dataStore.setHasLinkedCard(isConnected)
+        if (!isConnected) {
+            dataStore.setCardSha(null)
+        }
+        baseProfile.update { it?.copy(hasLinkedCard = isConnected) }
+        Unit
+    }
+
     override suspend fun linkCard(cardSha256: String, cardToken: String): Result<Unit> = runCatching {
         // TODO: Send linked card token/hash to backend once endpoint is ready.
         sensitiveStorage.saveCardToken(cardToken).getOrElse { throw DomainError.StorageFailed }
+        loginCardConnected.value = true
         dataStore.setHasLinkedCard(true)
         dataStore.setCardSha(cardSha256)
         baseProfile.update {

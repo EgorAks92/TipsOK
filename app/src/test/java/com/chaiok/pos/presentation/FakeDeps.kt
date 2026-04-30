@@ -16,6 +16,7 @@ class FakeObserveWaiterRepo(private val profileFlow: MutableStateFlow<WaiterProf
     override fun observeProfile(): Flow<WaiterProfile?> = profileFlow
     override suspend fun updateStatus(status: String): Result<Unit> = Result.success(Unit)
     override suspend fun linkCard(cardSha256: String, cardToken: String): Result<Unit> = Result.success(Unit)
+    override suspend fun setCardConnected(isConnected: Boolean): Result<Unit> = Result.success(Unit)
 }
 
 class FakeSettingsRepo(private val settingsFlow: MutableStateFlow<AppSettings>) : SettingsRepository {
@@ -27,7 +28,7 @@ class FakeSettingsRepo(private val settingsFlow: MutableStateFlow<AppSettings>) 
 
 class FakeAuthRepo2 : AuthRepository {
     override suspend fun login(pin: String, terminalInfo: TerminalInfo): Result<AuthSession> =
-        Result.success(AuthSession("1", 10019L, "token"))
+        Result.success(AuthSession("1", 10019L, "token", true))
     override suspend fun logout() = Unit
 }
 

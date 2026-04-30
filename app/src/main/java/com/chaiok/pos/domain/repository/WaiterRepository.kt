@@ -8,4 +8,5 @@ interface WaiterRepository {
     fun observeProfile(): Flow<WaiterProfile?>
     suspend fun updateStatus(status: String): Result<Unit>
     suspend fun linkCard(cardSha256: String, cardToken: String): Result<Unit>
+    suspend fun setCardConnected(isConnected: Boolean): Result<Unit>
 }
