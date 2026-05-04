@@ -4,7 +4,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,12 +21,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -46,17 +45,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
@@ -70,6 +65,7 @@ private val TipSelectionSoftCardColor = Color(0xFFF0F3F7)
 private val TipSelectionStrokeColor = Color(0xFFE2E7EF)
 private val TipSelectionAccentColor = Color(0xFF087BE8)
 private val TipSelectionGreenColor = Color(0xFF14B8A6)
+private val TipSelectionWarningColor = Color(0xFFFFB547)
 
 @Composable
 fun TipSelectionScreen(
@@ -120,13 +116,13 @@ fun TipSelectionScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = 20.dp)
             ) {
                 val isResultState =
                     state.paymentState is TipPaymentUiState.Approved ||
@@ -140,27 +136,17 @@ fun TipSelectionScreen(
                         onBack = onBack
                     )
                 } else {
-                    val contentScrollState = rememberScrollState()
+                    TipSelectionContent(
+                        state = state,
+                        onPreset = onPreset,
+                        onCustomStart = onCustomStart,
+                        onServiceFeeToggle = onServiceFeeToggle,
+                        onKitchenEvaluation = onKitchenEvaluation,
+                        onServiceEvaluation = onServiceEvaluation,
+                        modifier = Modifier.weight(1f)
+                    )
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .verticalScroll(contentScrollState)
-                    ) {
-                        TipSelectionContent(
-                            state = state,
-                            onPreset = onPreset,
-                            onCustomStart = onCustomStart,
-                            onServiceFeeToggle = onServiceFeeToggle,
-                            onKitchenEvaluation = onKitchenEvaluation,
-                            onServiceEvaluation = onServiceEvaluation
-                        )
-
-                        Spacer(modifier = Modifier.height(18.dp))
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     GradientPayButton(
                         amount = state.totalAmount,
@@ -196,79 +182,234 @@ private fun TipSelectionContent(
     onCustomStart: () -> Unit,
     onServiceFeeToggle: (Boolean) -> Unit,
     onKitchenEvaluation: (Int) -> Unit,
-    onServiceEvaluation: (Int) -> Unit
+    onServiceEvaluation: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         BillAndTipsInfoRow(
             billAmount = state.billAmount,
             tipAmount = state.selectedTipAmount
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(28.dp),
-                    clip = false,
-                    ambientColor = Color.Black.copy(alpha = 0.10f),
-                    spotColor = Color.Black.copy(alpha = 0.16f)
-                )
-                .clip(RoundedCornerShape(28.dp))
-                .background(TipSelectionCardColor)
-                .padding(16.dp)
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                itemsIndexed(state.availablePercents) { index, percent ->
-                    val selected = !state.isCustomSelected && state.selectedPercentIndex == index
-                    val tipAmount = state.calculateTipByPercent(percent)
+            TipSelectionCard(
+                state = state,
+                onPreset = onPreset,
+                onCustomStart = onCustomStart
+            )
 
-                    TipPercentCard(
-                        percentText = "${percent.toInt()}%",
-                        amountText = formatRubles(tipAmount),
-                        selected = selected,
-                        onClick = { onPreset(index) }
+            ReviewEvaluationCard(
+                kitchenEvaluation = state.kitchenEvaluation,
+                serviceEvaluation = state.serviceEvaluation,
+                onKitchenEvaluation = onKitchenEvaluation,
+                onServiceEvaluation = onServiceEvaluation
+            )
+
+            if (state.serviceFeePercent > 0.0) {
+                ServiceFeeSwitchCard(
+                    checked = state.isServiceFeeEnabled,
+                    percent = state.serviceFeePercent,
+                    amount = state.serviceFeeAmount,
+                    onCheckedChange = onServiceFeeToggle
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TipSelectionCard(
+    state: TipSelectionUiState,
+    onPreset: (Int) -> Unit,
+    onCustomStart: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(24.dp),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.08f),
+                spotColor = Color.Black.copy(alpha = 0.12f)
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(TipSelectionCardColor)
+            .padding(horizontal = 12.dp, vertical = 12.dp)
+    ) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            itemsIndexed(state.availablePercents) { index, percent ->
+                val selected = !state.isCustomSelected && state.selectedPercentIndex == index
+                val tipAmount = state.calculateTipByPercent(percent)
+
+                TipPercentCard(
+                    percentText = formatPercent(percent),
+                    amountText = formatRubles(tipAmount),
+                    selected = selected,
+                    onClick = { onPreset(index) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        CustomTipCard(
+            selected = state.isCustomSelected,
+            amountText = if (state.customTipAmount != null) {
+                formatRubles(state.customTipAmount)
+            } else {
+                "Указать сумму"
+            },
+            onClick = onCustomStart
+        )
+    }
+}
+
+@Composable
+private fun ReviewEvaluationCard(
+    kitchenEvaluation: Int,
+    serviceEvaluation: Int,
+    onKitchenEvaluation: (Int) -> Unit,
+    onServiceEvaluation: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(24.dp),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.08f),
+                spotColor = Color.Black.copy(alpha = 0.12f)
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(TipSelectionCardColor)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        CompactRatingRow(
+            title = "Как вам кухня",
+            value = kitchenEvaluation,
+            onSelect = onKitchenEvaluation
+        )
+
+        CompactRatingRow(
+            title = "Как вам сервис",
+            value = serviceEvaluation,
+            onSelect = onServiceEvaluation
+        )
+    }
+}
+
+@Composable
+private fun CompactRatingRow(
+    title: String,
+    value: Int,
+    onSelect: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            color = TipSelectionPrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(5) { index ->
+                val starValue = index + 1
+                CompactStarButton(
+                    selected = starValue <= value,
+                    onClick = { onSelect(starValue) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactStarButton(
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.94f,
+        animationSpec = tween(durationMillis = 160),
+        label = "compactStarScale"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(
+                elevation = if (selected) 5.dp else 0.dp,
+                shape = CircleShape,
+                clip = false,
+                ambientColor = TipSelectionWarningColor.copy(alpha = 0.16f),
+                spotColor = TipSelectionWarningColor.copy(alpha = 0.22f)
+            )
+            .clip(CircleShape)
+            .background(
+                brush = if (selected) {
+                    Brush.linearGradient(
+                        listOf(
+                            Color(0xFFFFC94D),
+                            Color(0xFFFFA63D)
+                        )
+                    )
+                } else {
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White,
+                            Color(0xFFF3F6FA)
+                        )
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            CustomTipCard(
-                selected = state.isCustomSelected,
-                amountText = if (state.customTipAmount != null) {
-                    formatRubles(state.customTipAmount)
-                } else {
-                    "Указать сумму"
-                },
-                onClick = onCustomStart
             )
-        }
-
-        if (state.serviceFeePercent > 0.0) {
-            Spacer(modifier = Modifier.height(14.dp))
-
-            ServiceFeeSwitchCard(
-                checked = state.isServiceFeeEnabled,
-                percent = state.serviceFeePercent,
-                amount = state.serviceFeeAmount,
-                onCheckedChange = onServiceFeeToggle
+            .border(
+                width = 1.dp,
+                color = if (selected) Color.Transparent else TipSelectionStrokeColor,
+                shape = CircleShape
             )
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        ReviewEvaluationCard(
-            kitchenEvaluation = state.kitchenEvaluation,
-            serviceEvaluation = state.serviceEvaluation,
-            onKitchenEvaluation = onKitchenEvaluation,
-            onServiceEvaluation = onServiceEvaluation
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Star,
+            contentDescription = null,
+            tint = if (selected) Color.White else Color(0xFFC5CED9),
+            modifier = Modifier.size(17.dp)
         )
     }
 }
@@ -311,8 +452,8 @@ private fun InlineAmountText(
         color = TipSelectionPrimaryTextColor,
         fontFamily = MontserratFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 18.sp,
-        lineHeight = 22.sp,
+        fontSize = 17.sp,
+        lineHeight = 21.sp,
         textAlign = textAlign,
         maxLines = 1,
         softWrap = false,
@@ -332,15 +473,15 @@ private fun ServiceFeeSwitchCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(76.dp)
+            .height(62.dp)
             .shadow(
-                elevation = if (checked) 8.dp else 4.dp,
-                shape = RoundedCornerShape(24.dp),
+                elevation = if (checked) 6.dp else 3.dp,
+                shape = RoundedCornerShape(22.dp),
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.07f),
-                spotColor = Color.Black.copy(alpha = 0.12f)
+                ambientColor = Color.Black.copy(alpha = 0.06f),
+                spotColor = Color.Black.copy(alpha = 0.10f)
             )
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(
                 brush = if (checked) {
                     Brush.linearGradient(
@@ -365,14 +506,14 @@ private fun ServiceFeeSwitchCard(
                 } else {
                     TipSelectionStrokeColor
                 },
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(22.dp)
             )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = { onCheckedChange(!checked) }
             )
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
@@ -383,27 +524,27 @@ private fun ServiceFeeSwitchCard(
                 color = TipSelectionPrimaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                lineHeight = 19.sp,
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = "${formatPercent(percent)} от чаевых · ${formatRubles(amount)}",
                 color = TipSelectionSecondaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                lineHeight = 16.sp,
+                fontSize = 12.sp,
+                lineHeight = 15.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
         Switch(
             checked = checked,
@@ -420,142 +561,6 @@ private fun ServiceFeeSwitchCard(
 }
 
 @Composable
-private fun ReviewEvaluationCard(
-    kitchenEvaluation: Int,
-    serviceEvaluation: Int,
-    onKitchenEvaluation: (Int) -> Unit,
-    onServiceEvaluation: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(28.dp),
-                clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.10f),
-                spotColor = Color.Black.copy(alpha = 0.16f)
-            )
-            .clip(RoundedCornerShape(28.dp))
-            .background(TipSelectionCardColor)
-            .padding(horizontal = 16.dp, vertical = 16.dp)
-    ) {
-        EvaluationRow(
-            title = "Как вам кухня?",
-            rating = kitchenEvaluation,
-            onRatingSelected = onKitchenEvaluation
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        EvaluationRow(
-            title = "Как вам сервис?",
-            rating = serviceEvaluation,
-            onRatingSelected = onServiceEvaluation
-        )
-    }
-}
-
-@Composable
-private fun EvaluationRow(
-    title: String,
-    rating: Int,
-    onRatingSelected: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = title,
-            color = TipSelectionPrimaryTextColor,
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            lineHeight = 20.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        RatingStars(
-            rating = rating,
-            onRatingSelected = onRatingSelected
-        )
-    }
-}
-
-@Composable
-private fun RatingStars(
-    rating: Int,
-    onRatingSelected: (Int) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        repeat(5) { index ->
-            val value = index + 1
-            val selected = value <= rating
-            val interactionSource = remember { MutableInteractionSource() }
-
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        brush = if (selected) {
-                            Brush.linearGradient(
-                                listOf(
-                                    TipSelectionAccentColor.copy(alpha = 0.14f),
-                                    TipSelectionGreenColor.copy(alpha = 0.16f)
-                                )
-                            )
-                        } else {
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White,
-                                    TipSelectionSoftCardColor
-                                )
-                            )
-                        }
-                    )
-                    .border(
-                        width = 1.dp,
-                        color = if (selected) {
-                            TipSelectionAccentColor.copy(alpha = 0.30f)
-                        } else {
-                            TipSelectionStrokeColor
-                        },
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = { onRatingSelected(value) }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "★",
-                    color = if (selected) {
-                        TipSelectionAccentColor
-                    } else {
-                        TipSelectionSecondaryTextColor.copy(alpha = 0.42f)
-                    },
-                    fontFamily = MontserratFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                    lineHeight = 28.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun TipPercentCard(
     percentText: String,
     amountText: String,
@@ -563,18 +568,18 @@ private fun TipPercentCard(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(20.dp)
 
     Column(
         modifier = Modifier
-            .width(122.dp)
-            .height(104.dp)
+            .width(106.dp)
+            .height(74.dp)
             .shadow(
-                elevation = if (selected) 10.dp else 0.dp,
+                elevation = if (selected) 8.dp else 0.dp,
                 shape = shape,
                 clip = false,
-                ambientColor = TipSelectionAccentColor.copy(alpha = 0.16f),
-                spotColor = TipSelectionAccentColor.copy(alpha = 0.24f)
+                ambientColor = TipSelectionAccentColor.copy(alpha = 0.14f),
+                spotColor = TipSelectionAccentColor.copy(alpha = 0.20f)
             )
             .clip(shape)
             .background(
@@ -604,7 +609,7 @@ private fun TipPercentCard(
                 indication = null,
                 onClick = onClick
             )
-            .padding(14.dp),
+            .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
@@ -612,19 +617,23 @@ private fun TipPercentCard(
             color = if (selected) Color.White else TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
-            lineHeight = 26.sp
+            fontSize = 18.sp,
+            lineHeight = 21.sp
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(3.dp))
 
         Text(
             text = amountText,
-            color = if (selected) Color.White.copy(alpha = 0.92f) else TipSelectionSecondaryTextColor,
+            color = if (selected) {
+                Color.White.copy(alpha = 0.92f)
+            } else {
+                TipSelectionSecondaryTextColor
+            },
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 15.sp,
-            lineHeight = 18.sp,
+            fontSize = 12.sp,
+            lineHeight = 15.sp,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis
@@ -639,18 +648,18 @@ private fun CustomTipCard(
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(20.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(66.dp)
+            .height(52.dp)
             .shadow(
-                elevation = if (selected) 8.dp else 0.dp,
+                elevation = if (selected) 6.dp else 0.dp,
                 shape = shape,
                 clip = false,
-                ambientColor = TipSelectionAccentColor.copy(alpha = 0.10f),
-                spotColor = TipSelectionAccentColor.copy(alpha = 0.16f)
+                ambientColor = TipSelectionAccentColor.copy(alpha = 0.08f),
+                spotColor = TipSelectionAccentColor.copy(alpha = 0.12f)
             )
             .clip(shape)
             .background(
@@ -684,13 +693,13 @@ private fun CustomTipCard(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .size(32.dp)
+                .clip(RoundedCornerShape(11.dp))
                 .background(
                     brush = if (selected) {
                         Brush.linearGradient(
@@ -715,12 +724,12 @@ private fun CustomTipCard(
                 color = if (selected) Color.White else TipSelectionAccentColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 19.sp,
-                lineHeight = 22.sp
+                fontSize = 17.sp,
+                lineHeight = 19.sp
             )
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
         Column(
             modifier = Modifier.weight(1f)
@@ -730,19 +739,17 @@ private fun CustomTipCard(
                 color = TipSelectionPrimaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                lineHeight = 20.sp
+                fontSize = 14.sp,
+                lineHeight = 17.sp
             )
-
-            Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = amountText,
                 color = TipSelectionSecondaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                lineHeight = 16.sp,
+                fontSize = 12.sp,
+                lineHeight = 15.sp,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis
@@ -772,15 +779,15 @@ private fun GradientPayButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(56.dp)
             .shadow(
                 elevation = if (enabled) 8.dp else 0.dp,
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(22.dp),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = if (enabled) 0.12f else 0f),
                 spotColor = Color.Black.copy(alpha = if (enabled) 0.18f else 0f)
             )
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(
                 brush = if (enabled) {
                     Brush.linearGradient(
@@ -1174,7 +1181,6 @@ private fun DialogActionText(
         maxLines = 1
     )
 }
-
 
 private fun formatRubles(amount: Double): String =
     formatKopecks(amountToKopecks(amount))

@@ -22,7 +22,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -40,7 +43,6 @@ import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
-
 private val LightScreenColor = Color(0xFFFFFFFF)
 private val PrimaryTextColor = Color(0xFF1B2128)
 
@@ -54,9 +56,31 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
     val hasError = state.errorMessage != null
-    val checkEnabled = state.pin.length == 4 && !state.isLoading
+
+    var submittedPin by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    LaunchedEffect(
+        state.pin,
+        state.isLoading
+    ) {
+        if (state.pin.length < PIN_LENGTH) {
+            submittedPin = null
+        }
+
+        if (
+            state.pin.length == PIN_LENGTH &&
+            !state.isLoading &&
+            submittedPin != state.pin
+        ) {
+            submittedPin = state.pin
+            onLogin()
+        }
+    }
 
     val shake = remember { Animatable(0f) }
+
     LaunchedEffect(state.triggerShake) {
         if (state.triggerShake > 0) {
             shake.animateTo(
@@ -80,15 +104,21 @@ fun LoginScreen(
             .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 val closeInteraction = remember { MutableInteractionSource() }
+
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clickable(
                             interactionSource = closeInteraction,
                             indication = null,
-                            onClick = { onClose?.invoke() ?: (context as? Activity)?.finish() }
+                            onClick = {
+                                onClose?.invoke() ?: (context as? Activity)?.finish()
+                            }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -142,10 +172,18 @@ fun LoginScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             TiplyNumericKeypad(
-                onDigit = onDigit,
-                onDelete = onDelete,
-                onConfirm = onLogin,
-                confirmEnabled = checkEnabled,
+                onDigit = { digit ->
+                    if (!state.isLoading && state.pin.length < PIN_LENGTH) {
+                        onDigit(digit)
+                    }
+                },
+                onDelete = {
+                    if (!state.isLoading) {
+                        onDelete()
+                    }
+                },
+                onConfirm = {},
+                confirmEnabled = false,
                 isLoading = state.isLoading,
                 digitColor = PrimaryTextColor,
                 modifier = Modifier
@@ -157,9 +195,12 @@ fun LoginScreen(
 }
 
 @Composable
-private fun PinDots(pinLength: Int, isError: Boolean) {
+private fun PinDots(
+    pinLength: Int,
+    isError: Boolean
+) {
     Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        repeat(4) { index ->
+        repeat(PIN_LENGTH) { index ->
             val isFilled = index < pinLength
 
             val fillBrush = when {
@@ -218,3 +259,5 @@ private fun PinDots(pinLength: Int, isError: Boolean) {
         }
     }
 }
+
+private const val PIN_LENGTH = 4
