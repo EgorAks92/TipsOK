@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 
-
+@Composable
 fun IntegrationScreen(
     state: IntegrationUiState,
     onBack: () -> Unit,
@@ -46,4 +46,3 @@ fun IntegrationScreen(
         }
     }
 }
-

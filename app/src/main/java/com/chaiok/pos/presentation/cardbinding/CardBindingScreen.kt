@@ -27,7 +27,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 
-
+@Composable
 fun CardBindingScreen(
     state: CardBindingUiState,
     onBack: () -> Unit,
@@ -85,5 +85,4 @@ fun CardBindingScreen(
         }
     }
 }
-
 
