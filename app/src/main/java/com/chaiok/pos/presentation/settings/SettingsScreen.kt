@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
@@ -89,7 +90,8 @@ fun SettingsScreen(
                     waiterStatus = state.waiterStatus
                 )
 
-                SettingsTopAppBar(
+                TiplyBackTopAppBar(
+                    title = "Настройки",
                     onBack = onBack,
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
@@ -142,87 +144,6 @@ fun SettingsScreen(
     }
 }
 
-@Composable
-private fun SettingsTopAppBar(
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val barShape = RoundedCornerShape(
-        topStart = 0.dp,
-        topEnd = 0.dp,
-        bottomStart = 46.dp,
-        bottomEnd = 46.dp
-    )
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(72.dp)
-            .shadow(
-                elevation = 22.dp,
-                shape = barShape,
-                clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.20f),
-                spotColor = Color.Black.copy(alpha = 0.28f)
-            )
-            .clip(barShape)
-            .background(Color.White)
-            .padding(
-                start = 32.dp,
-                end = 32.dp,
-                top = 10.dp,
-                bottom = 10.dp
-            )
-    ) {
-        Text(
-            text = "Настройки",
-            modifier = Modifier.align(Alignment.Center),
-            color = Color(0xFF1B2128),
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            lineHeight = 22.sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        SettingsTopIcon(
-            onClick = onBack,
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_settings_back),
-                contentDescription = "Назад",
-                modifier = Modifier.size(30.dp),
-                contentScale = ContentScale.Fit,
-                colorFilter = ColorFilter.tint(SettingsPrimaryTextColor)
-            )
-        }
-    }
-}
-
-@Composable
-private fun SettingsTopIcon(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Box(
-        modifier = modifier
-            .size(48.dp)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        content()
-    }
-}
 
 @Composable
 private fun SettingsItem(
