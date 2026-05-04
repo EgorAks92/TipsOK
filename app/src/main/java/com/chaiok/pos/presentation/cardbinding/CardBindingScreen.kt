@@ -107,13 +107,24 @@ fun CardBindingScreen(
 
 @Composable
 private fun CardBindingTopAppBar(onBack: () -> Unit) {
-    val barShape = RoundedCornerShape(bottomStart = 46.dp, bottomEnd = 46.dp)
+    val barShape = RoundedCornerShape(
+        topStart = 0.dp,
+        topEnd = 0.dp,
+        bottomStart = 46.dp,
+        bottomEnd = 46.dp
+    )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp)
-            .shadow(22.dp, barShape, clip = false)
+            .shadow(
+                elevation = 22.dp,
+                shape = barShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.20f),
+                spotColor = Color.Black.copy(alpha = 0.28f)
+            )
             .clip(barShape)
             .background(Color.White)
             .padding(start = 32.dp, end = 32.dp, top = 10.dp, bottom = 10.dp)
