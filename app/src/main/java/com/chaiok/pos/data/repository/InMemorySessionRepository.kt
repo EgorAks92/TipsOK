@@ -9,10 +9,12 @@ class InMemorySessionRepository : SessionRepository {
     private val active = MutableStateFlow<String?>(null)
     private val profile = MutableStateFlow<Long?>(null)
     private val token = MutableStateFlow<String?>(null)
+    private val terminal = MutableStateFlow<String?>(null)
 
     override val activeWaiterId: Flow<String?> = active.asStateFlow()
     override val profileId: Flow<Long?> = profile.asStateFlow()
     override val accessToken: Flow<String?> = token.asStateFlow()
+    override val terminalId: Flow<String?> = terminal.asStateFlow()
 
     override suspend fun setActiveWaiter(waiterId: String?) {
         active.value = waiterId
@@ -26,9 +28,14 @@ class InMemorySessionRepository : SessionRepository {
         token.value = accessToken
     }
 
+    override suspend fun setTerminalId(terminalId: String?) {
+        terminal.value = terminalId
+    }
+
     override suspend fun clear() {
         active.value = null
         profile.value = null
         token.value = null
+        terminal.value = null
     }
 }

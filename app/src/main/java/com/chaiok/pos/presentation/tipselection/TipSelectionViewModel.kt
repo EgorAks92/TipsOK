@@ -4,12 +4,14 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PaymentResult
+import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.AddReviewUseCase
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -29,8 +31,10 @@ data class TipSelectionUiState(
     val selectedPercentIndex: Int = 0,
     val customTipAmount: Double? = null,
     val isCustomSelected: Boolean = false,
+    val waiterId: String = "",
     val waiterName: String = "Ваш официант",
     val waiterStatus: String = "Коплю на отпуск!",
+    val terminalId: String = "",
     val serviceFeePercent: Double = 0.0,
     val isServiceFeeEnabled: Boolean = false,
     val showCustomTipDialog: Boolean = false,
@@ -77,7 +81,8 @@ class TipSelectionViewModel(
     private val billAmount: Double,
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
     private val observeProfileUseCase: ObserveProfileUseCase,
-    private val addReviewUseCase: AddReviewUseCase
+    private val addReviewUseCase: AddReviewUseCase,
+    private val sessionRepository: SessionRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -87,23 +92,26 @@ class TipSelectionViewModel(
 
     init {
         viewModelScope.launch {
-            observeProfileUseCase().first()?.let { profile ->
-                val waiterName = listOf(profile.firstName, profile.lastName)
-                    .filter { it.isNotBlank() }
-                    .joinToString(" ")
-                    .ifBlank { "Ваш официант" }
+            val terminalId = sessionRepository.terminalId.first().orEmpty()
+            val profile = observeProfileUseCase().filterNotNull().first()
 
-                val waiterStatus = profile.status.ifBlank { "Коплю на отпуск!" }
-                val serviceFeePercent = profile.serviceFeePercent.coerceAtLeast(0.0)
+            val waiterName = listOf(profile.firstName, profile.lastName)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { "Ваш официант" }
 
-                _uiState.update {
-                    it.copy(
-                        waiterName = waiterName,
-                        waiterStatus = waiterStatus,
-                        serviceFeePercent = serviceFeePercent,
-                        isServiceFeeEnabled = false
-                    )
-                }
+            val waiterStatus = profile.status.ifBlank { "Коплю на отпуск!" }
+            val serviceFeePercent = profile.serviceFeePercent.coerceAtLeast(0.0)
+
+            _uiState.update {
+                it.copy(
+                    waiterId = profile.id,
+                    waiterName = waiterName,
+                    waiterStatus = waiterStatus,
+                    terminalId = terminalId,
+                    serviceFeePercent = serviceFeePercent,
+                    isServiceFeeEnabled = false
+                )
             }
 
             val fallbackPercents = listOf(5.0, 10.0, 15.0)
@@ -196,6 +204,20 @@ class TipSelectionViewModel(
             return false
         }
 
+        if (current.waiterId.isBlank()) {
+            _uiState.update {
+                it.copy(errorMessage = "Не удалось получить ID официанта")
+            }
+            return false
+        }
+
+        if (current.terminalId.isBlank()) {
+            _uiState.update {
+                it.copy(errorMessage = "Не удалось получить ID терминала")
+            }
+            return false
+        }
+
         if (current.kitchenEvaluation !in 1..5 || current.serviceEvaluation !in 1..5) {
             _uiState.update {
                 it.copy(errorMessage = "Оцените кухню и сервис")
@@ -265,9 +287,7 @@ class TipSelectionViewModel(
 
             is PaymentResult.Error -> {
                 _uiState.update {
-                    it.copy(
-                        paymentState = TipPaymentUiState.Declined(result.message)
-                    )
+                    it.copy(paymentState = TipPaymentUiState.Declined(result.message))
                 }
             }
         }

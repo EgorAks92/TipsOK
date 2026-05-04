@@ -1,9 +1,6 @@
 package com.chaiok.pos.presentation.navigation
 
-import android.app.Activity
 import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.os.Build
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,7 +16,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.chaiok.pos.data.di.AppContainer
-import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
 import com.chaiok.pos.presentation.background.ProfileBackgroundViewModel
 import com.chaiok.pos.presentation.home.HomeEvent
@@ -28,6 +24,7 @@ import com.chaiok.pos.presentation.home.HomeViewModel
 import com.chaiok.pos.presentation.login.LoginEvent
 import com.chaiok.pos.presentation.login.LoginScreen
 import com.chaiok.pos.presentation.login.LoginViewModel
+import com.chaiok.pos.presentation.payment.SmartSkyPaymentIntentFactory
 import com.chaiok.pos.presentation.settings.SettingsRoute
 import com.chaiok.pos.presentation.settings.SettingsViewModel
 import com.chaiok.pos.presentation.status.StatusScreen
@@ -36,9 +33,6 @@ import com.chaiok.pos.presentation.tips.TipsScreen
 import com.chaiok.pos.presentation.tips.TipsViewModel
 import com.chaiok.pos.presentation.tipselection.TipSelectionScreen
 import com.chaiok.pos.presentation.tipselection.TipSelectionViewModel
-import com.skytech.smartskyposlib.TransactionParams
-import com.skytech.smartskyposlib.TransactionResult
-import com.skytech.smartskyposlib.ui.PaymentActivity
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -145,8 +139,6 @@ fun ChaiOkNavHost(container: AppContainer) {
             )
         }
 
-
-
         composable(Routes.Status) {
             val vm: StatusViewModel = viewModel(
                 factory = SimpleFactory {
@@ -216,7 +208,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         billAmount = billAmount,
                         getTransactionRangeUseCase = container.getTransactionRangeUseCase,
                         observeProfileUseCase = container.observeProfileUseCase,
-                        addReviewUseCase = container.addReviewUseCase
+                        addReviewUseCase = container.addReviewUseCase,
+                        sessionRepository = container.sessionRepository
                     )
                 }
             )
@@ -236,7 +229,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                     "payment activity data extras keys=${result.data?.extras?.keySet()?.joinToString()}"
                 )
 
-                val paymentResult = mapSmartSkyPaymentActivityResult(
+                val paymentResult = SmartSkyPaymentIntentFactory.mapPaymentActivityResult(
                     resultCode = result.resultCode,
                     data = result.data
                 )
@@ -261,18 +254,14 @@ fun ChaiOkNavHost(container: AppContainer) {
                             .valueOf(state.totalAmount)
                             .setScale(2, RoundingMode.HALF_UP)
 
-                        Log.i(PAYMENT_TAG, "creating payment intent amount=$amount")
-
-                        val intent = Intent(SMART_SKY_PAYMENT_ACTION).apply {
-                            putExtra(
-                                PaymentActivity.PARAMS_KEY,
-                                TransactionParams(amount)
-                            )
-                            putExtra(
-                                PaymentActivity.TYPE_KEY,
-                                PaymentActivity.TYPE_PAYMENT
-                            )
-                        }
+                        val intent = SmartSkyPaymentIntentFactory.createPaymentIntent(
+                            amount = amount,
+                            waiterId = state.waiterId,
+                            terminalId = state.terminalId,
+                            tipAmount = state.selectedTipAmount,
+                            serviceFee = state.serviceFeeAmount,
+                            feesCovered = state.isServiceFeeEnabled
+                        )
 
                         Log.i(PAYMENT_TAG, "launching SmartSky payment activity")
 
@@ -307,8 +296,6 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onServiceEvaluation = vm::selectServiceEvaluation
             )
         }
-
-
     }
 }
 
@@ -318,62 +305,4 @@ private fun NavHostController.navigateSingleTopTo(route: String) {
     }
 }
 
-private fun mapSmartSkyPaymentActivityResult(
-    resultCode: Int,
-    data: Intent?
-): PaymentResult {
-    val transactionResult = data?.getTransactionResultCompat()
-
-    Log.i(
-        PAYMENT_TAG,
-        "transaction result code=${transactionResult?.getCode()} " +
-                "rc=${transactionResult?.getRc()} " +
-                "message=${transactionResult?.getMessage()} " +
-                "approved=${transactionResult?.isApproved()}"
-    )
-
-    val isApproved = resultCode == Activity.RESULT_OK &&
-            (transactionResult == null || transactionResult.isApproved() == true)
-
-    return if (isApproved) {
-        val message = transactionResult?.getMessage()
-            ?: data?.getStringExtra("message")
-            ?: "Оплата одобрена"
-
-        Log.i(PAYMENT_TAG, "mapped result Approved")
-
-        PaymentResult.Approved(
-            transactionId = transactionResult?.getReceiptNumber()?.toString(),
-            rrn = transactionResult?.getRrn(),
-            authCode = transactionResult?.getAuthCode(),
-            rawMessage = message
-        )
-    } else {
-        val declineMessage = transactionResult?.getMessage()
-            ?: data?.getStringExtra("message")
-            ?: "Оплата отменена или отклонена"
-
-        Log.i(PAYMENT_TAG, "mapped result Declined")
-
-        PaymentResult.Declined(
-            reason = declineMessage,
-            code = transactionResult?.getRc()?.toString(),
-            rawMessage = transactionResult?.toString()
-        )
-    }
-}
-
-@Suppress("DEPRECATION")
-private fun Intent.getTransactionResultCompat(): TransactionResult? {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        getParcelableExtra(
-            PaymentActivity.RESULT_KEY,
-            TransactionResult::class.java
-        )
-    } else {
-        getParcelableExtra(PaymentActivity.RESULT_KEY) as? TransactionResult
-    }
-}
-
 private const val PAYMENT_TAG = "TipsPaymentFlow"
-private const val SMART_SKY_PAYMENT_ACTION = "com.skytech.smartskypos.PAYMENT"
