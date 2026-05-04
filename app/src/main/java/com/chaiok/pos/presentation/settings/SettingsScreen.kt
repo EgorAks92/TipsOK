@@ -29,7 +29,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,7 +80,8 @@ fun SettingsScreen(
             Box(modifier = Modifier.fillMaxWidth()) {
                 WaiterProfileCardHeader(
                     waiterName = state.waiterName,
-                    waiterStatus = state.waiterStatus
+                    waiterStatus = state.waiterStatus,
+                    background = state.tileBackground
                 )
 
                 TiplyBackTopAppBar(
@@ -123,7 +123,6 @@ fun SettingsScreen(
         }
     }
 }
-
 
 @Composable
 private fun SettingsItem(

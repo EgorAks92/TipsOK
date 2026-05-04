@@ -103,7 +103,8 @@ fun TipSelectionScreen(
             Box(modifier = Modifier.fillMaxWidth()) {
                 WaiterProfileCardHeader(
                     waiterName = state.waiterName,
-                    waiterStatus = state.waiterStatus
+                    waiterStatus = state.waiterStatus,
+                    background = state.tileBackground
                 )
 
                 TiplyBackTopAppBar(

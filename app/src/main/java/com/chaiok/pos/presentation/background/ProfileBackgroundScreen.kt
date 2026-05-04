@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,7 +31,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -40,7 +38,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
@@ -64,7 +61,7 @@ fun ProfileBackgroundScreen(
 ) {
     val context = LocalContext.current
     val selectedBackground = state.selectedBackground
-    val hasCustomImage = selectedBackground.startsWith("content://")
+    val hasCustomImage = selectedBackground.isCustomBackgroundUri()
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -131,7 +128,11 @@ fun ProfileBackgroundScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 PickImageButton(
-                    text = if (hasCustomImage) "Выбрать другое изображение" else "Выбрать изображение",
+                    text = if (hasCustomImage) {
+                        "Выбрать другое изображение"
+                    } else {
+                        "Выбрать изображение"
+                    },
                     onClick = {
                         imagePicker.launch(arrayOf("image/*"))
                     }
@@ -139,7 +140,7 @@ fun ProfileBackgroundScreen(
 
                 if (hasCustomImage) {
                     ResetBackgroundButton(
-                        onClick = { onSelect("default") }
+                        onClick = { onSelect(DEFAULT_BACKGROUND) }
                     )
                 }
             }
@@ -147,10 +148,9 @@ fun ProfileBackgroundScreen(
     }
 }
 
-
 @Composable
 private fun BackgroundPreviewCard(
-    selectedBackground: String,
+    selectedBackground: String?,
     hasCustomImage: Boolean
 ) {
     Column(
@@ -168,7 +168,11 @@ private fun BackgroundPreviewCard(
             .padding(16.dp)
     ) {
         Text(
-            text = if (hasCustomImage) "Выбранное изображение" else "Стандартный фон",
+            text = when {
+                selectedBackground == null -> "Загрузка фона"
+                hasCustomImage -> "Выбранное изображение"
+                else -> "Стандартный фон"
+            },
             color = BackgroundPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
@@ -193,28 +197,46 @@ private fun BackgroundPreviewCard(
                 .background(Color(0xFFF0F2F4)),
             contentAlignment = Alignment.Center
         ) {
-            if (hasCustomImage) {
-                UriPreviewImage(
-                    uriString = selectedBackground,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Image(
-                    painter = painterResource(id = R.drawable.waiter_card_background),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+            when {
+                selectedBackground == null -> {
+                    LoadingBackgroundPreview(
+                        text = "Загрузка фона..."
+                    )
+                }
+
+                hasCustomImage -> {
+                    UriPreviewImage(
+                        uriString = selectedBackground,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                else -> {
+                    Image(
+                        painter = painterResource(id = R.drawable.waiter_card_background),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = if (hasCustomImage) {
-                "Изображение сохранено и будет использоваться как фон плашки."
-            } else {
-                "Сейчас используется стандартный фон плашки официанта."
+            text = when {
+                selectedBackground == null -> {
+                    "Получаем сохранённые настройки фона."
+                }
+
+                hasCustomImage -> {
+                    "Изображение сохранено и будет использоваться как фон плашки."
+                }
+
+                else -> {
+                    "Сейчас используется стандартный фон плашки официанта."
+                }
             },
             color = BackgroundSecondaryTextColor,
             fontFamily = MontserratFontFamily,
@@ -232,44 +254,73 @@ private fun UriPreviewImage(
 ) {
     val context = LocalContext.current
 
-    val bitmapState = produceState<ImageBitmap?>(initialValue = null, uriString) {
-        value = loadImageBitmapFromUri(
+    val previewState = produceState<PreviewImageState>(
+        initialValue = PreviewImageState.Loading,
+        key1 = uriString
+    ) {
+        val bitmap = loadImageBitmapFromUri(
             context = context,
             uriString = uriString
         )
+
+        value = if (bitmap != null) {
+            PreviewImageState.Loaded(bitmap)
+        } else {
+            PreviewImageState.Failed
+        }
     }
 
-    val bitmap = bitmapState.value
-
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap,
-            contentDescription = null,
-            modifier = modifier,
-            contentScale = ContentScale.Crop
-        )
-    } else {
-        Box(
-            modifier = modifier.background(
-                brush = Brush.linearGradient(
-                    listOf(
-                        Color(0xFFEFF2F5),
-                        Color(0xFFF8F9FA)
-                    )
-                )
-            ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Не удалось загрузить изображение",
-                color = BackgroundSecondaryTextColor,
-                fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                lineHeight = 18.sp,
-                textAlign = TextAlign.Center
+    when (val state = previewState.value) {
+        PreviewImageState.Loading -> {
+            LoadingBackgroundPreview(
+                text = "Загрузка изображения...",
+                modifier = modifier
             )
         }
+
+        PreviewImageState.Failed -> {
+            LoadingBackgroundPreview(
+                text = "Не удалось загрузить изображение",
+                modifier = modifier
+            )
+        }
+
+        is PreviewImageState.Loaded -> {
+            Image(
+                bitmap = state.bitmap,
+                contentDescription = null,
+                modifier = modifier,
+                contentScale = ContentScale.Crop
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingBackgroundPreview(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.background(
+            brush = Brush.linearGradient(
+                listOf(
+                    Color(0xFFEFF2F5),
+                    Color(0xFFF8F9FA)
+                )
+            )
+        ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = BackgroundSecondaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -357,6 +408,19 @@ private fun ResetBackgroundButton(
     }
 }
 
+private sealed interface PreviewImageState {
+    data object Loading : PreviewImageState
+    data object Failed : PreviewImageState
+    data class Loaded(val bitmap: ImageBitmap) : PreviewImageState
+}
+
+private fun String?.isCustomBackgroundUri(): Boolean {
+    val value = this ?: return false
+
+    return value.startsWith("content://", ignoreCase = true) ||
+            value.startsWith("file://", ignoreCase = true)
+}
+
 private suspend fun loadImageBitmapFromUri(
     context: Context,
     uriString: String
@@ -367,7 +431,10 @@ private suspend fun loadImageBitmapFromUri(
 
             val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val source = ImageDecoder.createSource(context.contentResolver, uri)
-                ImageDecoder.decodeBitmap(source)
+
+                ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                }
             } else {
                 @Suppress("DEPRECATION")
                 MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
@@ -377,3 +444,5 @@ private suspend fun loadImageBitmapFromUri(
         }.getOrNull()
     }
 }
+
+private const val DEFAULT_BACKGROUND = "default"

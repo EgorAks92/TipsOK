@@ -7,6 +7,7 @@ import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.usecase.LogoutUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
+import com.chaiok.pos.presentation.background.WaiterBackgroundMemoryCache
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 data class HomeUiState(
     val profile: WaiterProfile? = null,
     val settings: AppSettings = AppSettings(false, false, "default"),
+    val tileBackground: String? = WaiterBackgroundMemoryCache.currentBackground,
     val amountInput: String = "",
     val snackbarMessage: String? = null
 )
@@ -34,40 +36,80 @@ class HomeViewModel(
     private val logoutUseCase: LogoutUseCase
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(HomeUiState())
+    private val _uiState = MutableStateFlow(
+        HomeUiState(
+            tileBackground = WaiterBackgroundMemoryCache.currentBackground
+        )
+    )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-
 
     private val events = Channel<HomeEvent>(Channel.BUFFERED)
     val oneTimeEvents = events.receiveAsFlow()
 
     init {
         viewModelScope.launch {
-            combine(observeProfileUseCase(), observeSettingsUseCase()) { profile, settings ->
+            combine(
+                observeProfileUseCase(),
+                observeSettingsUseCase()
+            ) { profile, settings ->
                 profile to settings
             }.collect { (profile, settings) ->
+                val background = settings.tileBackground.ifBlank { "default" }
+
+                WaiterBackgroundMemoryCache.setCurrentBackground(background)
+
                 _uiState.update {
                     it.copy(
                         profile = profile,
-                        settings = settings
+                        settings = settings,
+                        tileBackground = background
                     )
                 }
             }
         }
     }
 
-    fun onAmountDigitPressed(digit: String) { _uiState.update { if (it.amountInput.length >= 6) it else it.copy(amountInput = it.amountInput + digit) } }
-    fun onAmountDeletePressed() { _uiState.update { it.copy(amountInput = it.amountInput.dropLast(1)) } }
+    fun onAmountDigitPressed(digit: String) {
+        _uiState.update {
+            if (it.amountInput.length >= 6) {
+                it
+            } else {
+                it.copy(amountInput = it.amountInput + digit)
+            }
+        }
+    }
+
+    fun onAmountDeletePressed() {
+        _uiState.update {
+            it.copy(amountInput = it.amountInput.dropLast(1))
+        }
+    }
 
     fun onConfirmAmount() {
         val amount = _uiState.value.amountInput.toDoubleOrNull()
+
         if (amount == null || amount <= 0.0) {
-            _uiState.update { it.copy(snackbarMessage = "Введите корректную сумму") }
+            _uiState.update {
+                it.copy(snackbarMessage = "Введите корректную сумму")
+            }
             return
         }
-        viewModelScope.launch { events.send(HomeEvent.NavigateToTipSelection(amount)) }
+
+        viewModelScope.launch {
+            events.send(HomeEvent.NavigateToTipSelection(amount))
+        }
     }
 
-    fun onSnackbarShown() { _uiState.update { it.copy(snackbarMessage = null) } }
-    fun logout() { viewModelScope.launch { logoutUseCase(); events.send(HomeEvent.NavigateToLogin) } }
+    fun onSnackbarShown() {
+        _uiState.update {
+            it.copy(snackbarMessage = null)
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            logoutUseCase()
+            events.send(HomeEvent.NavigateToLogin)
+        }
+    }
 }

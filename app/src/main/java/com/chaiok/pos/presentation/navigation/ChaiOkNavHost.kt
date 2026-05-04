@@ -117,7 +117,10 @@ fun ChaiOkNavHost(container: AppContainer) {
         composable(Routes.Settings) {
             val vm: SettingsViewModel = viewModel(
                 factory = SimpleFactory {
-                    SettingsViewModel(container.observeProfileUseCase)
+                    SettingsViewModel(
+                        observeProfileUseCase = container.observeProfileUseCase,
+                        observeSettingsUseCase = container.observeSettingsUseCase
+                    )
                 }
             )
 
@@ -209,7 +212,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         getTransactionRangeUseCase = container.getTransactionRangeUseCase,
                         observeProfileUseCase = container.observeProfileUseCase,
                         addReviewUseCase = container.addReviewUseCase,
-                        sessionRepository = container.sessionRepository
+                        sessionRepository = container.sessionRepository,
+                        observeSettingsUseCase = container.observeSettingsUseCase
                     )
                 }
             )

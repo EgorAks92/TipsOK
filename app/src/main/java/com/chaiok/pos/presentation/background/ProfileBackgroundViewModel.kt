@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ProfileBackgroundUiState(
-    val selectedBackground: String = "default"
+    val selectedBackground: String? = WaiterBackgroundMemoryCache.currentBackground
 )
 
 class ProfileBackgroundViewModel(
@@ -19,18 +19,42 @@ class ProfileBackgroundViewModel(
     private val updateTileBackgroundUseCase: UpdateTileBackgroundUseCase
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ProfileBackgroundUiState())
+    private val _uiState = MutableStateFlow(
+        ProfileBackgroundUiState(
+            selectedBackground = WaiterBackgroundMemoryCache.currentBackground
+        )
+    )
     val uiState: StateFlow<ProfileBackgroundUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
             observeSettingsUseCase().collect { settings ->
-                _uiState.update { it.copy(selectedBackground = settings.tileBackground) }
+                val background = settings.tileBackground.ifBlank { DEFAULT_BACKGROUND }
+
+                WaiterBackgroundMemoryCache.setCurrentBackground(background)
+
+                _uiState.update {
+                    it.copy(selectedBackground = background)
+                }
             }
         }
     }
 
     fun setBackground(background: String) {
-        viewModelScope.launch { updateTileBackgroundUseCase(background) }
+        val normalizedBackground = background.ifBlank { DEFAULT_BACKGROUND }
+
+        WaiterBackgroundMemoryCache.setCurrentBackground(normalizedBackground)
+
+        _uiState.update {
+            it.copy(selectedBackground = normalizedBackground)
+        }
+
+        viewModelScope.launch {
+            updateTileBackgroundUseCase(normalizedBackground)
+        }
+    }
+
+    private companion object {
+        private const val DEFAULT_BACKGROUND = "default"
     }
 }

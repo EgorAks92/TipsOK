@@ -8,6 +8,8 @@ import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.AddReviewUseCase
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
+import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
+import com.chaiok.pos.presentation.background.WaiterBackgroundMemoryCache
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +36,7 @@ data class TipSelectionUiState(
     val waiterId: String = "",
     val waiterName: String = "Ваш официант",
     val waiterStatus: String = "Коплю на отпуск!",
+    val tileBackground: String? = WaiterBackgroundMemoryCache.currentBackground,
     val terminalId: String = "",
     val serviceFeePercent: Double = 0.0,
     val isServiceFeeEnabled: Boolean = false,
@@ -81,16 +84,39 @@ class TipSelectionViewModel(
     private val billAmount: Double,
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
     private val observeProfileUseCase: ObserveProfileUseCase,
+    private val observeSettingsUseCase: ObserveSettingsUseCase,
     private val addReviewUseCase: AddReviewUseCase,
     private val sessionRepository: SessionRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        TipSelectionUiState(billAmount = billAmount)
+        TipSelectionUiState(
+            billAmount = billAmount,
+            tileBackground = WaiterBackgroundMemoryCache.currentBackground
+        )
     )
     val uiState: StateFlow<TipSelectionUiState> = _uiState.asStateFlow()
 
     init {
+        observeSettings()
+        loadInitialDataAndObserveTipRange()
+    }
+
+    private fun observeSettings() {
+        viewModelScope.launch {
+            observeSettingsUseCase().collect { settings ->
+                val background = settings.tileBackground.ifBlank { "default" }
+
+                WaiterBackgroundMemoryCache.setCurrentBackground(background)
+
+                _uiState.update {
+                    it.copy(tileBackground = background)
+                }
+            }
+        }
+    }
+
+    private fun loadInitialDataAndObserveTipRange() {
         viewModelScope.launch {
             val terminalId = sessionRepository.terminalId.first().orEmpty()
             val profile = observeProfileUseCase().filterNotNull().first()
@@ -287,7 +313,9 @@ class TipSelectionViewModel(
 
             is PaymentResult.Error -> {
                 _uiState.update {
-                    it.copy(paymentState = TipPaymentUiState.Declined(result.message))
+                    it.copy(
+                        paymentState = TipPaymentUiState.Declined(result.message)
+                    )
                 }
             }
         }

@@ -118,7 +118,7 @@ fun HomeScreen(
                 WaiterProfileCardHeader(
                     waiterName = waiterName,
                     waiterStatus = waiterStatus,
-                    background = state.settings.tileBackground
+                    background = state.tileBackground
                 )
 
                 HomeTopAppBar(

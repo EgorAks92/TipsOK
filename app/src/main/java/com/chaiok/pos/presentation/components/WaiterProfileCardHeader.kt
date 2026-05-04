@@ -18,12 +18,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Outline
@@ -43,10 +46,10 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.background.WaiterBackgroundMemoryCache
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.compose.runtime.getValue
 
 private data class WaiterProfileHeaderMetrics(
     val profileSpacer: Dp,
@@ -68,7 +71,7 @@ fun WaiterProfileCardHeader(
     waiterName: String,
     waiterStatus: String,
     modifier: Modifier = Modifier,
-    background: String = DEFAULT_BACKGROUND,
+    background: String? = DEFAULT_BACKGROUND,
     backgroundRes: Int = R.drawable.waiter_card_background,
     avatarRes: Int = R.drawable.ic_waiter_avatar
 ) {
@@ -178,20 +181,44 @@ private fun WaiterBackgroundCard(
     avatarSize: Dp,
     avatarRadius: Dp,
     cutoutPadding: Dp,
-    background: String,
+    background: String?,
     backgroundRes: Int
 ) {
     val context = LocalContext.current
 
+    val normalizedBackground = background
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+
+    SideEffect {
+        if (normalizedBackground != null) {
+            WaiterBackgroundMemoryCache.setCurrentBackground(normalizedBackground)
+        }
+    }
+
+    val effectiveBackground = normalizedBackground
+        ?: WaiterBackgroundMemoryCache.currentBackground
+
+    val cachedBitmap = effectiveBackground
+        ?.takeIf { it.isCustomBackgroundUri() }
+        ?.let { uriString ->
+            WaiterBackgroundMemoryCache.getImage(uriString)
+        }
+
     val customBackground by produceState<ImageBitmap?>(
-        initialValue = null,
-        key1 = background
+        initialValue = cachedBitmap,
+        key1 = effectiveBackground
     ) {
-        value = if (background.isCustomBackgroundUri()) {
-            loadImageBitmapFromUri(
-                context = context,
-                uriString = background
-            )
+        val uriString = effectiveBackground
+
+        value = if (uriString != null && uriString.isCustomBackgroundUri()) {
+            WaiterBackgroundMemoryCache.getImage(uriString)
+                ?: loadImageBitmapFromUri(
+                    context = context,
+                    uriString = uriString
+                )?.also { bitmap ->
+                    WaiterBackgroundMemoryCache.putImage(uriString, bitmap)
+                }
         } else {
             null
         }
@@ -203,6 +230,8 @@ private fun WaiterBackgroundCard(
         avatarRadius = avatarRadius,
         cutoutPadding = cutoutPadding
     )
+
+    val isCustomBackground = effectiveBackground?.isCustomBackgroundUri() == true
 
     Box(
         modifier = modifier
@@ -218,22 +247,50 @@ private fun WaiterBackgroundCard(
             )
             .clip(cardShape)
     ) {
-        if (customBackground != null) {
-            Image(
-                bitmap = customBackground!!,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Image(
-                painter = painterResource(id = backgroundRes),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.FillBounds
-            )
+        when {
+            effectiveBackground == null -> {
+                WaiterLoadingBackground()
+            }
+
+            isCustomBackground && customBackground != null -> {
+                Image(
+                    bitmap = customBackground!!,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            isCustomBackground -> {
+                WaiterLoadingBackground()
+            }
+
+            else -> {
+                Image(
+                    painter = painterResource(id = backgroundRes),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.FillBounds
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun WaiterLoadingBackground() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF087BE8),
+                        Color(0xFF14B8A6)
+                    )
+                )
+            )
+    )
 }
 
 @Composable
