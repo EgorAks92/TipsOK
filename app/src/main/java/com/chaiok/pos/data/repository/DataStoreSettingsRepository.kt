@@ -18,19 +18,25 @@ class DataStoreSettingsRepository(
         AppSettings(
             integrationModeEnabled = integration,
             tableModeEnabled = table,
-            selectedTileBackground = background
+            tileBackground = background
         )
     }
 
     override suspend fun setIntegrationMode(enabled: Boolean) {
-        runCatching { dataStore.setIntegrationMode(enabled) }
+        runCatching {
+            dataStore.setIntegrationMode(enabled)
+        }
     }
 
     override suspend fun setTableMode(enabled: Boolean) {
-        runCatching { dataStore.setTableMode(enabled) }
+        runCatching {
+            dataStore.setTableMode(enabled)
+        }
     }
 
     override suspend fun setTileBackground(background: String) {
-        runCatching { dataStore.setTileBackground(background) }
+        runCatching {
+            dataStore.setTileBackground(background)
+        }
     }
 }

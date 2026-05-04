@@ -25,7 +25,7 @@ class ProfileBackgroundViewModel(
     init {
         viewModelScope.launch {
             observeSettingsUseCase().collect { settings ->
-                _uiState.update { it.copy(selectedBackground = settings.selectedTileBackground) }
+                _uiState.update { it.copy(selectedBackground = settings.tileBackground) }
             }
         }
     }

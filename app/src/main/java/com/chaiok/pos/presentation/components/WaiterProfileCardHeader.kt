@@ -1,5 +1,10 @@
 package com.chaiok.pos.presentation.components
 
+import android.content.Context
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -11,20 +16,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.material3.Text
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,6 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.getValue
 
 private data class WaiterProfileHeaderMetrics(
     val profileSpacer: Dp,
@@ -56,6 +68,7 @@ fun WaiterProfileCardHeader(
     waiterName: String,
     waiterStatus: String,
     modifier: Modifier = Modifier,
+    background: String = DEFAULT_BACKGROUND,
     backgroundRes: Int = R.drawable.waiter_card_background,
     avatarRes: Int = R.drawable.ic_waiter_avatar
 ) {
@@ -112,6 +125,7 @@ fun WaiterProfileCardHeader(
                 avatarSize = metrics.avatarContainerSize,
                 avatarRadius = metrics.avatarRadius,
                 cutoutPadding = metrics.waiterCardCutoutPadding,
+                background = background,
                 backgroundRes = backgroundRes
             )
 
@@ -164,8 +178,25 @@ private fun WaiterBackgroundCard(
     avatarSize: Dp,
     avatarRadius: Dp,
     cutoutPadding: Dp,
+    background: String,
     backgroundRes: Int
 ) {
+    val context = LocalContext.current
+
+    val customBackground by produceState<ImageBitmap?>(
+        initialValue = null,
+        key1 = background
+    ) {
+        value = if (background.isCustomBackgroundUri()) {
+            loadImageBitmapFromUri(
+                context = context,
+                uriString = background
+            )
+        } else {
+            null
+        }
+    }
+
     val cardShape = WaiterCardAvatarCutoutShape(
         cornerRadius = 32.dp,
         avatarSize = avatarSize,
@@ -187,12 +218,21 @@ private fun WaiterBackgroundCard(
             )
             .clip(cardShape)
     ) {
-        Image(
-            painter = painterResource(id = backgroundRes),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
+        if (customBackground != null) {
+            Image(
+                bitmap = customBackground!!,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Image(
+                painter = painterResource(id = backgroundRes),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds
+            )
+        }
     }
 }
 
@@ -323,3 +363,34 @@ private class WaiterCardAvatarCutoutShape(
         return Outline.Generic(path)
     }
 }
+
+private fun String.isCustomBackgroundUri(): Boolean {
+    return startsWith("content://", ignoreCase = true) ||
+            startsWith("file://", ignoreCase = true)
+}
+
+private suspend fun loadImageBitmapFromUri(
+    context: Context,
+    uriString: String
+): ImageBitmap? {
+    return withContext(Dispatchers.IO) {
+        runCatching {
+            val uri = Uri.parse(uriString)
+
+            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val source = ImageDecoder.createSource(context.contentResolver, uri)
+
+                ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+            }
+
+            bitmap.asImageBitmap()
+        }.getOrNull()
+    }
+}
+
+private const val DEFAULT_BACKGROUND = "default"

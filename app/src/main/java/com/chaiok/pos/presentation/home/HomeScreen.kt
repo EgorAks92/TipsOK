@@ -71,7 +71,6 @@ fun HomeScreen(
         }
     }
 
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -118,7 +117,8 @@ fun HomeScreen(
             Box(modifier = Modifier.fillMaxWidth()) {
                 WaiterProfileCardHeader(
                     waiterName = waiterName,
-                    waiterStatus = waiterStatus
+                    waiterStatus = waiterStatus,
+                    background = state.settings.tileBackground
                 )
 
                 HomeTopAppBar(
@@ -354,6 +354,12 @@ private fun TableModePlaceholder() {
 
 private fun formatAmount(input: String): String {
     if (input.isBlank()) return "₽"
-    val grouped = input.reversed().chunked(3).joinToString(" ").reversed()
+
+    val grouped = input
+        .reversed()
+        .chunked(3)
+        .joinToString(" ")
+        .reversed()
+
     return "$grouped ₽"
 }
