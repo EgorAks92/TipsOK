@@ -22,13 +22,9 @@ import com.chaiok.pos.data.di.AppContainer
 import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
 import com.chaiok.pos.presentation.background.ProfileBackgroundViewModel
-import com.chaiok.pos.presentation.cardbinding.CardBindingScreen
-import com.chaiok.pos.presentation.cardbinding.CardBindingViewModel
 import com.chaiok.pos.presentation.home.HomeEvent
 import com.chaiok.pos.presentation.home.HomeScreen
 import com.chaiok.pos.presentation.home.HomeViewModel
-import com.chaiok.pos.presentation.integration.IntegrationScreen
-import com.chaiok.pos.presentation.integration.IntegrationViewModel
 import com.chaiok.pos.presentation.login.LoginEvent
 import com.chaiok.pos.presentation.login.LoginScreen
 import com.chaiok.pos.presentation.login.LoginViewModel
@@ -120,12 +116,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onDigit = vm::onAmountDigitPressed,
                 onBackspace = vm::onAmountDeletePressed,
                 onConfirm = vm::onConfirmAmount,
-                onSnackbarShown = vm::onSnackbarShown,
-                onBindCard = {
-                    vm.onCardBindingStarted()
-                    navController.navigate(Routes.CardBinding)
-                },
-                onDismissBindDialog = vm::dismissLinkCardDialog
+                onSnackbarShown = vm::onSnackbarShown
             )
         }
 
@@ -148,32 +139,13 @@ fun ChaiOkNavHost(container: AppContainer) {
                         navController.navigateSingleTopTo(Routes.Home)
                     }
                 },
-                onCardBinding = { navController.navigate(Routes.CardBinding) },
                 onStatus = { navController.navigate(Routes.Status) },
                 onTips = { navController.navigate(Routes.Tips) },
-                onIntegration = { navController.navigate(Routes.Integration) },
                 onBackground = { navController.navigate(Routes.Background) }
             )
         }
 
-        composable(Routes.CardBinding) {
-            val vm: CardBindingViewModel = viewModel(
-                factory = SimpleFactory {
-                    CardBindingViewModel(
-                        container.readCardUseCase,
-                        container.linkCardUseCase
-                    )
-                }
-            )
 
-            val state by vm.uiState.collectAsStateWithLifecycle()
-
-            CardBindingScreen(
-                state = state,
-                onBack = { navController.popBackStack() },
-                onReadCard = vm::readCard
-            )
-        }
 
         composable(Routes.Status) {
             val vm: StatusViewModel = viewModel(
@@ -336,26 +308,7 @@ fun ChaiOkNavHost(container: AppContainer) {
             )
         }
 
-        composable(Routes.Integration) {
-            val vm: IntegrationViewModel = viewModel(
-                factory = SimpleFactory {
-                    IntegrationViewModel(
-                        container.observeSettingsUseCase,
-                        container.updateIntegrationModeUseCase,
-                        container.updateTableModeUseCase
-                    )
-                }
-            )
 
-            val state by vm.uiState.collectAsStateWithLifecycle()
-
-            IntegrationScreen(
-                state = state,
-                onBack = { navController.popBackStack() },
-                onToggleIntegration = vm::toggleIntegration,
-                onToggleTableMode = vm::toggleTableMode
-            )
-        }
     }
 }
 

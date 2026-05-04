@@ -49,10 +49,8 @@ private val SettingsAccentColor = Color(0xFF087BE8)
 fun SettingsRoute(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
-    onCardBinding: () -> Unit,
     onStatus: () -> Unit,
     onTips: () -> Unit,
-    onIntegration: () -> Unit,
     onBackground: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -60,10 +58,8 @@ fun SettingsRoute(
     SettingsScreen(
         state = state,
         onBack = onBack,
-        onCardBinding = onCardBinding,
         onStatus = onStatus,
         onTips = onTips,
-        onIntegration = onIntegration,
         onBackground = onBackground
     )
 }
@@ -72,10 +68,8 @@ fun SettingsRoute(
 fun SettingsScreen(
     state: SettingsUiState,
     onBack: () -> Unit,
-    onCardBinding: () -> Unit,
     onStatus: () -> Unit,
     onTips: () -> Unit,
-    onIntegration: () -> Unit,
     onBackground: () -> Unit
 ) {
     Box(
@@ -106,13 +100,6 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SettingsItem(
-                    title = "Привязка карты",
-                    subtitle = "Зарегистрировать карту для получения чаевых",
-                    iconRes = R.drawable.ic_settings_card,
-                    onClick = onCardBinding
-                )
-
-                SettingsItem(
                     title = "Выбор статуса",
                     subtitle = "Обновить рабочий статус",
                     iconRes = R.drawable.ic_settings_status,
@@ -124,13 +111,6 @@ fun SettingsScreen(
                     subtitle = "История и сводка по чаевым",
                     iconRes = R.drawable.ic_settings_tips,
                     onClick = onTips
-                )
-
-                SettingsItem(
-                    title = "Интеграционный режим",
-                    subtitle = "Настройка POS-интеграции",
-                    iconRes = R.drawable.ic_settings_integration,
-                    onClick = onIntegration
                 )
 
                 SettingsItem(
