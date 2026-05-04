@@ -88,6 +88,8 @@ class TipSelectionViewModel(
     private val addReviewUseCase: AddReviewUseCase,
     private val sessionRepository: SessionRepository
 ) : ViewModel() {
+    private var reviewSentForCurrentPayment = false
+
 
     private val _uiState = MutableStateFlow(
         TipSelectionUiState(
@@ -251,14 +253,11 @@ class TipSelectionViewModel(
             return false
         }
 
+        reviewSentForCurrentPayment = false
+
         _uiState.update {
             it.copy(paymentState = TipPaymentUiState.Processing)
         }
-
-        sendReview(
-            kitchenEvaluation = current.kitchenEvaluation,
-            serviceEvaluation = current.serviceEvaluation
-        )
 
         return true
     }
@@ -276,7 +275,7 @@ class TipSelectionViewModel(
                 .onSuccess {
                     Log.i(
                         REVIEW_TAG,
-                        "addReview success kitchen=$kitchenEvaluation service=$serviceEvaluation"
+                        "addReview success"
                     )
                 }
                 .onFailure { error ->
@@ -292,6 +291,14 @@ class TipSelectionViewModel(
     fun handlePaymentResult(result: PaymentResult) {
         when (result) {
             is PaymentResult.Approved -> {
+                if (!reviewSentForCurrentPayment) {
+                    reviewSentForCurrentPayment = true
+                    sendReview(
+                        kitchenEvaluation = _uiState.value.kitchenEvaluation,
+                        serviceEvaluation = _uiState.value.serviceEvaluation
+                    )
+                }
+
                 _uiState.update {
                     it.copy(
                         paymentState = TipPaymentUiState.Approved(

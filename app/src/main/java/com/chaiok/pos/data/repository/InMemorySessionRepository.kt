@@ -5,6 +5,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/**
+ * Session is intentionally in-memory only.
+ * After app process restart, a new login is required.
+ * TODO: If long-lived auth becomes required, wire SessionRepository to secure token storage.
+ */
 class InMemorySessionRepository : SessionRepository {
     private val active = MutableStateFlow<String?>(null)
     private val profile = MutableStateFlow<Long?>(null)

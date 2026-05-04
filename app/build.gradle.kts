@@ -25,7 +25,8 @@ android {
 
     buildTypes {
         release {
-            buildConfigField("String", "BACKEND_BASE_URL", "\"https://api.tiply.local/api/v1/terminal/\"")
+            buildConfigField("String", "BACKEND_BASE_URL", "\"https://www-23.crest-wave.com/api/v1/terminal/\"")
+            // TODO: Enable minification after validating ProGuard/R8 rules for SmartSky/Retrofit/Compose.
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -67,7 +68,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
-    implementation(files("libs/SmartSkyPosLib_v1.9.17.aar"))
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("androidx.datastore:datastore-preferences:1.1.1")

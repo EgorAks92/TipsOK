@@ -228,11 +228,6 @@ fun ChaiOkNavHost(container: AppContainer) {
                     "payment activity resultCode=${result.resultCode}"
                 )
 
-                Log.i(
-                    PAYMENT_TAG,
-                    "payment activity data extras keys=${result.data?.extras?.keySet()?.joinToString()}"
-                )
-
                 val paymentResult = SmartSkyPaymentIntentFactory.mapPaymentActivityResult(
                     resultCode = result.resultCode,
                     data = result.data
