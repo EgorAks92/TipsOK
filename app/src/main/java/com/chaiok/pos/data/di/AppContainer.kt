@@ -10,7 +10,6 @@ import com.chaiok.pos.data.repository.BackendTipsRepository
 import com.chaiok.pos.data.repository.DataStoreSettingsRepository
 import com.chaiok.pos.data.repository.InMemorySessionRepository
 import com.chaiok.pos.data.repository.MockAuthRepository
-import com.chaiok.pos.data.repository.MockCardReaderRepository
 import com.chaiok.pos.data.repository.MockTerminalDataProvider
 import com.chaiok.pos.data.repository.MockTipsRepository
 import com.chaiok.pos.data.repository.MockWaiterRepository
@@ -20,7 +19,6 @@ import com.chaiok.pos.data.repository.SmartSkyPosTerminalApi
 import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.data.storage.EncryptedPrefsSensitiveStorage
 import com.chaiok.pos.domain.repository.AuthRepository
-import com.chaiok.pos.domain.repository.CardReaderRepository
 import com.chaiok.pos.domain.repository.ReviewRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.SettingsRepository
@@ -31,16 +29,12 @@ import com.chaiok.pos.domain.repository.WaiterRepository
 import com.chaiok.pos.domain.usecase.AddReviewUseCase
 import com.chaiok.pos.domain.usecase.GetTipsUseCase
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
-import com.chaiok.pos.domain.usecase.LinkCardUseCase
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import com.chaiok.pos.domain.usecase.LogoutUseCase
 import com.chaiok.pos.domain.usecase.ObserveCurrentStatusUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
-import com.chaiok.pos.domain.usecase.ReadCardUseCase
-import com.chaiok.pos.domain.usecase.UpdateIntegrationModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateStatusUseCase
-import com.chaiok.pos.domain.usecase.UpdateTableModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateTileBackgroundUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,8 +85,6 @@ class AppContainer(context: Context) {
     val settingsRepository: SettingsRepository =
         DataStoreSettingsRepository(appDataStore)
 
-    val cardReaderRepository: CardReaderRepository =
-        MockCardReaderRepository(MockCardReaderRepository.Mode.AlwaysSuccess)
 
     val reviewRepository: ReviewRepository =
         BackendReviewRepository(
@@ -120,13 +112,9 @@ class AppContainer(context: Context) {
     val observeProfileUseCase = ObserveProfileUseCase(waiterRepository)
     val updateStatusUseCase = UpdateStatusUseCase(waiterRepository)
     val observeCurrentStatusUseCase = ObserveCurrentStatusUseCase(observeProfileUseCase)
-    val linkCardUseCase = LinkCardUseCase(waiterRepository)
-    val readCardUseCase = ReadCardUseCase(cardReaderRepository)
     val getTipsUseCase = GetTipsUseCase(tipsRepository)
     val getTransactionRangeUseCase = GetTransactionRangeUseCase(tipRangeRepository)
     val observeSettingsUseCase = ObserveSettingsUseCase(settingsRepository)
-    val updateIntegrationModeUseCase = UpdateIntegrationModeUseCase(settingsRepository)
-    val updateTableModeUseCase = UpdateTableModeUseCase(settingsRepository)
     val updateTileBackgroundUseCase = UpdateTileBackgroundUseCase(settingsRepository)
     val addReviewUseCase = AddReviewUseCase(reviewRepository)
 

@@ -39,7 +39,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
@@ -61,9 +60,7 @@ fun HomeScreen(
     onDigit: (String) -> Unit,
     onBackspace: () -> Unit,
     onConfirm: () -> Unit,
-    onSnackbarShown: () -> Unit,
-    onBindCard: () -> Unit,
-    onDismissBindDialog: () -> Unit
+    onSnackbarShown: () -> Unit
 ) {
     val snackState = remember { SnackbarHostState() }
 
@@ -74,12 +71,6 @@ fun HomeScreen(
         }
     }
 
-    if (state.showLinkCardDialog) {
-        LinkCardDialog(
-            onBindCard = onBindCard,
-            onDismiss = onDismissBindDialog
-        )
-    }
 
     Box(
         modifier = Modifier
@@ -184,111 +175,6 @@ fun HomeScreen(
                 .padding(bottom = 10.dp)
         )
     }
-}
-
-@Composable
-private fun LinkCardDialog(
-    onBindCard: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 2.dp)
-                .clip(RoundedCornerShape(38.dp))
-                .background(Color.White)
-                .padding(
-                    start = 24.dp,
-                    end = 24.dp,
-                    top = 24.dp,
-                    bottom = 22.dp
-                )
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.tiply_logo_black),
-                    contentDescription = "Tiply",
-                    modifier = Modifier.size(width = 100.dp, height = 34.dp),
-                    contentScale = ContentScale.Fit
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "Карта не привязана!",
-                    color = Color(0xFF18212B),
-                    fontFamily = MontserratFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "К вашему профилю не привязана\nбанковская карта. Привяжите карту,\nчтобы получать чаевые.",
-                    color = Color(0xFF1E2530),
-                    fontFamily = MontserratFontFamily,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 14.sp,
-                    lineHeight = 24.sp,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(26.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    DialogActionText(
-                        text = "Позже",
-                        color = Color(0xFFFF4545),
-                        onClick = onDismiss
-                    )
-
-                    DialogActionText(
-                        text = "Привязать карту",
-                        color = Color(0xFF087BE8),
-                        onClick = onBindCard
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DialogActionText(
-    text: String,
-    color: Color,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Text(
-        text = text,
-        modifier = Modifier
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-            .padding(horizontal = 4.dp, vertical = 6.dp),
-        color = color,
-        fontFamily = MontserratFontFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 18.sp,
-        lineHeight = 22.sp,
-        textAlign = TextAlign.Center,
-        maxLines = 1
-    )
 }
 
 @Composable
