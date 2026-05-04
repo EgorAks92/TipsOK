@@ -55,12 +55,25 @@ class SmartSkyPosTerminalApi(
                 .orEmpty()
                 .trim()
 
-            val tid = HARDCODED_TID
+            val terminalId = terminalData.getTerminalId()
+                .orEmpty()
+                .trim()
+
+            val firstTerminalId = terminalData.getTerminals()
+                ?.firstOrNull()
+                ?.getTerminalId()
+                .orEmpty()
+                .trim()
+
+            val tid = terminalId.ifBlank { firstTerminalId }
 
             if (serialNumber.isBlank() || tid.isBlank()) {
                 Log.e(
                     TAG,
-                    "TerminalData missing tmsId or tid: tmsId=${terminalData.getTmsId()} tid=$tid"
+                    "TerminalData missing tmsId or tid: " +
+                            "tmsId=${terminalData.getTmsId()} " +
+                            "terminalId=$terminalId " +
+                            "firstTerminalId=$firstTerminalId"
                 )
 
                 return@withContext PaymentTerminalDataResult.Error(
@@ -180,7 +193,5 @@ class SmartSkyPosTerminalApi(
         private const val SMART_SKY_POS_ACTION = "com.skytech.smartskypos.ISmartSkyPos"
 
         private const val SERVICE_BIND_TIMEOUT_MS = 3_000L
-
-        private const val HARDCODED_TID = "47310967"
     }
 }

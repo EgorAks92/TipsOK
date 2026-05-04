@@ -29,14 +29,44 @@ data class TipSelectionUiState(
     val isCustomSelected: Boolean = false,
     val waiterName: String = "Ваш официант",
     val waiterStatus: String = "Коплю на отпуск!",
+    val serviceFeePercent: Double = 0.0,
+    val isServiceFeeEnabled: Boolean = false,
     val showCustomTipDialog: Boolean = false,
     val errorMessage: String? = null,
     val paymentState: TipPaymentUiState = TipPaymentUiState.Idle
 ) {
-    fun calculateTipByPercent(percent: Double): Double = ((billAmount * percent / 100.0) * 100.0).roundToInt() / 100.0
-    val selectedTipAmount: Double get() = if (isCustomSelected) (customTipAmount ?: 0.0) else availablePercents.getOrNull(selectedPercentIndex)?.let(::calculateTipByPercent) ?: 0.0
-    val totalAmount: Double get() = billAmount + selectedTipAmount
-    val isPayEnabled: Boolean get() = !isLoading && totalAmount > 0 && paymentState != TipPaymentUiState.Processing
+    fun calculateTipByPercent(percent: Double): Double =
+        roundMoney(billAmount * percent / 100.0)
+
+    val selectedTipAmount: Double
+        get() = if (isCustomSelected) {
+            customTipAmount ?: 0.0
+        } else {
+            availablePercents
+                .getOrNull(selectedPercentIndex)
+                ?.let(::calculateTipByPercent)
+                ?: 0.0
+        }
+
+    val serviceFeeAmount: Double
+        get() = if (isServiceFeeEnabled && serviceFeePercent > 0.0) {
+            roundMoney(selectedTipAmount * serviceFeePercent / 100.0)
+        } else {
+            0.0
+        }
+
+    val totalAmount: Double
+        get() = billAmount + selectedTipAmount + serviceFeeAmount
+
+    val isPayEnabled: Boolean
+        get() = !isLoading &&
+                totalAmount > 0 &&
+                paymentState != TipPaymentUiState.Processing
+
+    companion object {
+        private fun roundMoney(value: Double): Double =
+            (value * 100.0).roundToInt() / 100.0
+    }
 }
 
 class TipSelectionViewModel(
@@ -44,55 +74,163 @@ class TipSelectionViewModel(
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
     private val observeProfileUseCase: ObserveProfileUseCase
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(TipSelectionUiState(billAmount = billAmount))
+
+    private val _uiState = MutableStateFlow(
+        TipSelectionUiState(billAmount = billAmount)
+    )
     val uiState: StateFlow<TipSelectionUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            observeProfileUseCase().first()?.let { p ->
-                _uiState.update { it.copy(waiterName = listOf(p.firstName, p.lastName).filter { s -> !s.isNullOrBlank() }.joinToString(" ").ifBlank { "Ваш официант" }, waiterStatus = p.status.ifBlank { "Коплю на отпуск!" }) }
+            observeProfileUseCase().first()?.let { profile ->
+                val waiterName = listOf(profile.firstName, profile.lastName)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ")
+                    .ifBlank { "Ваш официант" }
+
+                val waiterStatus = profile.status.ifBlank { "Коплю на отпуск!" }
+                val serviceFeePercent = profile.serviceFeePercent.coerceAtLeast(0.0)
+
+                _uiState.update {
+                    it.copy(
+                        waiterName = waiterName,
+                        waiterStatus = waiterStatus,
+                        serviceFeePercent = serviceFeePercent,
+                        isServiceFeeEnabled = false
+                    )
+                }
             }
+
             val fallbackPercents = listOf(5.0, 10.0, 15.0)
             val fallbackDefaultIndex = 1
+
             getTransactionRangeUseCase.observe().collect { range ->
                 val percents = range?.percents?.takeIf { it.isNotEmpty() } ?: fallbackPercents
                 val defaultIndex = range?.defaultIndex ?: fallbackDefaultIndex
+
                 _uiState.update {
                     val shouldUseDefaultIndex = it.availablePercents.isEmpty()
-                    val nextSelectedIndex = if (shouldUseDefaultIndex) defaultIndex.coerceIn(0, percents.lastIndex) else it.selectedPercentIndex.coerceIn(0, percents.lastIndex)
-                    it.copy(isLoading = false, availablePercents = percents, selectedPercentIndex = nextSelectedIndex)
+
+                    val nextSelectedIndex = if (shouldUseDefaultIndex) {
+                        defaultIndex.coerceIn(0, percents.lastIndex)
+                    } else {
+                        it.selectedPercentIndex.coerceIn(0, percents.lastIndex)
+                    }
+
+                    it.copy(
+                        isLoading = false,
+                        availablePercents = percents,
+                        selectedPercentIndex = nextSelectedIndex
+                    )
                 }
             }
         }
     }
 
+    fun selectPreset(index: Int) {
+        _uiState.update {
+            it.copy(
+                selectedPercentIndex = index,
+                isCustomSelected = false,
+                customTipAmount = null
+            )
+        }
+    }
+
+    fun openCustomDialog() {
+        _uiState.update {
+            it.copy(showCustomTipDialog = true)
+        }
+    }
+
+    fun dismissCustomDialog() {
+        _uiState.update {
+            it.copy(showCustomTipDialog = false)
+        }
+    }
+
+    fun applyCustom(amount: String) {
+        _uiState.update {
+            it.copy(
+                customTipAmount = amount.toDoubleOrNull() ?: 0.0,
+                isCustomSelected = true,
+                showCustomTipDialog = false
+            )
+        }
+    }
+
+    fun toggleServiceFee(enabled: Boolean) {
+        _uiState.update {
+            it.copy(isServiceFeeEnabled = enabled)
+        }
+    }
+
     fun startExternalPayment(): Boolean {
         val current = _uiState.value
+
         if (current.paymentState == TipPaymentUiState.Processing) return false
+
         if (current.totalAmount <= 0.0) {
-            _uiState.update { it.copy(errorMessage = "Сумма должна быть больше 0") }
+            _uiState.update {
+                it.copy(errorMessage = "Сумма должна быть больше 0")
+            }
             return false
         }
-        _uiState.update { it.copy(paymentState = TipPaymentUiState.Processing) }
+
+        _uiState.update {
+            it.copy(paymentState = TipPaymentUiState.Processing)
+        }
+
         return true
     }
 
     fun handlePaymentResult(result: PaymentResult) {
         when (result) {
-            is PaymentResult.Approved -> _uiState.update { it.copy(paymentState = TipPaymentUiState.Approved(result.rawMessage ?: "Оплата одобрена")) }
-            is PaymentResult.Declined -> _uiState.update { it.copy(paymentState = TipPaymentUiState.Declined(result.reason ?: "Оплата отклонена")) }
-            is PaymentResult.Error -> _uiState.update { it.copy(paymentState = TipPaymentUiState.Declined(result.message)) }
+            is PaymentResult.Approved -> {
+                _uiState.update {
+                    it.copy(
+                        paymentState = TipPaymentUiState.Approved(
+                            result.rawMessage ?: "Оплата одобрена"
+                        )
+                    )
+                }
+            }
+
+            is PaymentResult.Declined -> {
+                _uiState.update {
+                    it.copy(
+                        paymentState = TipPaymentUiState.Declined(
+                            result.reason ?: "Оплата отклонена"
+                        )
+                    )
+                }
+            }
+
+            is PaymentResult.Error -> {
+                _uiState.update {
+                    it.copy(
+                        paymentState = TipPaymentUiState.Declined(result.message)
+                    )
+                }
+            }
         }
     }
 
     fun handlePaymentLaunchError(message: String) {
-        _uiState.update { it.copy(paymentState = TipPaymentUiState.Declined(message)) }
+        _uiState.update {
+            it.copy(paymentState = TipPaymentUiState.Declined(message))
+        }
     }
 
-    fun resetPaymentState() { _uiState.update { it.copy(paymentState = TipPaymentUiState.Idle) } }
-    fun selectPreset(index: Int) { _uiState.update { it.copy(selectedPercentIndex = index, isCustomSelected = false, customTipAmount = null) } }
-    fun openCustomDialog() { _uiState.update { it.copy(showCustomTipDialog = true) } }
-    fun dismissCustomDialog() { _uiState.update { it.copy(showCustomTipDialog = false) } }
-    fun applyCustom(amount: String) { _uiState.update { it.copy(customTipAmount = amount.toDoubleOrNull() ?: 0.0, isCustomSelected = true, showCustomTipDialog = false) } }
-    fun onMessageShown() { _uiState.update { it.copy(errorMessage = null) } }
+    fun resetPaymentState() {
+        _uiState.update {
+            it.copy(paymentState = TipPaymentUiState.Idle)
+        }
+    }
+
+    fun onMessageShown() {
+        _uiState.update {
+            it.copy(errorMessage = null)
+        }
+    }
 }

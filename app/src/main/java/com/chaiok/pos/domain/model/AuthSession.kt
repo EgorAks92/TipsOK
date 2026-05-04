@@ -4,5 +4,6 @@ data class AuthSession(
     val waiterId: String,
     val profileId: Long,
     val accessToken: String,
-    val isCardConnected: Boolean
+    val isCardConnected: Boolean,
+    val serviceFeePercent: Double = 0.0
 )

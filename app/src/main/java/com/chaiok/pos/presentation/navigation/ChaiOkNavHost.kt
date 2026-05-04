@@ -328,7 +328,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         navController.navigateSingleTopTo(Routes.Home)
                     }
                 },
-                onRetry = vm::resetPaymentState
+                onRetry = vm::resetPaymentState,
+                onServiceFeeToggle = vm::toggleServiceFee
             )
         }
 

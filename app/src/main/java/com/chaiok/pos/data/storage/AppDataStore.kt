@@ -2,6 +2,7 @@ package com.chaiok.pos.data.storage
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -20,22 +21,47 @@ class AppDataStore(private val context: Context) {
         val waiterStatus = stringPreferencesKey("waiter_status")
         val hasLinkedCard = booleanPreferencesKey("has_linked_card")
         val cardSha = stringPreferencesKey("card_sha")
+
         val tipRangePercents = stringPreferencesKey("tip_range_percents")
         val tipRangeStart = intPreferencesKey("tip_range_start")
         val tipRangeFinish = intPreferencesKey("tip_range_finish")
         val tipRangeDefaultIndex = intPreferencesKey("tip_range_default_index")
+
+        val serviceFeePercent = doublePreferencesKey("service_fee_percent")
     }
 
-    val integrationModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.integrationMode] ?: false }
-    val tableModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.tableMode] ?: false }
-    val tileBackgroundFlow: Flow<String> = context.dataStore.data.map { it[Keys.tileBackground] ?: "default" }
-    val waiterStatusFlow: Flow<String> = context.dataStore.data.map { it[Keys.waiterStatus] ?: "На смене" }
-    val hasLinkedCardFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.hasLinkedCard] ?: false }
-    val cardShaFlow: Flow<String?> = context.dataStore.data.map { it[Keys.cardSha] }
+    val integrationModeFlow: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.integrationMode] ?: false }
+
+    val tableModeFlow: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.tableMode] ?: false }
+
+    val tileBackgroundFlow: Flow<String> =
+        context.dataStore.data.map { it[Keys.tileBackground] ?: "default" }
+
+    val waiterStatusFlow: Flow<String> =
+        context.dataStore.data.map { it[Keys.waiterStatus] ?: "На смене" }
+
+    val hasLinkedCardFlow: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.hasLinkedCard] ?: false }
+
+    val cardShaFlow: Flow<String?> =
+        context.dataStore.data.map { it[Keys.cardSha] }
+
+    val serviceFeePercentFlow: Flow<Double> =
+        context.dataStore.data.map { it[Keys.serviceFeePercent] ?: 0.0 }
+
     val tipRangeFlow: Flow<TipRange?> = context.dataStore.data.map { prefs ->
-        val percentsRaw = prefs[Keys.tipRangePercents]?.takeIf { it.isNotBlank() } ?: return@map null
-        val percents = percentsRaw.split(",").mapNotNull { it.toDoubleOrNull() }
+        val percentsRaw = prefs[Keys.tipRangePercents]
+            ?.takeIf { it.isNotBlank() }
+            ?: return@map null
+
+        val percents = percentsRaw
+            .split(",")
+            .mapNotNull { it.toDoubleOrNull() }
+
         if (percents.isEmpty()) return@map null
+
         TipRange(
             percents = percents,
             startRange = prefs[Keys.tipRangeStart] ?: 0,
@@ -44,12 +70,34 @@ class AppDataStore(private val context: Context) {
         )
     }
 
-    suspend fun setIntegrationMode(value: Boolean) = context.dataStore.edit { it[Keys.integrationMode] = value }
-    suspend fun setTableMode(value: Boolean) = context.dataStore.edit { it[Keys.tableMode] = value }
-    suspend fun setTileBackground(value: String) = context.dataStore.edit { it[Keys.tileBackground] = value }
-    suspend fun setWaiterStatus(value: String) = context.dataStore.edit { it[Keys.waiterStatus] = value }
-    suspend fun setHasLinkedCard(value: Boolean) = context.dataStore.edit { it[Keys.hasLinkedCard] = value }
-    suspend fun setCardSha(value: String) = context.dataStore.edit { it[Keys.cardSha] = value }
+    suspend fun setIntegrationMode(value: Boolean) = context.dataStore.edit {
+        it[Keys.integrationMode] = value
+    }
+
+    suspend fun setTableMode(value: Boolean) = context.dataStore.edit {
+        it[Keys.tableMode] = value
+    }
+
+    suspend fun setTileBackground(value: String) = context.dataStore.edit {
+        it[Keys.tileBackground] = value
+    }
+
+    suspend fun setWaiterStatus(value: String) = context.dataStore.edit {
+        it[Keys.waiterStatus] = value
+    }
+
+    suspend fun setHasLinkedCard(value: Boolean) = context.dataStore.edit {
+        it[Keys.hasLinkedCard] = value
+    }
+
+    suspend fun setCardSha(value: String) = context.dataStore.edit {
+        it[Keys.cardSha] = value
+    }
+
+    suspend fun setServiceFeePercent(value: Double) = context.dataStore.edit {
+        it[Keys.serviceFeePercent] = value.coerceAtLeast(0.0)
+    }
+
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {
         it[Keys.tipRangePercents] = value.percents.joinToString(",")
         it[Keys.tipRangeStart] = value.startRange
