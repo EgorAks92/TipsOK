@@ -243,7 +243,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                     TipSelectionViewModel(
                         billAmount = billAmount,
                         getTransactionRangeUseCase = container.getTransactionRangeUseCase,
-                        observeProfileUseCase = container.observeProfileUseCase
+                        observeProfileUseCase = container.observeProfileUseCase,
+                        addReviewUseCase = container.addReviewUseCase
                     )
                 }
             )
@@ -329,7 +330,9 @@ fun ChaiOkNavHost(container: AppContainer) {
                     }
                 },
                 onRetry = vm::resetPaymentState,
-                onServiceFeeToggle = vm::toggleServiceFee
+                onServiceFeeToggle = vm::toggleServiceFee,
+                onKitchenEvaluation = vm::selectKitchenEvaluation,
+                onServiceEvaluation = vm::selectServiceEvaluation
             )
         }
 
