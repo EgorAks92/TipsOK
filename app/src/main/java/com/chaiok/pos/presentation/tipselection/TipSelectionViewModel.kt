@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+internal fun normalizeEvaluation(value: Int): Int = value.coerceIn(1, 5)
+
 sealed interface TipPaymentUiState {
     data object Idle : TipPaymentUiState
     data object Processing : TipPaymentUiState
@@ -208,13 +210,13 @@ class TipSelectionViewModel(
 
     fun selectKitchenEvaluation(value: Int) {
         _uiState.update {
-            it.copy(kitchenEvaluation = value.coerceIn(1, 5))
+            it.copy(kitchenEvaluation = normalizeEvaluation(value))
         }
     }
 
     fun selectServiceEvaluation(value: Int) {
         _uiState.update {
-            it.copy(serviceEvaluation = value.coerceIn(1, 5))
+            it.copy(serviceEvaluation = normalizeEvaluation(value))
         }
     }
 

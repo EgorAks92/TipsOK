@@ -34,7 +34,8 @@ class TipSelectionUiStateTest {
 
     @Test
     fun evaluation_isClampedToRange_1_5() {
-        assertEquals(1, (-2).coerceIn(1, 5))
-        assertEquals(5, 8.coerceIn(1, 5))
+        assertEquals(1, normalizeEvaluation(-2))
+        assertEquals(5, normalizeEvaluation(8))
+        assertEquals(3, normalizeEvaluation(3))
     }
 }

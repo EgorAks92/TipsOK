@@ -122,7 +122,7 @@ class AppContainer(context: Context) {
         appScope.launch {
             getTransactionRangeUseCase.refresh()
                 .onFailure {
-                    Log.i("LoginFlow", "refreshTransactionRange failed after login", it)
+                    Log.w("LoginFlow", "refreshTransactionRange failed after login", it)
                 }
         }
     }

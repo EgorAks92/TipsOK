@@ -32,14 +32,14 @@ class BackendAuthRepository(
                 terminalInfo.tid
             )
 
-            Log.e(
+            Log.i(
                 LOGIN_TAG,
                 "terminalLogin request started serial=***${terminalInfo.serialNumber.takeLast(4)} tid=***${terminalInfo.tid.takeLast(4)}"
             )
 
             val response = api.terminalLogin(request)
 
-            Log.e(
+            Log.i(
                 LOGIN_TAG,
                 "terminalLogin response httpCode=${response.code()} isSuccessful=${response.isSuccessful}"
             )
