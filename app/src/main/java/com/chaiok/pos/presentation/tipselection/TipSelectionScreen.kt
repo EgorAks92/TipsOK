@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -80,7 +82,9 @@ fun TipSelectionScreen(
     onSnackbarShown: () -> Unit,
     onDone: () -> Unit,
     onRetry: () -> Unit,
-    onServiceFeeToggle: (Boolean) -> Unit = {}
+    onServiceFeeToggle: (Boolean) -> Unit = {},
+    onKitchenEvaluation: (Int) -> Unit = {},
+    onServiceEvaluation: (Int) -> Unit = {}
 ) {
     val snackState = remember { SnackbarHostState() }
 
@@ -131,14 +135,27 @@ fun TipSelectionScreen(
                         onBack = onBack
                     )
                 } else {
-                    TipSelectionContent(
-                        state = state,
-                        onPreset = onPreset,
-                        onCustomStart = onCustomStart,
-                        onServiceFeeToggle = onServiceFeeToggle
-                    )
+                    val contentScrollState = rememberScrollState()
 
-                    Spacer(modifier = Modifier.weight(1f))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(contentScrollState)
+                    ) {
+                        TipSelectionContent(
+                            state = state,
+                            onPreset = onPreset,
+                            onCustomStart = onCustomStart,
+                            onServiceFeeToggle = onServiceFeeToggle,
+                            onKitchenEvaluation = onKitchenEvaluation,
+                            onServiceEvaluation = onServiceEvaluation
+                        )
+
+                        Spacer(modifier = Modifier.height(18.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     GradientPayButton(
                         amount = state.totalAmount,
@@ -172,7 +189,9 @@ private fun TipSelectionContent(
     state: TipSelectionUiState,
     onPreset: (Int) -> Unit,
     onCustomStart: () -> Unit,
-    onServiceFeeToggle: (Boolean) -> Unit
+    onServiceFeeToggle: (Boolean) -> Unit,
+    onKitchenEvaluation: (Int) -> Unit,
+    onServiceEvaluation: (Int) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -237,6 +256,15 @@ private fun TipSelectionContent(
                 onCheckedChange = onServiceFeeToggle
             )
         }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        ReviewEvaluationCard(
+            kitchenEvaluation = state.kitchenEvaluation,
+            serviceEvaluation = state.serviceEvaluation,
+            onKitchenEvaluation = onKitchenEvaluation,
+            onServiceEvaluation = onServiceEvaluation
+        )
     }
 }
 
@@ -383,6 +411,142 @@ private fun ServiceFeeSwitchCard(
                 uncheckedBorderColor = Color.Transparent
             )
         )
+    }
+}
+
+@Composable
+private fun ReviewEvaluationCard(
+    kitchenEvaluation: Int,
+    serviceEvaluation: Int,
+    onKitchenEvaluation: (Int) -> Unit,
+    onServiceEvaluation: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(28.dp),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.10f),
+                spotColor = Color.Black.copy(alpha = 0.16f)
+            )
+            .clip(RoundedCornerShape(28.dp))
+            .background(TipSelectionCardColor)
+            .padding(horizontal = 16.dp, vertical = 16.dp)
+    ) {
+        EvaluationRow(
+            title = "Как вам кухня?",
+            rating = kitchenEvaluation,
+            onRatingSelected = onKitchenEvaluation
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        EvaluationRow(
+            title = "Как вам сервис?",
+            rating = serviceEvaluation,
+            onRatingSelected = onServiceEvaluation
+        )
+    }
+}
+
+@Composable
+private fun EvaluationRow(
+    title: String,
+    rating: Int,
+    onRatingSelected: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = title,
+            color = TipSelectionPrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            lineHeight = 20.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        RatingStars(
+            rating = rating,
+            onRatingSelected = onRatingSelected
+        )
+    }
+}
+
+@Composable
+private fun RatingStars(
+    rating: Int,
+    onRatingSelected: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(5) { index ->
+            val value = index + 1
+            val selected = value <= rating
+            val interactionSource = remember { MutableInteractionSource() }
+
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        brush = if (selected) {
+                            Brush.linearGradient(
+                                listOf(
+                                    TipSelectionAccentColor.copy(alpha = 0.14f),
+                                    TipSelectionGreenColor.copy(alpha = 0.16f)
+                                )
+                            )
+                        } else {
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White,
+                                    TipSelectionSoftCardColor
+                                )
+                            )
+                        }
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (selected) {
+                            TipSelectionAccentColor.copy(alpha = 0.30f)
+                        } else {
+                            TipSelectionStrokeColor
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = { onRatingSelected(value) }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "★",
+                    color = if (selected) {
+                        TipSelectionAccentColor
+                    } else {
+                        TipSelectionSecondaryTextColor.copy(alpha = 0.42f)
+                    },
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp,
+                    lineHeight = 28.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 
@@ -1038,6 +1202,19 @@ private fun TipSelectionTopAppBar(
                 bottom = 10.dp
             )
     ) {
+        Text(
+            text = "Чаевые",
+            modifier = Modifier.align(Alignment.Center),
+            color = Color(0xFF1B2128),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            lineHeight = 22.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
         TopIcon(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart)

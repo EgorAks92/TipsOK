@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
@@ -170,6 +171,19 @@ private fun ProfileBackgroundTopAppBar(
                 bottom = 10.dp
             )
     ) {
+        Text(
+            text = "Фон профиля",
+            modifier = Modifier.align(Alignment.Center),
+            color = Color(0xFF1B2128),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            lineHeight = 22.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
         TopIcon(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart)

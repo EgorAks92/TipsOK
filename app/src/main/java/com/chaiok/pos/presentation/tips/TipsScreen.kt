@@ -166,6 +166,19 @@ private fun TipsTopAppBar(
                 bottom = 10.dp
             )
     ) {
+        Text(
+            text = "Мои чаевые",
+            modifier = Modifier.align(Alignment.Center),
+            color = Color(0xFF1B2128),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            lineHeight = 22.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
         TipsTopIcon(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart)

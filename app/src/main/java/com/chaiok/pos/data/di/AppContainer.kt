@@ -4,8 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.chaiok.pos.data.remote.TerminalNetworkFactory
 import com.chaiok.pos.data.repository.BackendAuthRepository
-import com.chaiok.pos.data.repository.BackendTipsRepository
+import com.chaiok.pos.data.repository.BackendReviewRepository
 import com.chaiok.pos.data.repository.BackendTipRangeRepository
+import com.chaiok.pos.data.repository.BackendTipsRepository
 import com.chaiok.pos.data.repository.DataStoreSettingsRepository
 import com.chaiok.pos.data.repository.InMemorySessionRepository
 import com.chaiok.pos.data.repository.MockAuthRepository
@@ -20,20 +21,22 @@ import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.data.storage.EncryptedPrefsSensitiveStorage
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.chaiok.pos.domain.repository.CardReaderRepository
+import com.chaiok.pos.domain.repository.ReviewRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.SettingsRepository
 import com.chaiok.pos.domain.repository.TerminalDataProvider
-import com.chaiok.pos.domain.repository.TipsRepository
 import com.chaiok.pos.domain.repository.TipRangeRepository
+import com.chaiok.pos.domain.repository.TipsRepository
 import com.chaiok.pos.domain.repository.WaiterRepository
+import com.chaiok.pos.domain.usecase.AddReviewUseCase
 import com.chaiok.pos.domain.usecase.GetTipsUseCase
+import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.LinkCardUseCase
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import com.chaiok.pos.domain.usecase.LogoutUseCase
 import com.chaiok.pos.domain.usecase.ObserveCurrentStatusUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
-import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ReadCardUseCase
 import com.chaiok.pos.domain.usecase.UpdateIntegrationModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateStatusUseCase
@@ -60,20 +63,48 @@ class AppContainer(context: Context) {
     }
 
     val authRepository: AuthRepository =
-        if (USE_MOCK_AUTH) MockAuthRepository() else BackendAuthRepository(terminalApi)
+        if (USE_MOCK_AUTH) {
+            MockAuthRepository()
+        } else {
+            BackendAuthRepository(terminalApi)
+        }
 
     val sessionRepository: SessionRepository = InMemorySessionRepository()
-    val waiterRepository: WaiterRepository = MockWaiterRepository(appDataStore, sensitiveStorage)
+
+    val waiterRepository: WaiterRepository =
+        MockWaiterRepository(appDataStore, sensitiveStorage)
+
     val tipsRepository: TipsRepository =
-        if (USE_MOCK_TIPS) MockTipsRepository() else BackendTipsRepository(terminalApi, sessionRepository)
-    val tipRangeRepository: TipRangeRepository = BackendTipRangeRepository(terminalApi, sessionRepository, appDataStore)
-    val settingsRepository: SettingsRepository = DataStoreSettingsRepository(appDataStore)
-    val cardReaderRepository: CardReaderRepository = MockCardReaderRepository(MockCardReaderRepository.Mode.AlwaysSuccess)
+        if (USE_MOCK_TIPS) {
+            MockTipsRepository()
+        } else {
+            BackendTipsRepository(terminalApi, sessionRepository)
+        }
 
+    val tipRangeRepository: TipRangeRepository =
+        BackendTipRangeRepository(
+            api = terminalApi,
+            sessionRepository = sessionRepository,
+            appDataStore = appDataStore
+        )
 
+    val settingsRepository: SettingsRepository =
+        DataStoreSettingsRepository(appDataStore)
+
+    val cardReaderRepository: CardReaderRepository =
+        MockCardReaderRepository(MockCardReaderRepository.Mode.AlwaysSuccess)
+
+    val reviewRepository: ReviewRepository =
+        BackendReviewRepository(
+            api = terminalApi,
+            sessionRepository = sessionRepository
+        )
 
     init {
-        Log.e("LoginFlow", "USE_MOCK_AUTH=$USE_MOCK_AUTH USE_MOCK_TERMINAL_DATA=$USE_MOCK_TERMINAL_DATA")
+        Log.e(
+            "LoginFlow",
+            "USE_MOCK_AUTH=$USE_MOCK_AUTH USE_MOCK_TERMINAL_DATA=$USE_MOCK_TERMINAL_DATA"
+        )
         Log.e("LoginFlow", "authRepository=${authRepository::class.java.simpleName}")
         Log.e("LoginFlow", "terminalDataProvider=${terminalDataProvider::class.java.simpleName}")
     }
@@ -84,6 +115,7 @@ class AppContainer(context: Context) {
         waiterRepository,
         sessionRepository
     )
+
     val logoutUseCase = LogoutUseCase(authRepository, sessionRepository)
     val observeProfileUseCase = ObserveProfileUseCase(waiterRepository)
     val updateStatusUseCase = UpdateStatusUseCase(waiterRepository)
@@ -96,11 +128,14 @@ class AppContainer(context: Context) {
     val updateIntegrationModeUseCase = UpdateIntegrationModeUseCase(settingsRepository)
     val updateTableModeUseCase = UpdateTableModeUseCase(settingsRepository)
     val updateTileBackgroundUseCase = UpdateTileBackgroundUseCase(settingsRepository)
+    val addReviewUseCase = AddReviewUseCase(reviewRepository)
 
     fun refreshTipRangeAfterLogin() {
         appScope.launch {
             getTransactionRangeUseCase.refresh()
-                .onFailure { Log.e("LoginFlow", "refreshTransactionRange failed after login", it) }
+                .onFailure {
+                    Log.e("LoginFlow", "refreshTransactionRange failed after login", it)
+                }
         }
     }
 

@@ -1,8 +1,10 @@
 package com.chaiok.pos.presentation.tipselection
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PaymentResult
+import com.chaiok.pos.domain.usecase.AddReviewUseCase
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +35,9 @@ data class TipSelectionUiState(
     val isServiceFeeEnabled: Boolean = false,
     val showCustomTipDialog: Boolean = false,
     val errorMessage: String? = null,
-    val paymentState: TipPaymentUiState = TipPaymentUiState.Idle
+    val paymentState: TipPaymentUiState = TipPaymentUiState.Idle,
+    val kitchenEvaluation: Int = 0,
+    val serviceEvaluation: Int = 0
 ) {
     fun calculateTipByPercent(percent: Double): Double =
         roundMoney(billAmount * percent / 100.0)
@@ -72,7 +76,8 @@ data class TipSelectionUiState(
 class TipSelectionViewModel(
     private val billAmount: Double,
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
-    private val observeProfileUseCase: ObserveProfileUseCase
+    private val observeProfileUseCase: ObserveProfileUseCase,
+    private val addReviewUseCase: AddReviewUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -165,10 +170,24 @@ class TipSelectionViewModel(
         }
     }
 
+    fun selectKitchenEvaluation(value: Int) {
+        _uiState.update {
+            it.copy(kitchenEvaluation = value.coerceIn(1, 5))
+        }
+    }
+
+    fun selectServiceEvaluation(value: Int) {
+        _uiState.update {
+            it.copy(serviceEvaluation = value.coerceIn(1, 5))
+        }
+    }
+
     fun startExternalPayment(): Boolean {
         val current = _uiState.value
 
-        if (current.paymentState == TipPaymentUiState.Processing) return false
+        if (current.paymentState == TipPaymentUiState.Processing) {
+            return false
+        }
 
         if (current.totalAmount <= 0.0) {
             _uiState.update {
@@ -177,11 +196,49 @@ class TipSelectionViewModel(
             return false
         }
 
+        if (current.kitchenEvaluation !in 1..5 || current.serviceEvaluation !in 1..5) {
+            _uiState.update {
+                it.copy(errorMessage = "Оцените кухню и сервис")
+            }
+            return false
+        }
+
         _uiState.update {
             it.copy(paymentState = TipPaymentUiState.Processing)
         }
 
+        sendReview(
+            kitchenEvaluation = current.kitchenEvaluation,
+            serviceEvaluation = current.serviceEvaluation
+        )
+
         return true
+    }
+
+    private fun sendReview(
+        kitchenEvaluation: Int,
+        serviceEvaluation: Int
+    ) {
+        viewModelScope.launch {
+            addReviewUseCase(
+                kitchenEvaluation = kitchenEvaluation,
+                serviceEvaluation = serviceEvaluation,
+                comment = ""
+            )
+                .onSuccess {
+                    Log.i(
+                        REVIEW_TAG,
+                        "addReview success kitchen=$kitchenEvaluation service=$serviceEvaluation"
+                    )
+                }
+                .onFailure { error ->
+                    Log.e(
+                        REVIEW_TAG,
+                        "addReview failed but payment flow continues",
+                        error
+                    )
+                }
+        }
     }
 
     fun handlePaymentResult(result: PaymentResult) {
@@ -232,5 +289,9 @@ class TipSelectionViewModel(
         _uiState.update {
             it.copy(errorMessage = null)
         }
+    }
+
+    private companion object {
+        private const val REVIEW_TAG = "TipsReviewFlow"
     }
 }
