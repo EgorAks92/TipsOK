@@ -31,9 +31,7 @@ object SmartSkyPaymentIntentFactory {
 
         Log.i(
             PAYMENT_TAG,
-            "creating payment intent amount=$amount " +
-                    "terminalId=***${terminalId.takeLast(4)} " +
-                    "extraTransactionData=$extraTransactionData"
+            "creating payment intent amount=$amount terminalId=***${terminalId.takeLast(4)}"
         )
 
         val transactionParams = TransactionParams(amount).apply {
@@ -56,10 +54,7 @@ object SmartSkyPaymentIntentFactory {
 
         Log.i(
             PAYMENT_TAG,
-            "transaction result code=${transactionResult?.code} " +
-                    "rc=${transactionResult?.rc} " +
-                    "message=${transactionResult?.message} " +
-                    "approved=${transactionResult?.isApproved}"
+            "transaction result code=${transactionResult?.code} rc=${transactionResult?.rc} approved=${transactionResult?.isApproved}"
         )
 
         val isApproved = resultCode == Activity.RESULT_OK &&

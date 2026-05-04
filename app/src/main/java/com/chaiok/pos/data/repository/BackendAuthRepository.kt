@@ -17,6 +17,10 @@ class BackendAuthRepository(
     private val api: TerminalApi
 ) : AuthRepository {
 
+    private companion object {
+        private const val LOGIN_TAG = "LoginFlow"
+    }
+
     override suspend fun login(
         pin: String,
         terminalInfo: TerminalInfo
@@ -28,15 +32,15 @@ class BackendAuthRepository(
                 terminalInfo.tid
             )
 
-            Log.e(
-                "LoginFlow",
+            Log.i(
+                LOGIN_TAG,
                 "terminalLogin request started serial=***${terminalInfo.serialNumber.takeLast(4)} tid=***${terminalInfo.tid.takeLast(4)}"
             )
 
             val response = api.terminalLogin(request)
 
-            Log.e(
-                "LoginFlow",
+            Log.i(
+                LOGIN_TAG,
                 "terminalLogin response httpCode=${response.code()} isSuccessful=${response.isSuccessful}"
             )
 
@@ -65,11 +69,7 @@ class BackendAuthRepository(
             val isCardConnected = payload.extractIsCardConnected()
             val serviceFeePercent = payload.extractServiceFeePercent()
 
-            Log.e("LoginFlow", "terminalLogin waiterId extracted=$waiterId")
-            Log.e("LoginFlow", "terminalLogin profileId extracted=$profileId")
-            Log.e("LoginFlow", "terminalLogin accessToken found=true")
-            Log.e("LoginFlow", "terminalLogin isCardConnected=$isCardConnected")
-            Log.e("LoginFlow", "terminalLogin serviceFeePercent=$serviceFeePercent")
+            Log.i(LOGIN_TAG, "terminalLogin response parsed successfully")
 
             AuthSession(
                 waiterId = waiterId,

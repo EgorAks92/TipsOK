@@ -93,12 +93,12 @@ class AppContainer(context: Context) {
         )
 
     init {
-        Log.e(
+        Log.i(
             "LoginFlow",
             "USE_MOCK_AUTH=$USE_MOCK_AUTH USE_MOCK_TERMINAL_DATA=$USE_MOCK_TERMINAL_DATA"
         )
-        Log.e("LoginFlow", "authRepository=${authRepository::class.java.simpleName}")
-        Log.e("LoginFlow", "terminalDataProvider=${terminalDataProvider::class.java.simpleName}")
+        Log.i("LoginFlow", "authRepository=${authRepository::class.java.simpleName}")
+        Log.i("LoginFlow", "terminalDataProvider=${terminalDataProvider::class.java.simpleName}")
     }
 
     val loginWithPinUseCase = LoginWithPinUseCase(
@@ -122,12 +122,13 @@ class AppContainer(context: Context) {
         appScope.launch {
             getTransactionRangeUseCase.refresh()
                 .onFailure {
-                    Log.e("LoginFlow", "refreshTransactionRange failed after login", it)
+                    Log.w("LoginFlow", "refreshTransactionRange failed after login", it)
                 }
         }
     }
 
     private companion object {
+        // Mock flags are for local development/debug only and must stay false for production builds.
         private const val USE_MOCK_AUTH = false
         private const val USE_MOCK_TERMINAL_DATA = false
         private const val USE_MOCK_TIPS = false

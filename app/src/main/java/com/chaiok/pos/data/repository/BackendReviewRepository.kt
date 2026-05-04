@@ -42,7 +42,7 @@ class BackendReviewRepository(
 
             Log.i(
                 REVIEW_TAG,
-                "addReview request profileId=$profileId kitchen=$normalizedKitchenEvaluation service=$normalizedServiceEvaluation"
+                "addReview request prepared"
             )
 
             val response = api.addReview(
@@ -67,7 +67,7 @@ class BackendReviewRepository(
 
             Log.i(
                 REVIEW_TAG,
-                "addReview body status=$status statusCode=$statusCode data=${body.data}"
+                "addReview body status=$status statusCode=$statusCode"
             )
 
             val isOk = status.equals("OK", ignoreCase = true) ||
@@ -79,7 +79,7 @@ class BackendReviewRepository(
 
             if (!isOk || hasBusinessError) {
                 throw IOException(
-                    "addReview business error status=$status statusCode=$statusCode data=${body.data}"
+                    "addReview business error status=$status statusCode=$statusCode data=hidden"
                 )
             }
 
