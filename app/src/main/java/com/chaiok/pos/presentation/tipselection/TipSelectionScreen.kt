@@ -1038,6 +1038,19 @@ private fun TipSelectionTopAppBar(
                 bottom = 10.dp
             )
     ) {
+        Text(
+            text = "Чаевые",
+            modifier = Modifier.align(Alignment.Center),
+            color = Color(0xFF1B2128),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            lineHeight = 22.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
         TopIcon(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart)
