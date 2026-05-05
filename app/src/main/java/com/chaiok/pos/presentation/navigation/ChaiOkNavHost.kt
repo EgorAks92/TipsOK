@@ -254,13 +254,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                                 backStack.savedStateHandle.remove<PosPaymentRequest>(
                                     PENDING_PAYMENT_REQUEST_KEY
                                 )
-                                navController.getBackStackEntry(Routes.Home)
-                                    .savedStateHandle
-                                    .set(CLEAR_HOME_AMOUNT_KEY, true)
-                                Log.i(
-                                    PAYMENT_TAG,
-                                    "Approved payment completed, requesting Home amount reset"
-                                )
+                                navController.requestHomeAmountResetSafely()
 
                                 val popped = navController.popBackStack(
                                     route = Routes.Home,
@@ -434,6 +428,29 @@ private fun NavHostController.navigateSingleTopTo(route: String) {
     }
 }
 
+
+private fun NavHostController.requestHomeAmountResetSafely() {
+    runCatching {
+        getBackStackEntry(Routes.Home)
+            .savedStateHandle
+            .set(CLEAR_HOME_AMOUNT_KEY, true)
+    }
+        .onSuccess {
+            Log.i(
+                PAYMENT_TAG,
+                "Approved payment completed, requesting Home amount reset"
+            )
+        }
+        .onFailure {
+            Log.w(
+                PAYMENT_TAG,
+                "Home back stack entry missing while requesting amount reset"
+            )
+            currentBackStackEntry
+                ?.savedStateHandle
+                ?.set(CLEAR_HOME_AMOUNT_KEY, true)
+        }
+}
 private fun buildPaymentRequest(state: TipSelectionUiState): PosPaymentRequest {
     return PosPaymentRequest(
         amount = BigDecimal
