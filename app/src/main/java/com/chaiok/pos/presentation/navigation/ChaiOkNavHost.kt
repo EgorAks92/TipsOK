@@ -80,7 +80,7 @@ fun ChaiOkNavHost(container: AppContainer) {
             )
         }
 
-        composable(Routes.Home) {
+        composable(Routes.Home) { backStack ->
             val vm: HomeViewModel = viewModel(
                 factory = SimpleFactory {
                     HomeViewModel(
@@ -92,6 +92,17 @@ fun ChaiOkNavHost(container: AppContainer) {
             )
 
             val state by vm.uiState.collectAsStateWithLifecycle()
+
+            LaunchedEffect(backStack) {
+                val shouldClearAmount = backStack.savedStateHandle.remove<Boolean>(
+                    CLEAR_HOME_AMOUNT_KEY
+                ) == true
+
+                if (shouldClearAmount) {
+                    Log.i(PAYMENT_TAG, "Home amount reset consumed")
+                    vm.clearAmountInput()
+                }
+            }
 
             LaunchedEffect(Unit) {
                 vm.oneTimeEvents.collect { event ->
@@ -242,6 +253,13 @@ fun ChaiOkNavHost(container: AppContainer) {
                                 vm.handleApprovedPayment(result)
                                 backStack.savedStateHandle.remove<PosPaymentRequest>(
                                     PENDING_PAYMENT_REQUEST_KEY
+                                )
+                                navController.getBackStackEntry(Routes.Home)
+                                    .savedStateHandle
+                                    .set(CLEAR_HOME_AMOUNT_KEY, true)
+                                Log.i(
+                                    PAYMENT_TAG,
+                                    "Approved payment completed, requesting Home amount reset"
                                 )
 
                                 val popped = navController.popBackStack(
@@ -622,6 +640,7 @@ private fun String?.toPaymentMessagePreview(): String {
 private const val PAYMENT_TAG = "TipsPaymentFlow"
 
 private const val PENDING_PAYMENT_REQUEST_KEY = "pending_payment_request"
+private const val CLEAR_HOME_AMOUNT_KEY = "clear_home_amount"
 
 private const val PAYMENT_RESULT_TYPE_KEY = "payment_result_type"
 private const val PAYMENT_RESULT_TRANSACTION_ID_KEY = "payment_result_transaction_id"

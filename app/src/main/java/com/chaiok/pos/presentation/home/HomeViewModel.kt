@@ -85,6 +85,12 @@ class HomeViewModel(
         }
     }
 
+    fun clearAmountInput() {
+        _uiState.update {
+            it.copy(amountInput = "")
+        }
+    }
+
     fun onConfirmAmount() {
         val amount = _uiState.value.amountInput.toDoubleOrNull()
 
