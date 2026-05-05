@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
@@ -34,10 +36,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
@@ -53,12 +59,166 @@ private val BackgroundCardColor = Color(0xFFF7F8FA)
 private val BackgroundAccentColor = Color(0xFF087BE8)
 private val BackgroundGreenColor = Color(0xFF14B8A6)
 
+private data class ProfileBackgroundLayoutMetrics(
+    val isSquareCompact: Boolean,
+
+    val contentHorizontalPadding: Dp,
+    val contentTopPadding: Dp,
+    val contentBottomPadding: Dp,
+    val contentSpacing: Dp,
+
+    val titleFontSize: TextUnit,
+    val titleLineHeight: TextUnit,
+    val subtitleFontSize: TextUnit,
+    val subtitleLineHeight: TextUnit,
+    val subtitleMaxLines: Int,
+
+    val previewCardCornerRadius: Dp,
+    val previewCardShadowElevation: Dp,
+    val previewCardPadding: Dp,
+    val previewTitleFontSize: TextUnit,
+    val previewTitleLineHeight: TextUnit,
+    val previewTitleMaxLines: Int,
+    val previewTitleToImageSpacing: Dp,
+
+    val previewImageHeight: Dp,
+    val previewImageCornerRadius: Dp,
+    val previewImageShadowElevation: Dp,
+
+    val previewImageToDescriptionSpacing: Dp,
+    val previewDescriptionFontSize: TextUnit,
+    val previewDescriptionLineHeight: TextUnit,
+    val previewDescriptionMaxLines: Int,
+
+    val loadingTextFontSize: TextUnit,
+    val loadingTextLineHeight: TextUnit,
+
+    val primaryButtonHeight: Dp,
+    val primaryButtonCornerRadius: Dp,
+    val primaryButtonShadowElevation: Dp,
+    val primaryButtonFontSize: TextUnit,
+    val primaryButtonLineHeight: TextUnit,
+
+    val resetButtonHeight: Dp,
+    val resetButtonCornerRadius: Dp,
+    val resetButtonShadowElevation: Dp,
+    val resetButtonFontSize: TextUnit,
+    val resetButtonLineHeight: TextUnit
+)
+
+@Composable
+private fun profileBackgroundLayoutMetrics(): ProfileBackgroundLayoutMetrics {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+
+    return if (isSquareCompact) {
+        ProfileBackgroundLayoutMetrics(
+            isSquareCompact = true,
+
+            contentHorizontalPadding = 14.dp,
+            contentTopPadding = 10.dp,
+            contentBottomPadding = 12.dp,
+            contentSpacing = 8.dp,
+
+            titleFontSize = 18.sp,
+            titleLineHeight = 22.sp,
+            subtitleFontSize = 12.sp,
+            subtitleLineHeight = 16.sp,
+            subtitleMaxLines = 2,
+
+            previewCardCornerRadius = 20.dp,
+            previewCardShadowElevation = 4.dp,
+            previewCardPadding = 10.dp,
+            previewTitleFontSize = 13.sp,
+            previewTitleLineHeight = 16.sp,
+            previewTitleMaxLines = 1,
+            previewTitleToImageSpacing = 8.dp,
+
+            previewImageHeight = 104.dp,
+            previewImageCornerRadius = 22.dp,
+            previewImageShadowElevation = 5.dp,
+
+            previewImageToDescriptionSpacing = 8.dp,
+            previewDescriptionFontSize = 11.sp,
+            previewDescriptionLineHeight = 14.sp,
+            previewDescriptionMaxLines = 2,
+
+            loadingTextFontSize = 12.sp,
+            loadingTextLineHeight = 15.sp,
+
+            primaryButtonHeight = 44.dp,
+            primaryButtonCornerRadius = 18.dp,
+            primaryButtonShadowElevation = 5.dp,
+            primaryButtonFontSize = 14.sp,
+            primaryButtonLineHeight = 17.sp,
+
+            resetButtonHeight = 42.dp,
+            resetButtonCornerRadius = 17.dp,
+            resetButtonShadowElevation = 3.dp,
+            resetButtonFontSize = 13.sp,
+            resetButtonLineHeight = 16.sp
+        )
+    } else {
+        ProfileBackgroundLayoutMetrics(
+            isSquareCompact = false,
+
+            contentHorizontalPadding = 24.dp,
+            contentTopPadding = 28.dp,
+            contentBottomPadding = 24.dp,
+            contentSpacing = 14.dp,
+
+            titleFontSize = 24.sp,
+            titleLineHeight = 28.sp,
+            subtitleFontSize = 14.sp,
+            subtitleLineHeight = 19.sp,
+            subtitleMaxLines = Int.MAX_VALUE,
+
+            previewCardCornerRadius = 28.dp,
+            previewCardShadowElevation = 8.dp,
+            previewCardPadding = 16.dp,
+            previewTitleFontSize = 16.sp,
+            previewTitleLineHeight = 20.sp,
+            previewTitleMaxLines = 1,
+            previewTitleToImageSpacing = 12.dp,
+
+            previewImageHeight = 178.dp,
+            previewImageCornerRadius = 32.dp,
+            previewImageShadowElevation = 10.dp,
+
+            previewImageToDescriptionSpacing = 12.dp,
+            previewDescriptionFontSize = 13.sp,
+            previewDescriptionLineHeight = 18.sp,
+            previewDescriptionMaxLines = Int.MAX_VALUE,
+
+            loadingTextFontSize = 14.sp,
+            loadingTextLineHeight = 18.sp,
+
+            primaryButtonHeight = 58.dp,
+            primaryButtonCornerRadius = 24.dp,
+            primaryButtonShadowElevation = 8.dp,
+            primaryButtonFontSize = 16.sp,
+            primaryButtonLineHeight = 20.sp,
+
+            resetButtonHeight = 54.dp,
+            resetButtonCornerRadius = 22.dp,
+            resetButtonShadowElevation = 5.dp,
+            resetButtonFontSize = 15.sp,
+            resetButtonLineHeight = 19.sp
+        )
+    }
+}
+
 @Composable
 fun ProfileBackgroundScreen(
     state: ProfileBackgroundUiState,
     onBack: () -> Unit,
     onSelect: (String) -> Unit
 ) {
+    val metrics = profileBackgroundLayoutMetrics()
+    val scrollState = rememberScrollState()
+
     val context = LocalContext.current
     val selectedBackground = state.selectedBackground
     val hasCustomImage = selectedBackground.isCustomBackgroundUri()
@@ -92,21 +252,27 @@ fun ProfileBackgroundScreen(
                 spotAlpha = 0.72f
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = metrics.contentHorizontalPadding)
+                    .padding(
+                        top = metrics.contentTopPadding,
+                        bottom = metrics.contentBottomPadding
+                    ),
+                verticalArrangement = Arrangement.spacedBy(metrics.contentSpacing)
             ) {
                 Text(
                     text = "Фон официанта",
                     color = BackgroundPrimaryTextColor,
                     fontFamily = MontserratFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                    lineHeight = 28.sp
+                    fontSize = metrics.titleFontSize,
+                    lineHeight = metrics.titleLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Text(
@@ -114,18 +280,17 @@ fun ProfileBackgroundScreen(
                     color = BackgroundSecondaryTextColor,
                     fontFamily = MontserratFontFamily,
                     fontWeight = FontWeight.Normal,
-                    fontSize = 14.sp,
-                    lineHeight = 19.sp
+                    fontSize = metrics.subtitleFontSize,
+                    lineHeight = metrics.subtitleLineHeight,
+                    maxLines = metrics.subtitleMaxLines,
+                    overflow = TextOverflow.Ellipsis
                 )
-
-                Spacer(modifier = Modifier.height(4.dp))
 
                 BackgroundPreviewCard(
                     selectedBackground = selectedBackground,
-                    hasCustomImage = hasCustomImage
+                    hasCustomImage = hasCustomImage,
+                    metrics = metrics
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 PickImageButton(
                     text = if (hasCustomImage) {
@@ -133,6 +298,7 @@ fun ProfileBackgroundScreen(
                     } else {
                         "Выбрать изображение"
                     },
+                    metrics = metrics,
                     onClick = {
                         imagePicker.launch(arrayOf("image/*"))
                     }
@@ -140,6 +306,7 @@ fun ProfileBackgroundScreen(
 
                 if (hasCustomImage) {
                     ResetBackgroundButton(
+                        metrics = metrics,
                         onClick = { onSelect(DEFAULT_BACKGROUND) }
                     )
                 }
@@ -151,21 +318,22 @@ fun ProfileBackgroundScreen(
 @Composable
 private fun BackgroundPreviewCard(
     selectedBackground: String?,
-    hasCustomImage: Boolean
+    hasCustomImage: Boolean,
+    metrics: ProfileBackgroundLayoutMetrics
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(28.dp),
+                elevation = metrics.previewCardShadowElevation,
+                shape = RoundedCornerShape(metrics.previewCardCornerRadius),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.10f),
                 spotColor = Color.Black.copy(alpha = 0.16f)
             )
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(metrics.previewCardCornerRadius))
             .background(BackgroundCardColor)
-            .padding(16.dp)
+            .padding(metrics.previewCardPadding)
     ) {
         Text(
             text = when {
@@ -176,37 +344,42 @@ private fun BackgroundPreviewCard(
             color = BackgroundPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            lineHeight = 20.sp
+            fontSize = metrics.previewTitleFontSize,
+            lineHeight = metrics.previewTitleLineHeight,
+            maxLines = metrics.previewTitleMaxLines,
+            overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(metrics.previewTitleToImageSpacing))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(178.dp)
+                .height(metrics.previewImageHeight)
                 .shadow(
-                    elevation = 10.dp,
-                    shape = RoundedCornerShape(32.dp),
+                    elevation = metrics.previewImageShadowElevation,
+                    shape = RoundedCornerShape(metrics.previewImageCornerRadius),
                     clip = false,
                     ambientColor = Color.Black.copy(alpha = 0.18f),
                     spotColor = Color.Black.copy(alpha = 0.28f)
                 )
-                .clip(RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(metrics.previewImageCornerRadius))
                 .background(Color(0xFFF0F2F4)),
             contentAlignment = Alignment.Center
         ) {
             when {
                 selectedBackground == null -> {
                     LoadingBackgroundPreview(
-                        text = "Загрузка фона..."
+                        text = "Загрузка фона...",
+                        metrics = metrics,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
 
                 hasCustomImage -> {
                     UriPreviewImage(
                         uriString = selectedBackground,
+                        metrics = metrics,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -222,7 +395,7 @@ private fun BackgroundPreviewCard(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(metrics.previewImageToDescriptionSpacing))
 
         Text(
             text = when {
@@ -241,8 +414,10 @@ private fun BackgroundPreviewCard(
             color = BackgroundSecondaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Normal,
-            fontSize = 13.sp,
-            lineHeight = 18.sp
+            fontSize = metrics.previewDescriptionFontSize,
+            lineHeight = metrics.previewDescriptionLineHeight,
+            maxLines = metrics.previewDescriptionMaxLines,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -250,6 +425,7 @@ private fun BackgroundPreviewCard(
 @Composable
 private fun UriPreviewImage(
     uriString: String,
+    metrics: ProfileBackgroundLayoutMetrics,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -274,6 +450,7 @@ private fun UriPreviewImage(
         PreviewImageState.Loading -> {
             LoadingBackgroundPreview(
                 text = "Загрузка изображения...",
+                metrics = metrics,
                 modifier = modifier
             )
         }
@@ -281,6 +458,7 @@ private fun UriPreviewImage(
         PreviewImageState.Failed -> {
             LoadingBackgroundPreview(
                 text = "Не удалось загрузить изображение",
+                metrics = metrics,
                 modifier = modifier
             )
         }
@@ -299,6 +477,7 @@ private fun UriPreviewImage(
 @Composable
 private fun LoadingBackgroundPreview(
     text: String,
+    metrics: ProfileBackgroundLayoutMetrics,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -317,9 +496,12 @@ private fun LoadingBackgroundPreview(
             color = BackgroundSecondaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Medium,
-            fontSize = 14.sp,
-            lineHeight = 18.sp,
-            textAlign = TextAlign.Center
+            fontSize = metrics.loadingTextFontSize,
+            lineHeight = metrics.loadingTextLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 12.dp)
         )
     }
 }
@@ -327,6 +509,7 @@ private fun LoadingBackgroundPreview(
 @Composable
 private fun PickImageButton(
     text: String,
+    metrics: ProfileBackgroundLayoutMetrics,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -334,15 +517,15 @@ private fun PickImageButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(metrics.primaryButtonHeight)
             .shadow(
-                elevation = 8.dp,
-                shape = RoundedCornerShape(24.dp),
+                elevation = metrics.primaryButtonShadowElevation,
+                shape = RoundedCornerShape(metrics.primaryButtonCornerRadius),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.12f),
                 spotColor = Color.Black.copy(alpha = 0.18f)
             )
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(metrics.primaryButtonCornerRadius))
             .background(
                 brush = Brush.linearGradient(
                     listOf(
@@ -363,15 +546,19 @@ private fun PickImageButton(
             color = Color.White,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            lineHeight = 20.sp,
-            textAlign = TextAlign.Center
+            fontSize = metrics.primaryButtonFontSize,
+            lineHeight = metrics.primaryButtonLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 12.dp)
         )
     }
 }
 
 @Composable
 private fun ResetBackgroundButton(
+    metrics: ProfileBackgroundLayoutMetrics,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -379,15 +566,15 @@ private fun ResetBackgroundButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .height(metrics.resetButtonHeight)
             .shadow(
-                elevation = 5.dp,
-                shape = RoundedCornerShape(22.dp),
+                elevation = metrics.resetButtonShadowElevation,
+                shape = RoundedCornerShape(metrics.resetButtonCornerRadius),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.06f),
                 spotColor = Color.Black.copy(alpha = 0.10f)
             )
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(metrics.resetButtonCornerRadius))
             .background(Color(0xFFF7F8FA))
             .clickable(
                 interactionSource = interactionSource,
@@ -401,9 +588,12 @@ private fun ResetBackgroundButton(
             color = BackgroundPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
-            lineHeight = 19.sp,
-            textAlign = TextAlign.Center
+            fontSize = metrics.resetButtonFontSize,
+            lineHeight = metrics.resetButtonLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 12.dp)
         )
     }
 }

@@ -1,12 +1,12 @@
 package com.chaiok.pos.presentation.navigation
 
-import android.content.ActivityNotFoundException
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -16,15 +16,21 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.chaiok.pos.data.di.AppContainer
+import com.chaiok.pos.domain.model.PaymentResult
+import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
 import com.chaiok.pos.presentation.background.ProfileBackgroundViewModel
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingOneTimeEvent
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingScreen
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingUiState
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingViewModel
 import com.chaiok.pos.presentation.home.HomeEvent
 import com.chaiok.pos.presentation.home.HomeScreen
 import com.chaiok.pos.presentation.home.HomeViewModel
 import com.chaiok.pos.presentation.login.LoginEvent
 import com.chaiok.pos.presentation.login.LoginScreen
 import com.chaiok.pos.presentation.login.LoginViewModel
-import com.chaiok.pos.presentation.payment.SmartSkyPaymentIntentFactory
 import com.chaiok.pos.presentation.settings.SettingsRoute
 import com.chaiok.pos.presentation.settings.SettingsViewModel
 import com.chaiok.pos.presentation.status.StatusScreen
@@ -35,6 +41,7 @@ import com.chaiok.pos.presentation.tipselection.TipSelectionScreen
 import com.chaiok.pos.presentation.tipselection.TipSelectionViewModel
 import java.math.BigDecimal
 import java.math.RoundingMode
+import kotlin.math.abs
 
 @Composable
 fun ChaiOkNavHost(container: AppContainer) {
@@ -198,7 +205,11 @@ fun ChaiOkNavHost(container: AppContainer) {
 
         composable(
             route = Routes.TipSelectionWithArg,
-            arguments = listOf(navArgument("billAmountRub") { type = NavType.IntType })
+            arguments = listOf(
+                navArgument("billAmountRub") {
+                    type = NavType.IntType
+                }
+            )
         ) { backStack ->
             val billAmount = backStack.arguments
                 ?.getInt("billAmountRub")
@@ -220,20 +231,36 @@ fun ChaiOkNavHost(container: AppContainer) {
 
             val state by vm.uiState.collectAsStateWithLifecycle()
 
-            val paymentLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.StartActivityForResult()
-            ) { result ->
-                Log.i(
-                    PAYMENT_TAG,
-                    "payment activity resultCode=${result.resultCode}"
-                )
+            LaunchedEffect(backStack) {
+                when (val consumedResult = backStack.savedStateHandle.consumePaymentResult()) {
+                    is ConsumedPaymentResult.Finished -> {
+                        Log.i(
+                            PAYMENT_TAG,
+                            "TipSelection consumed payment result=${consumedResult.result.javaClass.simpleName}"
+                        )
 
-                val paymentResult = SmartSkyPaymentIntentFactory.mapPaymentActivityResult(
-                    resultCode = result.resultCode,
-                    data = result.data
-                )
+                        backStack.savedStateHandle.remove<PosPaymentRequest>(
+                            PENDING_PAYMENT_REQUEST_KEY
+                        )
 
-                vm.handlePaymentResult(paymentResult)
+                        vm.handlePaymentResult(consumedResult.result)
+                    }
+
+                    ConsumedPaymentResult.Cancelled -> {
+                        Log.i(
+                            PAYMENT_TAG,
+                            "TipSelection consumed payment cancelled"
+                        )
+
+                        backStack.savedStateHandle.remove<PosPaymentRequest>(
+                            PENDING_PAYMENT_REQUEST_KEY
+                        )
+
+                        vm.resetPaymentState()
+                    }
+
+                    null -> Unit
+                }
             }
 
             TipSelectionScreen(
@@ -248,35 +275,27 @@ fun ChaiOkNavHost(container: AppContainer) {
                         return@TipSelectionScreen
                     }
 
-                    try {
-                        val amount = BigDecimal
+                    val paymentRequest = PosPaymentRequest(
+                        amount = BigDecimal
                             .valueOf(state.totalAmount)
-                            .setScale(2, RoundingMode.HALF_UP)
+                            .setScale(2, RoundingMode.HALF_UP),
+                        waiterId = state.waiterId,
+                        terminalId = state.terminalId,
+                        tipAmount = state.selectedTipAmount,
+                        serviceFee = state.serviceFeeAmount,
+                        feesCovered = state.isServiceFeeEnabled
+                    )
 
-                        val intent = SmartSkyPaymentIntentFactory.createPaymentIntent(
-                            amount = amount,
-                            waiterId = state.waiterId,
-                            terminalId = state.terminalId,
-                            tipAmount = state.selectedTipAmount,
-                            serviceFee = state.serviceFeeAmount,
-                            feesCovered = state.isServiceFeeEnabled
-                        )
+                    Log.i(
+                        PAYMENT_TAG,
+                        "Navigate to CardPresenting terminalId=***${paymentRequest.terminalId.takeLast(4)}"
+                    )
 
-                        Log.i(PAYMENT_TAG, "launching SmartSky payment activity")
+                    navController.currentBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(PENDING_PAYMENT_REQUEST_KEY, paymentRequest)
 
-                        paymentLauncher.launch(intent)
-                    } catch (error: ActivityNotFoundException) {
-                        Log.e(PAYMENT_TAG, "launch error ActivityNotFound", error)
-                        vm.handlePaymentLaunchError("Платежное приложение не найдено")
-                    } catch (error: SecurityException) {
-                        Log.e(PAYMENT_TAG, "launch error Security", error)
-                        vm.handlePaymentLaunchError("Нет доступа к платежному приложению")
-                    } catch (error: Exception) {
-                        Log.e(PAYMENT_TAG, "launch error Exception", error)
-                        vm.handlePaymentLaunchError(
-                            error.message ?: "Не удалось запустить оплату"
-                        )
-                    }
+                    navController.navigateSingleTopTo(Routes.CardPresenting)
                 },
                 onSnackbarShown = vm::onMessageShown,
                 onDone = {
@@ -295,6 +314,93 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onServiceEvaluation = vm::selectServiceEvaluation
             )
         }
+
+        composable(Routes.CardPresenting) {
+            val previousHandle = remember {
+                navController.previousBackStackEntry?.savedStateHandle
+            }
+
+            val request = remember {
+                previousHandle?.get<PosPaymentRequest>(PENDING_PAYMENT_REQUEST_KEY)
+            }
+
+            if (previousHandle == null || request == null) {
+                Log.e(
+                    PAYMENT_TAG,
+                    "CardPresenting opened without payment request"
+                )
+
+                CardPresentingScreen(
+                    state = CardPresentingUiState(
+                        stage = CardPresentingStage.Error,
+                        title = "Не удалось начать оплату",
+                        message = "Платежные данные не найдены. Вернитесь назад и попробуйте снова.",
+                        amountText = "",
+                        canCancel = true,
+                        isLoading = false,
+                        errorMessage = "Payment request is missing"
+                    ),
+                    onCancel = {
+                        navController.popBackStack()
+                    }
+                )
+
+                return@composable
+            }
+
+            val vm: CardPresentingViewModel = viewModel(
+                factory = SimpleFactory {
+                    CardPresentingViewModel(
+                        startPosPaymentUseCase = container.startPosPaymentUseCase,
+                        cancelPosPaymentUseCase = container.cancelPosPaymentUseCase
+                    )
+                }
+            )
+
+            val state by vm.uiState.collectAsStateWithLifecycle()
+
+            BackHandler(enabled = state.canCancel) {
+                vm.cancelPayment()
+            }
+
+            LaunchedEffect(request) {
+                vm.startPayment(
+                    request = request,
+                    amountText = formatPaymentAmount(request.amount)
+                )
+            }
+
+            LaunchedEffect(Unit) {
+                vm.oneTimeEvents.collect { event ->
+                    when (event) {
+                        is CardPresentingOneTimeEvent.PaymentFinished -> {
+                            Log.i(
+                                PAYMENT_TAG,
+                                "CardPresenting oneTimeEvent PaymentFinished result=${event.result.javaClass.simpleName}"
+                            )
+
+                            previousHandle.putPaymentResult(event.result)
+                            navController.popBackStack()
+                        }
+
+                        CardPresentingOneTimeEvent.Cancelled -> {
+                            Log.i(
+                                PAYMENT_TAG,
+                                "CardPresenting oneTimeEvent Cancelled"
+                            )
+
+                            previousHandle.putPaymentCancelled()
+                            navController.popBackStack()
+                        }
+                    }
+                }
+            }
+
+            CardPresentingScreen(
+                state = state,
+                onCancel = vm::cancelPayment
+            )
+        }
     }
 }
 
@@ -304,4 +410,188 @@ private fun NavHostController.navigateSingleTopTo(route: String) {
     }
 }
 
+private sealed interface ConsumedPaymentResult {
+    data class Finished(
+        val result: PaymentResult
+    ) : ConsumedPaymentResult
+
+    data object Cancelled : ConsumedPaymentResult
+}
+
+private fun SavedStateHandle.putPaymentResult(result: PaymentResult) {
+    when (result) {
+        is PaymentResult.Approved -> {
+            Log.i(
+                PAYMENT_TAG,
+                "putPaymentResult Approved rawMessagePreview=${result.rawMessage.toPaymentMessagePreview()}"
+            )
+
+            set(PAYMENT_RESULT_TYPE_KEY, PAYMENT_RESULT_APPROVED)
+            set(PAYMENT_RESULT_TRANSACTION_ID_KEY, result.transactionId)
+            set(PAYMENT_RESULT_RRN_KEY, result.rrn)
+            set(PAYMENT_RESULT_AUTH_CODE_KEY, result.authCode)
+            set(PAYMENT_RESULT_MESSAGE_KEY, result.rawMessage)
+        }
+
+        is PaymentResult.Declined -> {
+            Log.i(
+                PAYMENT_TAG,
+                "putPaymentResult Declined reasonPreview=${result.reason.toPaymentMessagePreview()}"
+            )
+
+            set(PAYMENT_RESULT_TYPE_KEY, PAYMENT_RESULT_DECLINED)
+            set(PAYMENT_RESULT_MESSAGE_KEY, result.reason)
+            set(PAYMENT_RESULT_CODE_KEY, result.code)
+            set(PAYMENT_RESULT_RAW_MESSAGE_KEY, result.rawMessage)
+        }
+
+        is PaymentResult.Error -> {
+            Log.i(
+                PAYMENT_TAG,
+                "putPaymentResult Error messagePreview=${result.message.toPaymentMessagePreview()}"
+            )
+
+            set(PAYMENT_RESULT_TYPE_KEY, PAYMENT_RESULT_ERROR)
+            set(PAYMENT_RESULT_MESSAGE_KEY, result.message)
+        }
+    }
+}
+
+private fun SavedStateHandle.putPaymentCancelled() {
+    set(PAYMENT_RESULT_TYPE_KEY, PAYMENT_RESULT_CANCELLED)
+}
+
+private fun SavedStateHandle.consumePaymentResult(): ConsumedPaymentResult? {
+    return when (val type = get<String>(PAYMENT_RESULT_TYPE_KEY)) {
+        PAYMENT_RESULT_APPROVED -> {
+            Log.i(
+                PAYMENT_TAG,
+                "consumePaymentResult Approved messagePreview=${get<String>(PAYMENT_RESULT_MESSAGE_KEY).toPaymentMessagePreview()}"
+            )
+
+            val result = PaymentResult.Approved(
+                transactionId = get(PAYMENT_RESULT_TRANSACTION_ID_KEY),
+                rrn = get(PAYMENT_RESULT_RRN_KEY),
+                authCode = get(PAYMENT_RESULT_AUTH_CODE_KEY),
+                rawMessage = get(PAYMENT_RESULT_MESSAGE_KEY)
+            )
+
+            clearPaymentResult()
+            ConsumedPaymentResult.Finished(result)
+        }
+
+        PAYMENT_RESULT_DECLINED -> {
+            Log.i(
+                PAYMENT_TAG,
+                "consumePaymentResult Declined messagePreview=${get<String>(PAYMENT_RESULT_MESSAGE_KEY).toPaymentMessagePreview()}"
+            )
+
+            val result = PaymentResult.Declined(
+                reason = get(PAYMENT_RESULT_MESSAGE_KEY),
+                code = get(PAYMENT_RESULT_CODE_KEY),
+                rawMessage = get(PAYMENT_RESULT_RAW_MESSAGE_KEY)
+            )
+
+            clearPaymentResult()
+            ConsumedPaymentResult.Finished(result)
+        }
+
+        PAYMENT_RESULT_ERROR -> {
+            Log.i(
+                PAYMENT_TAG,
+                "consumePaymentResult Error messagePreview=${get<String>(PAYMENT_RESULT_MESSAGE_KEY).toPaymentMessagePreview()}"
+            )
+
+            val result = PaymentResult.Error(
+                message = get<String>(PAYMENT_RESULT_MESSAGE_KEY)
+                    ?: "Ошибка оплаты"
+            )
+
+            clearPaymentResult()
+            ConsumedPaymentResult.Finished(result)
+        }
+
+        PAYMENT_RESULT_CANCELLED -> {
+            Log.i(
+                PAYMENT_TAG,
+                "consumePaymentResult Cancelled"
+            )
+
+            clearPaymentResult()
+            ConsumedPaymentResult.Cancelled
+        }
+
+        null -> null
+
+        else -> {
+            Log.w(PAYMENT_TAG, "Unknown payment result type=$type")
+            clearPaymentResult()
+            null
+        }
+    }
+}
+
+private fun SavedStateHandle.clearPaymentResult() {
+    remove<String>(PAYMENT_RESULT_TYPE_KEY)
+    remove<String>(PAYMENT_RESULT_TRANSACTION_ID_KEY)
+    remove<String>(PAYMENT_RESULT_RRN_KEY)
+    remove<String>(PAYMENT_RESULT_AUTH_CODE_KEY)
+    remove<String>(PAYMENT_RESULT_MESSAGE_KEY)
+    remove<String>(PAYMENT_RESULT_CODE_KEY)
+    remove<String>(PAYMENT_RESULT_RAW_MESSAGE_KEY)
+}
+
+private fun formatPaymentAmount(amount: BigDecimal): String {
+    val normalized = amount.setScale(2, RoundingMode.HALF_UP)
+    val kopecks = normalized
+        .movePointRight(2)
+        .setScale(0, RoundingMode.HALF_UP)
+        .toLong()
+
+    val rubles = kopecks / 100
+    val cents = abs(kopecks % 100)
+
+    val groupedRubles = rubles
+        .toString()
+        .reversed()
+        .chunked(3)
+        .joinToString(" ")
+        .reversed()
+
+    return if (cents == 0L) {
+        "$groupedRubles ₽"
+    } else {
+        "$groupedRubles,${cents.toString().padStart(2, '0')} ₽"
+    }
+}
+
+private fun String?.toPaymentMessagePreview(): String {
+    val normalized = this
+        ?.replace("\n", " ")
+        ?.replace("\r", " ")
+        ?.trim()
+        ?.take(160)
+
+    return if (normalized.isNullOrBlank()) {
+        "<blank>"
+    } else {
+        "\"$normalized\""
+    }
+}
+
 private const val PAYMENT_TAG = "TipsPaymentFlow"
+
+private const val PENDING_PAYMENT_REQUEST_KEY = "pending_payment_request"
+
+private const val PAYMENT_RESULT_TYPE_KEY = "payment_result_type"
+private const val PAYMENT_RESULT_TRANSACTION_ID_KEY = "payment_result_transaction_id"
+private const val PAYMENT_RESULT_RRN_KEY = "payment_result_rrn"
+private const val PAYMENT_RESULT_AUTH_CODE_KEY = "payment_result_auth_code"
+private const val PAYMENT_RESULT_MESSAGE_KEY = "payment_result_message"
+private const val PAYMENT_RESULT_CODE_KEY = "payment_result_code"
+private const val PAYMENT_RESULT_RAW_MESSAGE_KEY = "payment_result_raw_message"
+
+private const val PAYMENT_RESULT_APPROVED = "approved"
+private const val PAYMENT_RESULT_DECLINED = "declined"
+private const val PAYMENT_RESULT_ERROR = "error"
+private const val PAYMENT_RESULT_CANCELLED = "cancelled"

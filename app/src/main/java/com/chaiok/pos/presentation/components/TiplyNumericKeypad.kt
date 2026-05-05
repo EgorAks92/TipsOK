@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -29,6 +30,15 @@ import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
+private data class KeypadMetrics(
+    val touchSize: Dp,
+    val digitFontSize: TextUnit,
+    val rowSpacing: Dp,
+    val iconSize: Dp,
+    val loadingSize: Dp,
+    val loadingStrokeWidth: Dp
+)
+
 @Composable
 fun TiplyNumericKeypad(
     onDigit: (String) -> Unit,
@@ -37,12 +47,63 @@ fun TiplyNumericKeypad(
     modifier: Modifier = Modifier,
     confirmEnabled: Boolean = true,
     isLoading: Boolean = false,
-    touchSize: Dp = 86.dp,
-    digitFontSize: TextUnit = 32.sp,
-    rowSpacing: Dp = 0.dp,
-    iconSize: Dp = 38.dp,
+    touchSize: Dp? = null,
+    digitFontSize: TextUnit? = null,
+    rowSpacing: Dp? = null,
+    iconSize: Dp? = null,
     digitColor: Color = Color.White
 ) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+
+    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+    val isCompactPortrait = screenHeight < 780.dp
+
+    val defaultMetrics = when {
+        isSquareCompact -> {
+            KeypadMetrics(
+                touchSize = 56.dp,
+                digitFontSize = 24.sp,
+                rowSpacing = 0.dp,
+                iconSize = 28.dp,
+                loadingSize = 28.dp,
+                loadingStrokeWidth = 2.2.dp
+            )
+        }
+
+        isCompactPortrait -> {
+            KeypadMetrics(
+                touchSize = 78.dp,
+                digitFontSize = 30.sp,
+                rowSpacing = 0.dp,
+                iconSize = 36.dp,
+                loadingSize = 36.dp,
+                loadingStrokeWidth = 2.6.dp
+            )
+        }
+
+        else -> {
+            KeypadMetrics(
+                touchSize = 86.dp,
+                digitFontSize = 32.sp,
+                rowSpacing = 0.dp,
+                iconSize = 38.dp,
+                loadingSize = 38.dp,
+                loadingStrokeWidth = 2.6.dp
+            )
+        }
+    }
+
+    val metrics = KeypadMetrics(
+        touchSize = touchSize ?: defaultMetrics.touchSize,
+        digitFontSize = digitFontSize ?: defaultMetrics.digitFontSize,
+        rowSpacing = rowSpacing ?: defaultMetrics.rowSpacing,
+        iconSize = iconSize ?: defaultMetrics.iconSize,
+        loadingSize = if (iconSize != null) iconSize else defaultMetrics.loadingSize,
+        loadingStrokeWidth = defaultMetrics.loadingStrokeWidth
+    )
+
     val rows = listOf(
         listOf("1", "2", "3"),
         listOf("4", "5", "6"),
@@ -52,7 +113,7 @@ fun TiplyNumericKeypad(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(rowSpacing)
+        verticalArrangement = Arrangement.spacedBy(metrics.rowSpacing)
     ) {
         rows.forEach { row ->
             Row(
@@ -64,8 +125,8 @@ fun TiplyNumericKeypad(
                     TiplyKeypadDigit(
                         label = label,
                         onClick = { onDigit(label) },
-                        touchSize = touchSize,
-                        digitFontSize = digitFontSize,
+                        touchSize = metrics.touchSize,
+                        digitFontSize = metrics.digitFontSize,
                         digitColor = digitColor
                     )
                 }
@@ -82,24 +143,27 @@ fun TiplyNumericKeypad(
                 contentDescription = "Удалить",
                 onClick = onDelete,
                 enabled = true,
-                touchSize = touchSize,
-                iconSize = iconSize
+                touchSize = metrics.touchSize,
+                iconSize = metrics.iconSize
             )
 
             TiplyKeypadDigit(
                 label = "0",
                 onClick = { onDigit("0") },
-                touchSize = touchSize,
-                digitFontSize = digitFontSize,
+                touchSize = metrics.touchSize,
+                digitFontSize = metrics.digitFontSize,
                 digitColor = digitColor
             )
 
             if (isLoading) {
-                Box(modifier = Modifier.size(touchSize), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier.size(metrics.touchSize),
+                    contentAlignment = Alignment.Center
+                ) {
                     CircularProgressIndicator(
                         color = Color(0xFF1DE9E7),
-                        strokeWidth = 2.6.dp,
-                        modifier = Modifier.size(38.dp)
+                        strokeWidth = metrics.loadingStrokeWidth,
+                        modifier = Modifier.size(metrics.loadingSize)
                     )
                 }
             } else {
@@ -108,8 +172,8 @@ fun TiplyNumericKeypad(
                     contentDescription = "Подтвердить",
                     onClick = onConfirm,
                     enabled = confirmEnabled,
-                    touchSize = touchSize,
-                    iconSize = iconSize
+                    touchSize = metrics.touchSize,
+                    iconSize = metrics.iconSize
                 )
             }
         }
@@ -125,6 +189,7 @@ private fun TiplyKeypadDigit(
     digitColor: Color
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+
     Box(
         modifier = Modifier
             .size(touchSize)
@@ -145,7 +210,9 @@ private fun TiplyKeypadDigit(
             style = MaterialTheme.typography.displaySmall.copy(
                 fontFamily = MontserratFontFamily,
                 shadow = Shadow(
-                    color = Color.Black.copy(alpha = if (digitColor == Color.White) 0.2f else 0.08f),
+                    color = Color.Black.copy(
+                        alpha = if (digitColor == Color.White) 0.2f else 0.08f
+                    ),
                     blurRadius = 6f
                 )
             )
@@ -163,6 +230,7 @@ private fun TiplyKeypadIconButton(
     iconSize: Dp
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+
     Box(
         modifier = Modifier
             .size(touchSize)

@@ -90,8 +90,8 @@ class TipSelectionViewModel(
     private val addReviewUseCase: AddReviewUseCase,
     private val sessionRepository: SessionRepository
 ) : ViewModel() {
-    private var reviewSentForCurrentPayment = false
 
+    private var reviewSentForCurrentPayment = false
 
     private val _uiState = MutableStateFlow(
         TipSelectionUiState(
@@ -293,8 +293,14 @@ class TipSelectionViewModel(
     fun handlePaymentResult(result: PaymentResult) {
         when (result) {
             is PaymentResult.Approved -> {
+                Log.i(
+                    REVIEW_TAG,
+                    "handlePaymentResult Approved rawMessagePreview=${result.rawMessage.toPaymentMessagePreview()}"
+                )
+
                 if (!reviewSentForCurrentPayment) {
                     reviewSentForCurrentPayment = true
+
                     sendReview(
                         kitchenEvaluation = _uiState.value.kitchenEvaluation,
                         serviceEvaluation = _uiState.value.serviceEvaluation
@@ -311,6 +317,11 @@ class TipSelectionViewModel(
             }
 
             is PaymentResult.Declined -> {
+                Log.i(
+                    REVIEW_TAG,
+                    "handlePaymentResult Declined reasonPreview=${result.reason.toPaymentMessagePreview()}"
+                )
+
                 _uiState.update {
                     it.copy(
                         paymentState = TipPaymentUiState.Declined(
@@ -321,6 +332,11 @@ class TipSelectionViewModel(
             }
 
             is PaymentResult.Error -> {
+                Log.i(
+                    REVIEW_TAG,
+                    "handlePaymentResult Error messagePreview=${result.message.toPaymentMessagePreview()}"
+                )
+
                 _uiState.update {
                     it.copy(
                         paymentState = TipPaymentUiState.Declined(result.message)
@@ -350,5 +366,19 @@ class TipSelectionViewModel(
 
     private companion object {
         private const val REVIEW_TAG = "TipsReviewFlow"
+    }
+}
+
+private fun String?.toPaymentMessagePreview(): String {
+    val normalized = this
+        ?.replace("\n", " ")
+        ?.replace("\r", " ")
+        ?.trim()
+        ?.take(160)
+
+    return if (normalized.isNullOrBlank()) {
+        "<blank>"
+    } else {
+        "\"$normalized\""
     }
 }

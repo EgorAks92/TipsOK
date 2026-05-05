@@ -63,7 +63,10 @@ private data class WaiterProfileHeaderMetrics(
     val waiterCardTopPadding: Dp,
     val waiterCardHeight: Dp,
     val waiterCardHorizontalPadding: Dp,
-    val waiterCardCutoutPadding: Dp
+    val waiterCardCutoutPadding: Dp,
+    val waiterCardCornerRadius: Dp,
+    val waiterCardShadowElevation: Dp,
+    val avatarShadowElevation: Dp
 )
 
 @Composable
@@ -75,39 +78,73 @@ fun WaiterProfileCardHeader(
     backgroundRes: Int = R.drawable.waiter_card_background,
     avatarRes: Int = R.drawable.ic_waiter_avatar
 ) {
-    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-    val isCompact = screenHeight < 780.dp
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
 
-    val metrics = if (isCompact) {
-        WaiterProfileHeaderMetrics(
-            profileSpacer = 0.dp,
-            avatarContainerSize = 70.dp,
-            avatarImageSize = 62.dp,
-            avatarRadius = 22.dp,
-            nameSize = 16,
-            nameStatusSpacer = 0.dp,
-            statusSize = 14,
-            headerHeight = 224.dp,
-            waiterCardTopPadding = 16.dp,
-            waiterCardHeight = 178.dp,
-            waiterCardHorizontalPadding = 32.dp,
-            waiterCardCutoutPadding = 12.dp
-        )
-    } else {
-        WaiterProfileHeaderMetrics(
-            profileSpacer = 0.dp,
-            avatarContainerSize = 72.dp,
-            avatarImageSize = 64.dp,
-            avatarRadius = 22.dp,
-            nameSize = 16,
-            nameStatusSpacer = 8.dp,
-            statusSize = 14,
-            headerHeight = 242.dp,
-            waiterCardTopPadding = 16.dp,
-            waiterCardHeight = 196.dp,
-            waiterCardHorizontalPadding = 16.dp,
-            waiterCardCutoutPadding = 12.dp
-        )
+    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+    val isCompactPortrait = screenHeight < 780.dp
+
+    val metrics = when {
+        isSquareCompact -> {
+            WaiterProfileHeaderMetrics(
+                profileSpacer = 0.dp,
+                avatarContainerSize = 46.dp,
+                avatarImageSize = 40.dp,
+                avatarRadius = 15.dp,
+                nameSize = 13,
+                nameStatusSpacer = 0.dp,
+                statusSize = 11,
+                headerHeight = 108.dp,
+                waiterCardTopPadding = 8.dp,
+                waiterCardHeight = 78.dp,
+                waiterCardHorizontalPadding = 24.dp,
+                waiterCardCutoutPadding = 7.dp,
+                waiterCardCornerRadius = 22.dp,
+                waiterCardShadowElevation = 8.dp,
+                avatarShadowElevation = 5.dp
+            )
+        }
+
+        isCompactPortrait -> {
+            WaiterProfileHeaderMetrics(
+                profileSpacer = 0.dp,
+                avatarContainerSize = 70.dp,
+                avatarImageSize = 62.dp,
+                avatarRadius = 22.dp,
+                nameSize = 16,
+                nameStatusSpacer = 0.dp,
+                statusSize = 14,
+                headerHeight = 224.dp,
+                waiterCardTopPadding = 16.dp,
+                waiterCardHeight = 178.dp,
+                waiterCardHorizontalPadding = 32.dp,
+                waiterCardCutoutPadding = 12.dp,
+                waiterCardCornerRadius = 32.dp,
+                waiterCardShadowElevation = 14.dp,
+                avatarShadowElevation = 8.dp
+            )
+        }
+
+        else -> {
+            WaiterProfileHeaderMetrics(
+                profileSpacer = 0.dp,
+                avatarContainerSize = 72.dp,
+                avatarImageSize = 64.dp,
+                avatarRadius = 22.dp,
+                nameSize = 16,
+                nameStatusSpacer = 8.dp,
+                statusSize = 14,
+                headerHeight = 242.dp,
+                waiterCardTopPadding = 16.dp,
+                waiterCardHeight = 196.dp,
+                waiterCardHorizontalPadding = 16.dp,
+                waiterCardCutoutPadding = 12.dp,
+                waiterCardCornerRadius = 32.dp,
+                waiterCardShadowElevation = 14.dp,
+                avatarShadowElevation = 8.dp
+            )
+        }
     }
 
     Column(
@@ -128,6 +165,8 @@ fun WaiterProfileCardHeader(
                 avatarSize = metrics.avatarContainerSize,
                 avatarRadius = metrics.avatarRadius,
                 cutoutPadding = metrics.waiterCardCutoutPadding,
+                cornerRadius = metrics.waiterCardCornerRadius,
+                shadowElevation = metrics.waiterCardShadowElevation,
                 background = background,
                 backgroundRes = backgroundRes
             )
@@ -153,9 +192,11 @@ fun WaiterProfileCardHeader(
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = metrics.nameSize.sp,
+            lineHeight = (metrics.nameSize + 3).sp,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
 
         Spacer(modifier = Modifier.height(metrics.nameStatusSpacer))
@@ -166,9 +207,11 @@ fun WaiterProfileCardHeader(
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = metrics.statusSize.sp,
+            lineHeight = (metrics.statusSize + 3).sp,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
     }
 }
@@ -181,6 +224,8 @@ private fun WaiterBackgroundCard(
     avatarSize: Dp,
     avatarRadius: Dp,
     cutoutPadding: Dp,
+    cornerRadius: Dp,
+    shadowElevation: Dp,
     background: String?,
     backgroundRes: Int
 ) {
@@ -225,7 +270,7 @@ private fun WaiterBackgroundCard(
     }
 
     val cardShape = WaiterCardAvatarCutoutShape(
-        cornerRadius = 32.dp,
+        cornerRadius = cornerRadius,
         avatarSize = avatarSize,
         avatarRadius = avatarRadius,
         cutoutPadding = cutoutPadding
@@ -239,11 +284,11 @@ private fun WaiterBackgroundCard(
             .padding(horizontal = horizontalPadding)
             .height(cardHeight)
             .shadow(
-                elevation = 14.dp,
+                elevation = shadowElevation,
                 shape = cardShape,
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.64f),
-                spotColor = Color.Black.copy(alpha = 0.72f)
+                ambientColor = Color.Black.copy(alpha = 0.36f),
+                spotColor = Color.Black.copy(alpha = 0.46f)
             )
             .clip(cardShape)
     ) {
@@ -305,11 +350,11 @@ private fun WaiterAvatar(
         modifier = modifier
             .size(metrics.avatarContainerSize)
             .shadow(
-                elevation = 8.dp,
+                elevation = metrics.avatarShadowElevation,
                 shape = avatarShape,
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.16f),
-                spotColor = Color.Black.copy(alpha = 0.22f)
+                ambientColor = Color.Black.copy(alpha = 0.14f),
+                spotColor = Color.Black.copy(alpha = 0.20f)
             )
             .clip(avatarShape)
             .background(Color(0xFFF2F3F2)),
@@ -362,7 +407,9 @@ private class WaiterCardAvatarCutoutShape(
             val cutoutTop = (height - cutoutDepth)
                 .coerceAtLeast(cardRadius)
 
-            val bottomCutoutRadius = 24.dp.toPx()
+            val bottomCutoutRadius = (cornerRadius.toPx() * 0.72f)
+                .coerceAtLeast(12.dp.toPx())
+                .coerceAtMost(24.dp.toPx())
 
             path.moveTo(cardRadius, 0f)
 

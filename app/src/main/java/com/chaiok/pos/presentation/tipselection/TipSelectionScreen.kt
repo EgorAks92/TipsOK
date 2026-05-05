@@ -46,9 +46,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -67,6 +69,69 @@ private val TipSelectionAccentColor = Color(0xFF087BE8)
 private val TipSelectionGreenColor = Color(0xFF14B8A6)
 private val TipSelectionWarningColor = Color(0xFFFFB547)
 
+private data class TipSelectionLayoutMetrics(
+    val isSquareCompact: Boolean,
+    val headerSpacer: Dp,
+    val horizontalPadding: Dp,
+    val bottomPadding: Dp,
+    val contentCardSpacing: Dp,
+    val payButtonTopSpacer: Dp,
+
+    val billFontSize: Int,
+    val billLineHeight: Int,
+
+    val tipCardCorner: Dp,
+    val tipCardPaddingHorizontal: Dp,
+    val tipCardPaddingVertical: Dp,
+    val tipCardShadow: Dp,
+    val tipCardsSpacing: Dp,
+
+    val percentCardWidth: Dp,
+    val percentCardHeight: Dp,
+    val percentCardCorner: Dp,
+    val percentCardPaddingHorizontal: Dp,
+    val percentCardPaddingVertical: Dp,
+    val percentFontSize: Int,
+    val percentLineHeight: Int,
+    val percentAmountFontSize: Int,
+    val percentAmountLineHeight: Int,
+
+    val customTipHeight: Dp,
+    val customTipIconSize: Dp,
+    val customTipIconCorner: Dp,
+    val customTipTitleSize: Int,
+    val customTipAmountSize: Int,
+
+    val reviewCardPaddingHorizontal: Dp,
+    val reviewCardPaddingVertical: Dp,
+    val ratingRowHeight: Dp,
+    val ratingTitleSize: Int,
+    val ratingTitleLineHeight: Int,
+    val starButtonSize: Dp,
+    val starIconSize: Dp,
+    val starSpacing: Dp,
+
+    val serviceFeeHeight: Dp,
+    val serviceFeeCorner: Dp,
+    val serviceFeeTitleSize: Int,
+    val serviceFeeSubtitleSize: Int,
+    val serviceFeeHorizontalPadding: Dp,
+
+    val payButtonHeight: Dp,
+    val payButtonCorner: Dp,
+    val payButtonFontSize: Int,
+
+    val resultTopPadding: Dp,
+    val resultCardPadding: Dp,
+    val resultIconSize: Dp,
+    val resultTitleSize: Int,
+    val resultTitleLineHeight: Int,
+    val resultAmountSize: Int,
+    val resultMessageSize: Int,
+    val resultButtonHeight: Dp,
+    val resultButtonFontSize: Int
+)
+
 @Composable
 fun TipSelectionScreen(
     state: TipSelectionUiState,
@@ -84,6 +149,139 @@ fun TipSelectionScreen(
     onServiceEvaluation: (Int) -> Unit = {}
 ) {
     val snackState = remember { SnackbarHostState() }
+
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+
+    val metrics = if (isSquareCompact) {
+        TipSelectionLayoutMetrics(
+            isSquareCompact = true,
+            headerSpacer = 6.dp,
+            horizontalPadding = 14.dp,
+            bottomPadding = 8.dp,
+            contentCardSpacing = 6.dp,
+            payButtonTopSpacer = 6.dp,
+
+            billFontSize = 12,
+            billLineHeight = 15,
+
+            tipCardCorner = 18.dp,
+            tipCardPaddingHorizontal = 8.dp,
+            tipCardPaddingVertical = 6.dp,
+            tipCardShadow = 4.dp,
+            tipCardsSpacing = 6.dp,
+
+            percentCardWidth = 82.dp,
+            percentCardHeight = 44.dp,
+            percentCardCorner = 15.dp,
+            percentCardPaddingHorizontal = 8.dp,
+            percentCardPaddingVertical = 5.dp,
+            percentFontSize = 14,
+            percentLineHeight = 16,
+            percentAmountFontSize = 9,
+            percentAmountLineHeight = 11,
+
+            customTipHeight = 38.dp,
+            customTipIconSize = 24.dp,
+            customTipIconCorner = 9.dp,
+            customTipTitleSize = 11,
+            customTipAmountSize = 10,
+
+            reviewCardPaddingHorizontal = 8.dp,
+            reviewCardPaddingVertical = 6.dp,
+            ratingRowHeight = 24.dp,
+            ratingTitleSize = 11,
+            ratingTitleLineHeight = 14,
+            starButtonSize = 23.dp,
+            starIconSize = 13.dp,
+            starSpacing = 3.dp,
+
+            serviceFeeHeight = 46.dp,
+            serviceFeeCorner = 17.dp,
+            serviceFeeTitleSize = 11,
+            serviceFeeSubtitleSize = 9,
+            serviceFeeHorizontalPadding = 10.dp,
+
+            payButtonHeight = 44.dp,
+            payButtonCorner = 17.dp,
+            payButtonFontSize = 13,
+
+            resultTopPadding = 4.dp,
+            resultCardPadding = 14.dp,
+            resultIconSize = 54.dp,
+            resultTitleSize = 17,
+            resultTitleLineHeight = 21,
+            resultAmountSize = 15,
+            resultMessageSize = 11,
+            resultButtonHeight = 40.dp,
+            resultButtonFontSize = 12
+        )
+    } else {
+        TipSelectionLayoutMetrics(
+            isSquareCompact = false,
+            headerSpacer = 18.dp,
+            horizontalPadding = 24.dp,
+            bottomPadding = 20.dp,
+            contentCardSpacing = 16.dp,
+            payButtonTopSpacer = 10.dp,
+
+            billFontSize = 17,
+            billLineHeight = 21,
+
+            tipCardCorner = 24.dp,
+            tipCardPaddingHorizontal = 12.dp,
+            tipCardPaddingVertical = 12.dp,
+            tipCardShadow = 6.dp,
+            tipCardsSpacing = 8.dp,
+
+            percentCardWidth = 106.dp,
+            percentCardHeight = 74.dp,
+            percentCardCorner = 20.dp,
+            percentCardPaddingHorizontal = 12.dp,
+            percentCardPaddingVertical = 9.dp,
+            percentFontSize = 18,
+            percentLineHeight = 21,
+            percentAmountFontSize = 12,
+            percentAmountLineHeight = 15,
+
+            customTipHeight = 52.dp,
+            customTipIconSize = 32.dp,
+            customTipIconCorner = 11.dp,
+            customTipTitleSize = 14,
+            customTipAmountSize = 12,
+
+            reviewCardPaddingHorizontal = 12.dp,
+            reviewCardPaddingVertical = 12.dp,
+            ratingRowHeight = 34.dp,
+            ratingTitleSize = 14,
+            ratingTitleLineHeight = 18,
+            starButtonSize = 32.dp,
+            starIconSize = 17.dp,
+            starSpacing = 5.dp,
+
+            serviceFeeHeight = 62.dp,
+            serviceFeeCorner = 22.dp,
+            serviceFeeTitleSize = 14,
+            serviceFeeSubtitleSize = 12,
+            serviceFeeHorizontalPadding = 14.dp,
+
+            payButtonHeight = 56.dp,
+            payButtonCorner = 22.dp,
+            payButtonFontSize = 16,
+
+            resultTopPadding = 8.dp,
+            resultCardPadding = 22.dp,
+            resultIconSize = 88.dp,
+            resultTitleSize = 24,
+            resultTitleLineHeight = 28,
+            resultAmountSize = 20,
+            resultMessageSize = 14,
+            resultButtonHeight = 52.dp,
+            resultButtonFontSize = 15
+        )
+    }
 
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
@@ -111,19 +309,19 @@ fun TipSelectionScreen(
                     title = "Чаевые",
                     onBack = onBack,
                     modifier = Modifier.align(Alignment.TopCenter),
-                    elevation = 14.dp,
-                    ambientAlpha = 0.64f,
-                    spotAlpha = 0.72f
+                    elevation = if (metrics.isSquareCompact) 8.dp else 14.dp,
+                    ambientAlpha = if (metrics.isSquareCompact) 0.32f else 0.64f,
+                    spotAlpha = if (metrics.isSquareCompact) 0.42f else 0.72f
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(metrics.headerSpacer))
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 20.dp)
+                    .padding(horizontal = metrics.horizontalPadding)
+                    .padding(bottom = metrics.bottomPadding)
             ) {
                 val isResultState =
                     state.paymentState is TipPaymentUiState.Approved ||
@@ -132,6 +330,7 @@ fun TipSelectionScreen(
                 if (isResultState) {
                     PaymentResultContent(
                         state = state,
+                        metrics = metrics,
                         onDone = onDone,
                         onRetry = onRetry,
                         onBack = onBack
@@ -139,6 +338,7 @@ fun TipSelectionScreen(
                 } else {
                     TipSelectionContent(
                         state = state,
+                        metrics = metrics,
                         onPreset = onPreset,
                         onCustomStart = onCustomStart,
                         onServiceFeeToggle = onServiceFeeToggle,
@@ -147,12 +347,13 @@ fun TipSelectionScreen(
                         modifier = Modifier.weight(1f)
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(metrics.payButtonTopSpacer))
 
                     GradientPayButton(
                         amount = state.totalAmount,
                         enabled = state.isPayEnabled,
                         loading = state.paymentState == TipPaymentUiState.Processing,
+                        metrics = metrics,
                         onClick = onPay
                     )
                 }
@@ -179,6 +380,7 @@ fun TipSelectionScreen(
 @Composable
 private fun TipSelectionContent(
     state: TipSelectionUiState,
+    metrics: TipSelectionLayoutMetrics,
     onPreset: (Int) -> Unit,
     onCustomStart: () -> Unit,
     onServiceFeeToggle: (Boolean) -> Unit,
@@ -191,17 +393,19 @@ private fun TipSelectionContent(
     ) {
         BillAndTipsInfoRow(
             billAmount = state.billAmount,
-            tipAmount = state.selectedTipAmount
+            tipAmount = state.selectedTipAmount,
+            metrics = metrics
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(if (metrics.isSquareCompact) 4.dp else 8.dp))
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(metrics.contentCardSpacing)
         ) {
             TipSelectionCard(
                 state = state,
+                metrics = metrics,
                 onPreset = onPreset,
                 onCustomStart = onCustomStart
             )
@@ -209,6 +413,7 @@ private fun TipSelectionContent(
             ReviewEvaluationCard(
                 kitchenEvaluation = state.kitchenEvaluation,
                 serviceEvaluation = state.serviceEvaluation,
+                metrics = metrics,
                 onKitchenEvaluation = onKitchenEvaluation,
                 onServiceEvaluation = onServiceEvaluation
             )
@@ -218,6 +423,7 @@ private fun TipSelectionContent(
                     checked = state.isServiceFeeEnabled,
                     percent = state.serviceFeePercent,
                     amount = state.serviceFeeAmount,
+                    metrics = metrics,
                     onCheckedChange = onServiceFeeToggle
                 )
             }
@@ -228,6 +434,7 @@ private fun TipSelectionContent(
 @Composable
 private fun TipSelectionCard(
     state: TipSelectionUiState,
+    metrics: TipSelectionLayoutMetrics,
     onPreset: (Int) -> Unit,
     onCustomStart: () -> Unit
 ) {
@@ -235,18 +442,21 @@ private fun TipSelectionCard(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(24.dp),
+                elevation = metrics.tipCardShadow,
+                shape = RoundedCornerShape(metrics.tipCardCorner),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.08f),
                 spotColor = Color.Black.copy(alpha = 0.12f)
             )
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(metrics.tipCardCorner))
             .background(TipSelectionCardColor)
-            .padding(horizontal = 12.dp, vertical = 12.dp)
+            .padding(
+                horizontal = metrics.tipCardPaddingHorizontal,
+                vertical = metrics.tipCardPaddingVertical
+            )
     ) {
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(metrics.tipCardsSpacing)
         ) {
             itemsIndexed(state.availablePercents) { index, percent ->
                 val selected = !state.isCustomSelected && state.selectedPercentIndex == index
@@ -256,12 +466,13 @@ private fun TipSelectionCard(
                     percentText = formatPercent(percent),
                     amountText = formatRubles(tipAmount),
                     selected = selected,
+                    metrics = metrics,
                     onClick = { onPreset(index) }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(if (metrics.isSquareCompact) 4.dp else 8.dp))
 
         CustomTipCard(
             selected = state.isCustomSelected,
@@ -270,6 +481,7 @@ private fun TipSelectionCard(
             } else {
                 "Указать сумму"
             },
+            metrics = metrics,
             onClick = onCustomStart
         )
     }
@@ -279,6 +491,7 @@ private fun TipSelectionCard(
 private fun ReviewEvaluationCard(
     kitchenEvaluation: Int,
     serviceEvaluation: Int,
+    metrics: TipSelectionLayoutMetrics,
     onKitchenEvaluation: (Int) -> Unit,
     onServiceEvaluation: (Int) -> Unit
 ) {
@@ -286,26 +499,31 @@ private fun ReviewEvaluationCard(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(24.dp),
+                elevation = if (metrics.isSquareCompact) 4.dp else 6.dp,
+                shape = RoundedCornerShape(metrics.tipCardCorner),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.08f),
                 spotColor = Color.Black.copy(alpha = 0.12f)
             )
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(metrics.tipCardCorner))
             .background(TipSelectionCardColor)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(
+                horizontal = metrics.reviewCardPaddingHorizontal,
+                vertical = metrics.reviewCardPaddingVertical
+            ),
+        verticalArrangement = Arrangement.spacedBy(if (metrics.isSquareCompact) 4.dp else 10.dp)
     ) {
         CompactRatingRow(
             title = "Как вам кухня",
             value = kitchenEvaluation,
+            metrics = metrics,
             onSelect = onKitchenEvaluation
         )
 
         CompactRatingRow(
             title = "Как вам сервис",
             value = serviceEvaluation,
+            metrics = metrics,
             onSelect = onServiceEvaluation
         )
     }
@@ -315,12 +533,13 @@ private fun ReviewEvaluationCard(
 private fun CompactRatingRow(
     title: String,
     value: Int,
+    metrics: TipSelectionLayoutMetrics,
     onSelect: (Int) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(34.dp),
+            .height(metrics.ratingRowHeight),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -329,20 +548,22 @@ private fun CompactRatingRow(
             color = TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            lineHeight = 18.sp,
+            fontSize = metrics.ratingTitleSize.sp,
+            lineHeight = metrics.ratingTitleLineHeight.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(metrics.starSpacing),
             verticalAlignment = Alignment.CenterVertically
         ) {
             repeat(5) { index ->
                 val starValue = index + 1
+
                 CompactStarButton(
                     selected = starValue <= value,
+                    metrics = metrics,
                     onClick = { onSelect(starValue) }
                 )
             }
@@ -353,9 +574,11 @@ private fun CompactRatingRow(
 @Composable
 private fun CompactStarButton(
     selected: Boolean,
+    metrics: TipSelectionLayoutMetrics,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+
     val scale by animateFloatAsState(
         targetValue = if (selected) 1f else 0.94f,
         animationSpec = tween(durationMillis = 160),
@@ -364,13 +587,17 @@ private fun CompactStarButton(
 
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(metrics.starButtonSize)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
             .shadow(
-                elevation = if (selected) 5.dp else 0.dp,
+                elevation = if (selected) {
+                    if (metrics.isSquareCompact) 3.dp else 5.dp
+                } else {
+                    0.dp
+                },
                 shape = CircleShape,
                 clip = false,
                 ambientColor = TipSelectionWarningColor.copy(alpha = 0.16f),
@@ -410,7 +637,7 @@ private fun CompactStarButton(
             imageVector = Icons.Default.Star,
             contentDescription = null,
             tint = if (selected) Color.White else Color(0xFFC5CED9),
-            modifier = Modifier.size(17.dp)
+            modifier = Modifier.size(metrics.starIconSize)
         )
     }
 }
@@ -418,7 +645,8 @@ private fun CompactStarButton(
 @Composable
 private fun BillAndTipsInfoRow(
     billAmount: Double,
-    tipAmount: Double
+    tipAmount: Double,
+    metrics: TipSelectionLayoutMetrics
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -427,6 +655,7 @@ private fun BillAndTipsInfoRow(
         InlineAmountText(
             label = "Чек:",
             amount = formatRubles(billAmount),
+            metrics = metrics,
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Start
         )
@@ -434,6 +663,7 @@ private fun BillAndTipsInfoRow(
         InlineAmountText(
             label = "Чаевые:",
             amount = formatRubles(tipAmount),
+            metrics = metrics,
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.End
         )
@@ -444,6 +674,7 @@ private fun BillAndTipsInfoRow(
 private fun InlineAmountText(
     label: String,
     amount: String,
+    metrics: TipSelectionLayoutMetrics,
     modifier: Modifier = Modifier,
     textAlign: TextAlign
 ) {
@@ -453,8 +684,8 @@ private fun InlineAmountText(
         color = TipSelectionPrimaryTextColor,
         fontFamily = MontserratFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 17.sp,
-        lineHeight = 21.sp,
+        fontSize = metrics.billFontSize.sp,
+        lineHeight = metrics.billLineHeight.sp,
         textAlign = textAlign,
         maxLines = 1,
         softWrap = false,
@@ -467,6 +698,7 @@ private fun ServiceFeeSwitchCard(
     checked: Boolean,
     percent: Double,
     amount: Double,
+    metrics: TipSelectionLayoutMetrics,
     onCheckedChange: (Boolean) -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -474,15 +706,19 @@ private fun ServiceFeeSwitchCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(62.dp)
+            .height(metrics.serviceFeeHeight)
             .shadow(
-                elevation = if (checked) 6.dp else 3.dp,
-                shape = RoundedCornerShape(22.dp),
+                elevation = if (checked) {
+                    if (metrics.isSquareCompact) 4.dp else 6.dp
+                } else {
+                    if (metrics.isSquareCompact) 2.dp else 3.dp
+                },
+                shape = RoundedCornerShape(metrics.serviceFeeCorner),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.06f),
                 spotColor = Color.Black.copy(alpha = 0.10f)
             )
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(metrics.serviceFeeCorner))
             .background(
                 brush = if (checked) {
                     Brush.linearGradient(
@@ -507,14 +743,14 @@ private fun ServiceFeeSwitchCard(
                 } else {
                     TipSelectionStrokeColor
                 },
-                shape = RoundedCornerShape(22.dp)
+                shape = RoundedCornerShape(metrics.serviceFeeCorner)
             )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = { onCheckedChange(!checked) }
             )
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = metrics.serviceFeeHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
@@ -525,27 +761,27 @@ private fun ServiceFeeSwitchCard(
                 color = TipSelectionPrimaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                lineHeight = 18.sp,
+                fontSize = metrics.serviceFeeTitleSize.sp,
+                lineHeight = (metrics.serviceFeeTitleSize + 3).sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(if (metrics.isSquareCompact) 0.dp else 2.dp))
 
             Text(
                 text = "${formatPercent(percent)} от чаевых · ${formatRubles(amount)}",
                 color = TipSelectionSecondaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
+                fontSize = metrics.serviceFeeSubtitleSize.sp,
+                lineHeight = (metrics.serviceFeeSubtitleSize + 3).sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(if (metrics.isSquareCompact) 6.dp else 10.dp))
 
         Switch(
             checked = checked,
@@ -566,17 +802,22 @@ private fun TipPercentCard(
     percentText: String,
     amountText: String,
     selected: Boolean,
+    metrics: TipSelectionLayoutMetrics,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(metrics.percentCardCorner)
 
     Column(
         modifier = Modifier
-            .width(106.dp)
-            .height(74.dp)
+            .width(metrics.percentCardWidth)
+            .height(metrics.percentCardHeight)
             .shadow(
-                elevation = if (selected) 8.dp else 0.dp,
+                elevation = if (selected) {
+                    if (metrics.isSquareCompact) 4.dp else 8.dp
+                } else {
+                    0.dp
+                },
                 shape = shape,
                 clip = false,
                 ambientColor = TipSelectionAccentColor.copy(alpha = 0.14f),
@@ -610,7 +851,10 @@ private fun TipPercentCard(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(
+                horizontal = metrics.percentCardPaddingHorizontal,
+                vertical = metrics.percentCardPaddingVertical
+            ),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
@@ -618,11 +862,12 @@ private fun TipPercentCard(
             color = if (selected) Color.White else TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            lineHeight = 21.sp
+            fontSize = metrics.percentFontSize.sp,
+            lineHeight = metrics.percentLineHeight.sp,
+            maxLines = 1
         )
 
-        Spacer(modifier = Modifier.height(3.dp))
+        Spacer(modifier = Modifier.height(if (metrics.isSquareCompact) 1.dp else 3.dp))
 
         Text(
             text = amountText,
@@ -633,8 +878,8 @@ private fun TipPercentCard(
             },
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 12.sp,
-            lineHeight = 15.sp,
+            fontSize = metrics.percentAmountFontSize.sp,
+            lineHeight = metrics.percentAmountLineHeight.sp,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis
@@ -646,17 +891,22 @@ private fun TipPercentCard(
 private fun CustomTipCard(
     selected: Boolean,
     amountText: String,
+    metrics: TipSelectionLayoutMetrics,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(metrics.percentCardCorner)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(metrics.customTipHeight)
             .shadow(
-                elevation = if (selected) 6.dp else 0.dp,
+                elevation = if (selected) {
+                    if (metrics.isSquareCompact) 4.dp else 6.dp
+                } else {
+                    0.dp
+                },
                 shape = shape,
                 clip = false,
                 ambientColor = TipSelectionAccentColor.copy(alpha = 0.08f),
@@ -694,13 +944,13 @@ private fun CustomTipCard(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = if (metrics.isSquareCompact) 10.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .size(metrics.customTipIconSize)
+                .clip(RoundedCornerShape(metrics.customTipIconCorner))
                 .background(
                     brush = if (selected) {
                         Brush.linearGradient(
@@ -725,12 +975,12 @@ private fun CustomTipCard(
                 color = if (selected) Color.White else TipSelectionAccentColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 17.sp,
-                lineHeight = 19.sp
+                fontSize = if (metrics.isSquareCompact) 13.sp else 17.sp,
+                lineHeight = if (metrics.isSquareCompact) 15.sp else 19.sp
             )
         }
 
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(if (metrics.isSquareCompact) 8.dp else 10.dp))
 
         Column(
             modifier = Modifier.weight(1f)
@@ -740,8 +990,10 @@ private fun CustomTipCard(
                 color = TipSelectionPrimaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                lineHeight = 17.sp
+                fontSize = metrics.customTipTitleSize.sp,
+                lineHeight = (metrics.customTipTitleSize + 3).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
             Text(
@@ -749,8 +1001,8 @@ private fun CustomTipCard(
                 color = TipSelectionSecondaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
+                fontSize = metrics.customTipAmountSize.sp,
+                lineHeight = (metrics.customTipAmountSize + 3).sp,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis
@@ -764,6 +1016,7 @@ private fun GradientPayButton(
     amount: Double,
     enabled: Boolean,
     loading: Boolean,
+    metrics: TipSelectionLayoutMetrics,
     onClick: () -> Unit
 ) {
     val animatedAmountKopecks by animateIntAsState(
@@ -780,15 +1033,19 @@ private fun GradientPayButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(metrics.payButtonHeight)
             .shadow(
-                elevation = if (enabled) 8.dp else 0.dp,
-                shape = RoundedCornerShape(22.dp),
+                elevation = if (enabled) {
+                    if (metrics.isSquareCompact) 5.dp else 8.dp
+                } else {
+                    0.dp
+                },
+                shape = RoundedCornerShape(metrics.payButtonCorner),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = if (enabled) 0.12f else 0f),
                 spotColor = Color.Black.copy(alpha = if (enabled) 0.18f else 0f)
             )
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(metrics.payButtonCorner))
             .background(
                 brush = if (enabled) {
                     Brush.linearGradient(
@@ -823,8 +1080,8 @@ private fun GradientPayButton(
             color = if (enabled) Color.White else Color(0xFF8B96A5),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            lineHeight = 20.sp,
+            fontSize = metrics.payButtonFontSize.sp,
+            lineHeight = (metrics.payButtonFontSize + 4).sp,
             textAlign = TextAlign.Center
         )
     }
@@ -833,6 +1090,7 @@ private fun GradientPayButton(
 @Composable
 private fun PaymentResultContent(
     state: TipSelectionUiState,
+    metrics: TipSelectionLayoutMetrics,
     onDone: () -> Unit,
     onRetry: () -> Unit,
     onBack: () -> Unit
@@ -863,7 +1121,7 @@ private fun PaymentResultContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp)
+            .padding(top = metrics.resultTopPadding)
     ) {
         Box(
             modifier = Modifier
@@ -874,15 +1132,15 @@ private fun PaymentResultContent(
                     this.alpha = alpha
                 }
                 .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(28.dp),
+                    elevation = if (metrics.isSquareCompact) 5.dp else 8.dp,
+                    shape = RoundedCornerShape(if (metrics.isSquareCompact) 22.dp else 28.dp),
                     clip = false,
                     ambientColor = Color.Black.copy(alpha = 0.10f),
                     spotColor = Color.Black.copy(alpha = 0.16f)
                 )
-                .clip(RoundedCornerShape(28.dp))
+                .clip(RoundedCornerShape(if (metrics.isSquareCompact) 22.dp else 28.dp))
                 .background(TipSelectionCardColor)
-                .padding(22.dp)
+                .padding(metrics.resultCardPadding)
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -890,37 +1148,41 @@ private fun PaymentResultContent(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(88.dp)
-                        .clip(RoundedCornerShape(44.dp))
+                        .size(metrics.resultIconSize)
+                        .clip(CircleShape)
                         .background(accent),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (approved) Icons.Default.Check else Icons.Default.Close,
                         contentDescription = null,
-                        tint = Color.White
+                        tint = Color.White,
+                        modifier = Modifier.size(if (metrics.isSquareCompact) 26.dp else 32.dp)
                     )
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(if (metrics.isSquareCompact) 8.dp else 14.dp))
 
                 Text(
                     text = if (approved) "Оплата одобрена" else "Оплата отклонена",
                     fontFamily = MontserratFontFamily,
                     fontWeight = FontWeight.Bold,
                     color = TipSelectionPrimaryTextColor,
-                    fontSize = 24.sp,
-                    lineHeight = 28.sp
+                    fontSize = metrics.resultTitleSize.sp,
+                    lineHeight = metrics.resultTitleLineHeight.sp,
+                    textAlign = TextAlign.Center
                 )
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(if (metrics.isSquareCompact) 4.dp else 8.dp))
 
                 Text(
                     text = formatRubles(state.totalAmount),
                     fontFamily = MontserratFontFamily,
                     color = TipSelectionPrimaryTextColor,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp
+                    fontSize = metrics.resultAmountSize.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 val msg = when (val paymentState = state.paymentState) {
@@ -930,23 +1192,26 @@ private fun PaymentResultContent(
                 }
 
                 if (!msg.isNullOrBlank()) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(if (metrics.isSquareCompact) 4.dp else 8.dp))
 
                     Text(
                         text = msg,
                         color = TipSelectionSecondaryTextColor,
                         textAlign = TextAlign.Center,
                         fontFamily = MontserratFontFamily,
-                        fontSize = 14.sp,
-                        lineHeight = 19.sp
+                        fontSize = metrics.resultMessageSize.sp,
+                        lineHeight = (metrics.resultMessageSize + 4).sp,
+                        maxLines = if (metrics.isSquareCompact) 2 else Int.MAX_VALUE,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(if (metrics.isSquareCompact) 10.dp else 18.dp))
 
                 if (approved) {
                     ResultActionButton(
                         text = "Готово",
+                        metrics = metrics,
                         onClick = onDone,
                         gradient = Brush.linearGradient(
                             listOf(
@@ -957,10 +1222,13 @@ private fun PaymentResultContent(
                     )
                 } else {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(
+                            if (metrics.isSquareCompact) 6.dp else 10.dp
+                        )
                     ) {
                         ResultActionButton(
-                            text = "Попробовать снова",
+                            text = if (metrics.isSquareCompact) "Снова" else "Попробовать снова",
+                            metrics = metrics,
                             onClick = onRetry,
                             modifier = Modifier.weight(1f),
                             gradient = Brush.linearGradient(
@@ -973,6 +1241,7 @@ private fun PaymentResultContent(
 
                         ResultActionButton(
                             text = "Назад",
+                            metrics = metrics,
                             onClick = onBack,
                             modifier = Modifier.weight(1f),
                             gradient = Brush.linearGradient(
@@ -993,6 +1262,7 @@ private fun PaymentResultContent(
 @Composable
 private fun ResultActionButton(
     text: String,
+    metrics: TipSelectionLayoutMetrics,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     gradient: Brush,
@@ -1003,15 +1273,15 @@ private fun ResultActionButton(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(metrics.resultButtonHeight)
             .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(20.dp),
+                elevation = if (metrics.isSquareCompact) 4.dp else 6.dp,
+                shape = RoundedCornerShape(if (metrics.isSquareCompact) 16.dp else 20.dp),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.10f),
                 spotColor = Color.Black.copy(alpha = 0.14f)
             )
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(if (metrics.isSquareCompact) 16.dp else 20.dp))
             .background(gradient)
             .clickable(
                 interactionSource = interactionSource,
@@ -1025,7 +1295,7 @@ private fun ResultActionButton(
             color = textColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
+            fontSize = metrics.resultButtonFontSize.sp,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis
@@ -1039,6 +1309,11 @@ private fun CustomTipDialog(
     onDismiss: () -> Unit,
     onSave: (String) -> Unit
 ) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+
     var value by remember(initialValue) {
         mutableStateOf(initialValue.filter(Char::isDigit))
     }
@@ -1051,14 +1326,14 @@ private fun CustomTipDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 2.dp)
-                .clip(RoundedCornerShape(38.dp))
+                .padding(horizontal = if (isSquareCompact) 0.dp else 2.dp)
+                .clip(RoundedCornerShape(if (isSquareCompact) 28.dp else 38.dp))
                 .background(Color.White)
                 .padding(
-                    start = 20.dp,
-                    end = 20.dp,
-                    top = 22.dp,
-                    bottom = 18.dp
+                    start = if (isSquareCompact) 14.dp else 20.dp,
+                    end = if (isSquareCompact) 14.dp else 20.dp,
+                    top = if (isSquareCompact) 14.dp else 22.dp,
+                    bottom = if (isSquareCompact) 12.dp else 18.dp
                 )
         ) {
             Row(
@@ -1073,43 +1348,44 @@ private fun CustomTipDialog(
                         color = TipSelectionPrimaryTextColor,
                         fontFamily = MontserratFontFamily,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        lineHeight = 24.sp
+                        fontSize = if (isSquareCompact) 16.sp else 20.sp,
+                        lineHeight = if (isSquareCompact) 20.sp else 24.sp
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(if (isSquareCompact) 2.dp else 6.dp))
 
                     Text(
                         text = "Введите сумму чаевых",
                         color = TipSelectionSecondaryTextColor,
                         fontFamily = MontserratFontFamily,
                         fontWeight = FontWeight.Normal,
-                        fontSize = 14.sp,
-                        lineHeight = 19.sp
+                        fontSize = if (isSquareCompact) 11.sp else 14.sp,
+                        lineHeight = if (isSquareCompact) 15.sp else 19.sp
                     )
                 }
 
                 DialogActionText(
                     text = "Отмена",
                     color = Color(0xFFFF4545),
+                    compact = isSquareCompact,
                     onClick = onDismiss
                 )
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(if (isSquareCompact) 10.dp else 22.dp))
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(82.dp)
-                    .clip(RoundedCornerShape(26.dp))
+                    .height(if (isSquareCompact) 54.dp else 82.dp)
+                    .clip(RoundedCornerShape(if (isSquareCompact) 20.dp else 26.dp))
                     .background(Color(0xFFF7F8FA))
                     .border(
                         width = 1.dp,
                         color = TipSelectionStrokeColor,
-                        shape = RoundedCornerShape(26.dp)
+                        shape = RoundedCornerShape(if (isSquareCompact) 20.dp else 26.dp)
                     )
-                    .padding(horizontal = 18.dp),
+                    .padding(horizontal = if (isSquareCompact) 12.dp else 18.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -1118,11 +1394,14 @@ private fun CustomTipDialog(
                     fontFamily = MontserratFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = when {
+                        isSquareCompact && value.length <= 4 -> 28.sp
+                        isSquareCompact && value.length <= 6 -> 24.sp
+                        isSquareCompact -> 21.sp
                         value.length <= 4 -> 40.sp
                         value.length <= 6 -> 34.sp
                         else -> 28.sp
                     },
-                    lineHeight = 44.sp,
+                    lineHeight = if (isSquareCompact) 32.sp else 44.sp,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     softWrap = false,
@@ -1130,10 +1409,13 @@ private fun CustomTipDialog(
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(if (isSquareCompact) 8.dp else 18.dp))
 
             TiplyNumericKeypad(
                 digitColor = TipSelectionPrimaryTextColor,
+                touchSize = if (isSquareCompact) 48.dp else null,
+                digitFontSize = if (isSquareCompact) 22.sp else null,
+                iconSize = if (isSquareCompact) 24.dp else null,
                 onDigit = { digit ->
                     if (value.length < 7) {
                         val nextValue = value + digit
@@ -1160,6 +1442,7 @@ private fun CustomTipDialog(
 private fun DialogActionText(
     text: String,
     color: Color,
+    compact: Boolean = false,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -1172,12 +1455,12 @@ private fun DialogActionText(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = if (compact) 3.dp else 6.dp),
         color = color,
         fontFamily = MontserratFontFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 18.sp,
-        lineHeight = 22.sp,
+        fontSize = if (compact) 14.sp else 18.sp,
+        lineHeight = if (compact) 18.sp else 22.sp,
         textAlign = TextAlign.Center,
         maxLines = 1
     )

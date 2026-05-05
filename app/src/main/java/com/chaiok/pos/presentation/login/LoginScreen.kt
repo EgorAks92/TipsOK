@@ -33,10 +33,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
@@ -45,6 +47,29 @@ import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
 private val LightScreenColor = Color(0xFFFFFFFF)
 private val PrimaryTextColor = Color(0xFF1B2128)
+
+private data class LoginLayoutMetrics(
+    val horizontalPadding: Dp,
+    val verticalPadding: Dp,
+    val closeTouchSize: Dp,
+    val closeIconSize: Dp,
+    val closeBottomSpacer: Dp,
+    val logoWidth: Dp,
+    val logoHeight: Dp,
+    val logoTitleSpacer: Dp,
+    val titleSize: Int,
+    val titleLineHeight: Int,
+    val titleDotsSpacer: Dp,
+    val dotSize: Dp,
+    val dotPadding: Dp,
+    val dotSpacing: Dp,
+    val dotShadowFilled: Dp,
+    val dotShadowEmpty: Dp,
+    val keypadBottomPadding: Dp,
+    val keypadTouchSize: Dp,
+    val keypadIconSize: Dp,
+    val keypadDigitSize: Int
+)
 
 @Composable
 fun LoginScreen(
@@ -55,6 +80,91 @@ fun LoginScreen(
     onClose: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+
+    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+    val isCompactPortrait = screenHeight < 780.dp
+
+    val metrics = when {
+        isSquareCompact -> {
+            LoginLayoutMetrics(
+                horizontalPadding = 18.dp,
+                verticalPadding = 8.dp,
+                closeTouchSize = 40.dp,
+                closeIconSize = 26.dp,
+                closeBottomSpacer = 2.dp,
+                logoWidth = 86.dp,
+                logoHeight = 34.dp,
+                logoTitleSpacer = 22.dp,
+                titleSize = 14,
+                titleLineHeight = 18,
+                titleDotsSpacer = 10.dp,
+                dotSize = 30.dp,
+                dotPadding = 4.dp,
+                dotSpacing = 12.dp,
+                dotShadowFilled = 8.dp,
+                dotShadowEmpty = 6.dp,
+                keypadBottomPadding = 4.dp,
+                keypadTouchSize = 52.dp,
+                keypadIconSize = 26.dp,
+                keypadDigitSize = 23
+            )
+        }
+
+        isCompactPortrait -> {
+            LoginLayoutMetrics(
+                horizontalPadding = 24.dp,
+                verticalPadding = 14.dp,
+                closeTouchSize = 48.dp,
+                closeIconSize = 34.dp,
+                closeBottomSpacer = 28.dp,
+                logoWidth = 120.dp,
+                logoHeight = 54.dp,
+                logoTitleSpacer = 116.dp,
+                titleSize = 16,
+                titleLineHeight = 31,
+                titleDotsSpacer = 32.dp,
+                dotSize = 46.dp,
+                dotPadding = 6.dp,
+                dotSpacing = 18.dp,
+                dotShadowFilled = 12.dp,
+                dotShadowEmpty = 9.dp,
+                keypadBottomPadding = 24.dp,
+                keypadTouchSize = 78.dp,
+                keypadIconSize = 36.dp,
+                keypadDigitSize = 30
+            )
+        }
+
+        else -> {
+            LoginLayoutMetrics(
+                horizontalPadding = 24.dp,
+                verticalPadding = 14.dp,
+                closeTouchSize = 48.dp,
+                closeIconSize = 34.dp,
+                closeBottomSpacer = 28.dp,
+                logoWidth = 120.dp,
+                logoHeight = 54.dp,
+                logoTitleSpacer = 116.dp,
+                titleSize = 16,
+                titleLineHeight = 31,
+                titleDotsSpacer = 32.dp,
+                dotSize = 46.dp,
+                dotPadding = 6.dp,
+                dotSpacing = 18.dp,
+                dotShadowFilled = 12.dp,
+                dotShadowEmpty = 9.dp,
+                keypadBottomPadding = 24.dp,
+                keypadTouchSize = 86.dp,
+                keypadIconSize = 38.dp,
+                keypadDigitSize = 32
+            )
+        }
+    }
+
     val hasError = state.errorMessage != null
 
     var submittedPin by remember {
@@ -101,7 +211,10 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(LightScreenColor)
-            .padding(horizontal = 24.dp, vertical = 14.dp)
+            .padding(
+                horizontal = metrics.horizontalPadding,
+                vertical = metrics.verticalPadding
+            )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -112,7 +225,7 @@ fun LoginScreen(
 
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(metrics.closeTouchSize)
                         .clickable(
                             interactionSource = closeInteraction,
                             indication = null,
@@ -125,14 +238,14 @@ fun LoginScreen(
                     Image(
                         painter = painterResource(id = R.drawable.ic_close),
                         contentDescription = "Закрыть",
-                        modifier = Modifier.size(34.dp),
+                        modifier = Modifier.size(metrics.closeIconSize),
                         contentScale = ContentScale.Fit,
                         alpha = 0.95f
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(metrics.closeBottomSpacer))
 
             Column(
                 modifier = Modifier
@@ -143,29 +256,33 @@ fun LoginScreen(
                 Image(
                     painter = painterResource(id = R.drawable.tiply_logo_black),
                     contentDescription = "Tiply",
-                    modifier = Modifier.size(width = 120.dp, height = 54.dp),
+                    modifier = Modifier.size(
+                        width = metrics.logoWidth,
+                        height = metrics.logoHeight
+                    ),
                     contentScale = ContentScale.Fit
                 )
 
-                Spacer(modifier = Modifier.height(116.dp))
+                Spacer(modifier = Modifier.height(metrics.logoTitleSpacer))
 
                 Text(
                     text = "Введите PIN-код",
                     color = PrimaryTextColor,
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontFamily = MontserratFontFamily,
-                        fontSize = 16.sp,
-                        lineHeight = 31.sp,
+                        fontSize = metrics.titleSize.sp,
+                        lineHeight = metrics.titleLineHeight.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(metrics.titleDotsSpacer))
 
                 PinDots(
                     pinLength = state.pin.length,
-                    isError = hasError
+                    isError = hasError,
+                    metrics = metrics
                 )
             }
 
@@ -185,10 +302,13 @@ fun LoginScreen(
                 onConfirm = {},
                 confirmEnabled = false,
                 isLoading = state.isLoading,
+                touchSize = metrics.keypadTouchSize,
+                digitFontSize = metrics.keypadDigitSize.sp,
+                iconSize = metrics.keypadIconSize,
                 digitColor = PrimaryTextColor,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = metrics.keypadBottomPadding)
             )
         }
     }
@@ -197,9 +317,10 @@ fun LoginScreen(
 @Composable
 private fun PinDots(
     pinLength: Int,
-    isError: Boolean
+    isError: Boolean,
+    metrics: LoginLayoutMetrics
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(metrics.dotSpacing)) {
         repeat(PIN_LENGTH) { index ->
             val isFilled = index < pinLength
 
@@ -228,9 +349,13 @@ private fun PinDots(
 
             Box(
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(metrics.dotSize)
                     .shadow(
-                        elevation = if (isFilled || isError) 12.dp else 9.dp,
+                        elevation = if (isFilled || isError) {
+                            metrics.dotShadowFilled
+                        } else {
+                            metrics.dotShadowEmpty
+                        },
                         shape = CircleShape,
                         ambientColor = when {
                             isError -> Color(0x55FF7A81)
@@ -247,7 +372,7 @@ private fun PinDots(
                         color = Color(0xFFF9FAFB),
                         shape = CircleShape
                     )
-                    .padding(6.dp),
+                    .padding(metrics.dotPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
