@@ -293,27 +293,7 @@ class TipSelectionViewModel(
     fun handlePaymentResult(result: PaymentResult) {
         when (result) {
             is PaymentResult.Approved -> {
-                Log.i(
-                    REVIEW_TAG,
-                    "handlePaymentResult Approved rawMessagePreview=${result.rawMessage.toPaymentMessagePreview()}"
-                )
-
-                if (!reviewSentForCurrentPayment) {
-                    reviewSentForCurrentPayment = true
-
-                    sendReview(
-                        kitchenEvaluation = _uiState.value.kitchenEvaluation,
-                        serviceEvaluation = _uiState.value.serviceEvaluation
-                    )
-                }
-
-                _uiState.update {
-                    it.copy(
-                        paymentState = TipPaymentUiState.Approved(
-                            result.rawMessage ?: "Оплата одобрена"
-                        )
-                    )
-                }
+                handleApprovedPayment(result)
             }
 
             is PaymentResult.Declined -> {
@@ -343,6 +323,26 @@ class TipSelectionViewModel(
                     )
                 }
             }
+        }
+    }
+
+    fun handleApprovedPayment(result: PaymentResult.Approved) {
+        Log.i(
+            REVIEW_TAG,
+            "handlePaymentResult Approved rawMessagePreview=${result.rawMessage.toPaymentMessagePreview()}"
+        )
+
+        if (!reviewSentForCurrentPayment) {
+            reviewSentForCurrentPayment = true
+
+            sendReview(
+                kitchenEvaluation = _uiState.value.kitchenEvaluation,
+                serviceEvaluation = _uiState.value.serviceEvaluation
+            )
+        }
+
+        _uiState.update {
+            it.copy(paymentState = TipPaymentUiState.Idle)
         }
     }
 

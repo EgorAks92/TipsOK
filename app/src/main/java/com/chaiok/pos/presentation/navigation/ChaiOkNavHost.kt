@@ -22,8 +22,6 @@ import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
 import com.chaiok.pos.presentation.background.ProfileBackgroundViewModel
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingOneTimeEvent
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingScreen
-import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
-import com.chaiok.pos.presentation.cardpresenting.CardPresentingUiState
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingViewModel
 import com.chaiok.pos.presentation.home.HomeEvent
 import com.chaiok.pos.presentation.home.HomeScreen
@@ -38,6 +36,7 @@ import com.chaiok.pos.presentation.status.StatusViewModel
 import com.chaiok.pos.presentation.tips.TipsScreen
 import com.chaiok.pos.presentation.tips.TipsViewModel
 import com.chaiok.pos.presentation.tipselection.TipSelectionScreen
+import com.chaiok.pos.presentation.tipselection.TipSelectionUiState
 import com.chaiok.pos.presentation.tipselection.TipSelectionViewModel
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -238,12 +237,28 @@ fun ChaiOkNavHost(container: AppContainer) {
                             PAYMENT_TAG,
                             "TipSelection consumed payment result=${consumedResult.result.javaClass.simpleName}"
                         )
+                        when (val result = consumedResult.result) {
+                            is PaymentResult.Approved -> {
+                                vm.handleApprovedPayment(result)
+                                backStack.savedStateHandle.remove<PosPaymentRequest>(
+                                    PENDING_PAYMENT_REQUEST_KEY
+                                )
 
-                        backStack.savedStateHandle.remove<PosPaymentRequest>(
-                            PENDING_PAYMENT_REQUEST_KEY
-                        )
+                                val popped = navController.popBackStack(
+                                    route = Routes.Home,
+                                    inclusive = false
+                                )
 
-                        vm.handlePaymentResult(consumedResult.result)
+                                if (!popped) {
+                                    navController.navigateSingleTopTo(Routes.Home)
+                                }
+                            }
+
+                            is PaymentResult.Declined,
+                            is PaymentResult.Error -> {
+                                vm.handlePaymentResult(result)
+                            }
+                        }
                     }
 
                     ConsumedPaymentResult.Cancelled -> {
@@ -271,31 +286,12 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onCustomSet = vm::applyCustom,
                 onDismissCustom = vm::dismissCustomDialog,
                 onPay = {
-                    if (!vm.startExternalPayment()) {
-                        return@TipSelectionScreen
-                    }
-
-                    val paymentRequest = PosPaymentRequest(
-                        amount = BigDecimal
-                            .valueOf(state.totalAmount)
-                            .setScale(2, RoundingMode.HALF_UP),
-                        waiterId = state.waiterId,
-                        terminalId = state.terminalId,
-                        tipAmount = state.selectedTipAmount,
-                        serviceFee = state.serviceFeeAmount,
-                        feesCovered = state.isServiceFeeEnabled
+                    val paymentRequest = buildPaymentRequest(state)
+                    startPaymentFlow(
+                        navController = navController,
+                        viewModel = vm,
+                        paymentRequest = paymentRequest
                     )
-
-                    Log.i(
-                        PAYMENT_TAG,
-                        "Navigate to CardPresenting terminalId=***${paymentRequest.terminalId.takeLast(4)}"
-                    )
-
-                    navController.currentBackStackEntry
-                        ?.savedStateHandle
-                        ?.set(PENDING_PAYMENT_REQUEST_KEY, paymentRequest)
-
-                    navController.navigateSingleTopTo(Routes.CardPresenting)
                 },
                 onSnackbarShown = vm::onMessageShown,
                 onDone = {
@@ -308,7 +304,29 @@ fun ChaiOkNavHost(container: AppContainer) {
                         navController.navigateSingleTopTo(Routes.Home)
                     }
                 },
-                onRetry = vm::resetPaymentState,
+                onRetry = {
+                    val handle = navController.currentBackStackEntry?.savedStateHandle
+                    val reusedRequest = handle?.get<PosPaymentRequest>(PENDING_PAYMENT_REQUEST_KEY)
+                    val paymentRequest = reusedRequest ?: buildPaymentRequest(state)
+
+                    if (reusedRequest == null) {
+                        Log.w(
+                            PAYMENT_TAG,
+                            "Retry fallback: pending payment request is missing, rebuilding from current state"
+                        )
+                    } else {
+                        Log.i(
+                            PAYMENT_TAG,
+                            "Retry reuses pending payment request terminalId=***${paymentRequest.terminalId.takeLast(4)}"
+                        )
+                    }
+
+                    startPaymentFlow(
+                        navController = navController,
+                        viewModel = vm,
+                        paymentRequest = paymentRequest
+                    )
+                },
                 onServiceFeeToggle = vm::toggleServiceFee,
                 onKitchenEvaluation = vm::selectKitchenEvaluation,
                 onServiceEvaluation = vm::selectServiceEvaluation
@@ -329,22 +347,10 @@ fun ChaiOkNavHost(container: AppContainer) {
                     PAYMENT_TAG,
                     "CardPresenting opened without payment request"
                 )
-
-                CardPresentingScreen(
-                    state = CardPresentingUiState(
-                        stage = CardPresentingStage.Error,
-                        title = "Не удалось начать оплату",
-                        message = "Платежные данные не найдены. Вернитесь назад и попробуйте снова.",
-                        amountText = "",
-                        canCancel = true,
-                        isLoading = false,
-                        errorMessage = "Payment request is missing"
-                    ),
-                    onCancel = {
-                        navController.popBackStack()
-                    }
-                )
-
+                previousHandle?.putPaymentCancelled()
+                LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
                 return@composable
             }
 
@@ -408,6 +414,40 @@ private fun NavHostController.navigateSingleTopTo(route: String) {
     navigate(route) {
         launchSingleTop = true
     }
+}
+
+private fun buildPaymentRequest(state: TipSelectionUiState): PosPaymentRequest {
+    return PosPaymentRequest(
+        amount = BigDecimal
+            .valueOf(state.totalAmount)
+            .setScale(2, RoundingMode.HALF_UP),
+        waiterId = state.waiterId,
+        terminalId = state.terminalId,
+        tipAmount = state.selectedTipAmount,
+        serviceFee = state.serviceFeeAmount,
+        feesCovered = state.isServiceFeeEnabled
+    )
+}
+
+private fun startPaymentFlow(
+    navController: NavHostController,
+    viewModel: TipSelectionViewModel,
+    paymentRequest: PosPaymentRequest
+) {
+    if (!viewModel.startExternalPayment()) {
+        return
+    }
+
+    Log.i(
+        PAYMENT_TAG,
+        "Navigate to CardPresenting terminalId=***${paymentRequest.terminalId.takeLast(4)}"
+    )
+
+    navController.currentBackStackEntry
+        ?.savedStateHandle
+        ?.set(PENDING_PAYMENT_REQUEST_KEY, paymentRequest)
+
+    navController.navigate(Routes.CardPresenting)
 }
 
 private sealed interface ConsumedPaymentResult {
