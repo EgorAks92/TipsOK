@@ -393,19 +393,22 @@ class SmartSkyHeadlessPosPaymentRepository(
             )
         }
 
-        val approvedByFlag = isApproved == true
-        val approvedByRc = rc.equals(APPROVED_RC, ignoreCase = true)
-        val approvedByCode = code == APPROVED_CODE
-
-        val approved = approvedByFlag || approvedByRc || approvedByCode
+        val approvalDecision = resolveSspApprovalDecision(
+            isApproved = isApproved,
+            rc = rc,
+            code = code
+        )
 
         Log.i(
             PAYMENT_TAG,
             "[$operationId] mapping TransactionResult " +
-                    "approvedByFlag=$approvedByFlag " +
-                    "approvedByRc=$approvedByRc " +
-                    "approvedByCode=$approvedByCode " +
-                    "finalApproved=$approved"
+                    "approvedByFlag=${approvalDecision.approvedByFlag} " +
+                    "approvedByRc=${approvalDecision.approvedByRc} " +
+                    "declinedByRc=${approvalDecision.declinedByRc} " +
+                    "code=$code " +
+                    "rc=${approvalDecision.normalizedRc ?: "<blank>"} " +
+                    "finalApproved=${approvalDecision.approved} " +
+                    "decision=${approvalDecision.decisionReason}"
         )
 
         Log.i(
@@ -413,7 +416,7 @@ class SmartSkyHeadlessPosPaymentRepository(
             "[$operationId] TransactionResult messagePreview=${message.toPaymentMessagePreview()}"
         )
 
-        return if (approved) {
+        return if (approvalDecision.approved) {
             PosPaymentEvent.Approved(
                 transactionId = receiptNumber
                     .takeIf { it > 0 }
@@ -423,10 +426,14 @@ class SmartSkyHeadlessPosPaymentRepository(
                 message = message ?: "Оплата одобрена"
             )
         } else {
+            val declineMessage = message?.takeIf { it.isNotBlank() } ?: "Оплата отклонена"
+            val declineCode = approvalDecision.normalizedRc ?: code
+                .takeIf { it != APPROVED_CODE }
+                ?.toString()
             PosPaymentEvent.Declined(
-                reason = message ?: "Оплата отклонена",
-                code = rc,
-                rawMessage = null
+                reason = declineMessage,
+                code = declineCode,
+                rawMessage = message
             )
         }
     }
@@ -555,7 +562,7 @@ class SmartSkyHeadlessPosPaymentRepository(
         }
     }
 
-    private companion object {
+    companion object {
         private const val PAYMENT_TAG = "TipsPaymentFlow"
 
         private const val SSP_PACKAGE = "com.skytech.smartskypos"
@@ -565,5 +572,53 @@ class SmartSkyHeadlessPosPaymentRepository(
 
         private const val APPROVED_RC = "00"
         private const val APPROVED_CODE = 0
+
+        internal fun resolveSspApprovalDecision(
+            isApproved: Boolean?,
+            rc: String?,
+            code: Int
+        ): SspApprovalDecision {
+            val normalizedRc = rc
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+
+            val approvedByFlag = isApproved == true
+            val approvedByRc = normalizedRc.equals(APPROVED_RC, ignoreCase = true)
+            val declinedByRc = normalizedRc != null && !approvedByRc
+
+            val approved = when {
+                declinedByRc -> false
+                approvedByRc -> true
+                approvedByFlag -> true
+                else -> false
+            }
+
+            val decisionReason = when {
+                declinedByRc -> "declined_by_non_approved_rc"
+                approvedByRc -> "approved_by_rc"
+                approvedByFlag -> "approved_by_isApproved_without_rc"
+                else -> "declined_without_approval_signals"
+            }
+
+            return SspApprovalDecision(
+                normalizedRc = normalizedRc,
+                approvedByFlag = approvedByFlag,
+                approvedByRc = approvedByRc,
+                declinedByRc = declinedByRc,
+                approved = approved,
+                decisionReason = decisionReason,
+                code = code
+            )
+        }
     }
 }
+
+internal data class SspApprovalDecision(
+    val normalizedRc: String?,
+    val approvedByFlag: Boolean,
+    val approvedByRc: Boolean,
+    val declinedByRc: Boolean,
+    val approved: Boolean,
+    val decisionReason: String,
+    val code: Int
+)
