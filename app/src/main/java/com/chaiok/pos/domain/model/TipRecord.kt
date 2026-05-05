@@ -7,5 +7,7 @@ data class TipRecord(
     val dateTime: LocalDateTime,
     val billAmount: Double,
     val tipPercent: Int,
-    val tipAmount: Double
+    val tipAmount: Double,
+    val kitchenEvaluation: Int? = null,
+    val serviceEvaluation: Int? = null
 )
