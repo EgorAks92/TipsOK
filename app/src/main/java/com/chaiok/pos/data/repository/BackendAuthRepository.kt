@@ -68,15 +68,22 @@ class BackendAuthRepository(
 
             val isCardConnected = payload.extractIsCardConnected()
             val serviceFeePercent = payload.extractServiceFeePercent()
+            val nickname = payload.extractNickname()
+            val personalAppeal = payload.extractPersonalAppeal()
 
-            Log.i(LOGIN_TAG, "terminalLogin response parsed successfully")
+            Log.i(
+                LOGIN_TAG,
+                "terminalLogin profile parsed nicknamePresent=${nickname != null} personalAppealPresent=${personalAppeal != null}"
+            )
 
             AuthSession(
                 waiterId = waiterId,
                 profileId = profileId,
                 accessToken = token,
                 isCardConnected = isCardConnected,
-                serviceFeePercent = serviceFeePercent
+                serviceFeePercent = serviceFeePercent,
+                nickname = nickname,
+                personalAppeal = personalAppeal
             )
         }.recoverCatching { error ->
             throw when (error) {
@@ -178,3 +185,17 @@ private fun JsonObject.extractServiceFeePercent(): Double {
         ?.coerceAtLeast(0.0)
         ?: 0.0
 }
+
+private fun JsonObject.extractNickname(): String? =
+    getAsJsonObject("profile")
+        ?.get("nickname")
+        ?.asStringOrNumberString()
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+
+private fun JsonObject.extractPersonalAppeal(): String? =
+    getAsJsonObject("profile")
+        ?.get("personalAppeal")
+        ?.asStringOrNumberString()
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }

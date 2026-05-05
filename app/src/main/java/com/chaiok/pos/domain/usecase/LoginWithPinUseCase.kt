@@ -45,6 +45,13 @@ class LoginWithPinUseCase(
             .setServiceFeePercent(authSession.serviceFeePercent)
             .getOrElse { return Result.failure(it) }
 
+        waiterRepository
+            .setLoginProfileDisplayData(
+                nickname = authSession.nickname,
+                personalAppeal = authSession.personalAppeal
+            )
+            .getOrElse { return Result.failure(it) }
+
         return waiterRepository.loadProfile(authSession.waiterId)
     }
 }

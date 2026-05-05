@@ -16,16 +16,23 @@ class MockWaiterRepository(
     private val sensitiveStorage: SensitiveStorage
 ) : WaiterRepository {
 
+    private companion object {
+        private const val DEFAULT_WAITER_NAME = "Ваш официант"
+        private const val DEFAULT_WAITER_STATUS = "Коплю на отпуск!"
+    }
+
     private val baseProfile = MutableStateFlow<WaiterProfile?>(null)
     private val loginCardConnected = MutableStateFlow(false)
+    private val loginNickname = MutableStateFlow<String?>(null)
+    private val loginPersonalAppeal = MutableStateFlow<String?>(null)
 
     override suspend fun loadProfile(waiterId: String): Result<WaiterProfile> = runCatching {
         // TODO: Replace with real waiter profile API.
         val loaded = WaiterProfile(
             id = waiterId,
-            firstName = "Ваш",
-            lastName = "Официант",
-            status = "Коплю на отпуск!",
+            firstName = loginNickname.value ?: DEFAULT_WAITER_NAME,
+            lastName = "",
+            status = loginPersonalAppeal.value ?: DEFAULT_WAITER_STATUS,
             hasLinkedCard = loginCardConnected.value,
             cardSha256 = null,
             serviceFeePercent = dataStore.serviceFeePercentFlow.first()
@@ -34,6 +41,29 @@ class MockWaiterRepository(
         baseProfile.value = loaded
 
         loaded
+    }
+
+    override suspend fun setLoginProfileDisplayData(
+        nickname: String?,
+        personalAppeal: String?
+    ): Result<Unit> = runCatching {
+        val normalizedNickname = nickname?.trim()?.takeIf { it.isNotBlank() }
+        val normalizedPersonalAppeal = personalAppeal?.trim()?.takeIf { it.isNotBlank() }
+
+        loginNickname.value = normalizedNickname
+        loginPersonalAppeal.value = normalizedPersonalAppeal
+
+        dataStore.setWaiterStatus(normalizedPersonalAppeal ?: DEFAULT_WAITER_STATUS)
+
+        baseProfile.update { profile ->
+            profile?.copy(
+                firstName = normalizedNickname ?: DEFAULT_WAITER_NAME,
+                lastName = "",
+                status = normalizedPersonalAppeal ?: DEFAULT_WAITER_STATUS
+            )
+        }
+
+        Unit
     }
 
     override fun observeProfile(): Flow<WaiterProfile?> {
