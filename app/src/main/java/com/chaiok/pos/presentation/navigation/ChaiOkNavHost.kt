@@ -268,7 +268,7 @@ fun ChaiOkNavHost(container: AppContainer) {
 
                             is PaymentResult.Declined,
                             is PaymentResult.Error -> {
-                                vm.handlePaymentResult(result)
+                                vm.handleFailedPaymentResult(result)
                             }
                         }
                     }

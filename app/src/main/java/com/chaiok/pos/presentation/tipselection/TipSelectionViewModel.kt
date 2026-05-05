@@ -288,18 +288,23 @@ class TipSelectionViewModel(
             }
     }
 
-    fun handlePaymentResult(result: PaymentResult) {
+    fun handleFailedPaymentResult(result: PaymentResult) {
         when (result) {
             is PaymentResult.Approved -> {
-                viewModelScope.launch {
-                    handleApprovedPayment(result)
+                Log.w(
+                    REVIEW_TAG,
+                    "handleFailedPaymentResult received Approved unexpectedly; use handleApprovedPayment"
+                )
+
+                _uiState.update {
+                    it.copy(paymentState = TipPaymentUiState.Idle)
                 }
             }
 
             is PaymentResult.Declined -> {
                 Log.i(
                     REVIEW_TAG,
-                    "handlePaymentResult Declined reasonPreview=${result.reason.toPaymentMessagePreview()}"
+                    "handleFailedPaymentResult Declined reasonPreview=${result.reason.toPaymentMessagePreview()}"
                 )
 
                 _uiState.update {
@@ -314,7 +319,7 @@ class TipSelectionViewModel(
             is PaymentResult.Error -> {
                 Log.i(
                     REVIEW_TAG,
-                    "handlePaymentResult Error messagePreview=${result.message.toPaymentMessagePreview()}"
+                    "handleFailedPaymentResult Error messagePreview=${result.message.toPaymentMessagePreview()}"
                 )
 
                 _uiState.update {
