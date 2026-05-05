@@ -11,5 +11,15 @@ data class TransactionDto(
     val date: String?,
     val amount: Double?,
     val billPercentage: Double?,
-    val compensation: Boolean?
+    val compensation: Boolean?,
+    val kitchenEvaluation: Any? = null,
+    val serviceEvaluation: Any? = null,
+    val kitchenRating: Any? = null,
+    val serviceRating: Any? = null,
+    val kitchenAssessment: Any? = null,
+    val serviceAssessment: Any? = null,
+    val kitchenAssessmentValue: Any? = null,
+    val serviceAssessmentValue: Any? = null,
+    val kitchenScore: Any? = null,
+    val serviceScore: Any? = null
 )

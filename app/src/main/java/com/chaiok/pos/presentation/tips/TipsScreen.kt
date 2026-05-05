@@ -44,6 +44,7 @@ private val TipsCardColor = Color(0xFFF7F8FA)
 private val TipsAccentColor = Color(0xFF087BE8)
 private val TipsGreenColor = Color(0xFF14B8A6)
 private val TipsStrokeColor = Color(0xFFE2E7EF)
+private val TipsWarningColor = Color(0xFFFFB547)
 
 private data class TipsPremiumMetrics(
     val contentHorizontalPadding: Dp,
@@ -126,7 +127,7 @@ private fun squarePremiumTipsMetrics(): TipsPremiumMetrics {
         listItemSpacing = 8.dp,
         listBottomPadding = 8.dp,
 
-        itemHeight = 58.dp,
+        itemHeight = 72.dp,
         itemCornerRadius = 18.dp,
         itemShadowElevation = 3.dp,
         itemHorizontalPadding = 12.dp,
@@ -220,7 +221,9 @@ private fun TipsRegularScreen(
                             TipsRegularHistoryItem(
                                 date = tip.dateTime.format(dateFormatter),
                                 tipAmount = formatMoney(tip.tipAmount),
-                                tipPercent = "${tip.tipPercent}%"
+                                tipPercent = "${tip.tipPercent}%",
+                                kitchenEvaluation = tip.kitchenEvaluation,
+                                serviceEvaluation = tip.serviceEvaluation
                             )
                         }
                     }
@@ -348,6 +351,8 @@ private fun TipsSquarePremiumScreen(
                                 date = tip.dateTime.format(dateFormatter),
                                 tipAmount = formatMoney(tip.tipAmount),
                                 tipPercent = "${tip.tipPercent}%",
+                                kitchenEvaluation = tip.kitchenEvaluation,
+                                serviceEvaluation = tip.serviceEvaluation,
                                 metrics = metrics
                             )
                         }
@@ -545,7 +550,9 @@ private fun TipsRegularSummaryColumn(
 private fun TipsRegularHistoryItem(
     date: String,
     tipAmount: String,
-    tipPercent: String
+    tipPercent: String,
+    kitchenEvaluation: Int?,
+    serviceEvaluation: Int?
 ) {
     Column(
         modifier = Modifier
@@ -587,6 +594,24 @@ private fun TipsRegularHistoryItem(
             value = tipPercent,
             valueColor = TipsAccentColor
         )
+
+        kitchenEvaluation.normalizedRating()?.let { rating ->
+            Spacer(modifier = Modifier.height(6.dp))
+            TipsRegularRow(
+                title = "Кухня",
+                value = "$rating/5",
+                valueColor = TipsWarningColor
+            )
+        }
+
+        serviceEvaluation.normalizedRating()?.let { rating ->
+            Spacer(modifier = Modifier.height(6.dp))
+            TipsRegularRow(
+                title = "Сервис",
+                value = "$rating/5",
+                valueColor = TipsWarningColor
+            )
+        }
     }
 }
 
@@ -595,8 +620,14 @@ private fun TipsPremiumHistoryItem(
     date: String,
     tipAmount: String,
     tipPercent: String,
+    kitchenEvaluation: Int?,
+    serviceEvaluation: Int?,
     metrics: TipsPremiumMetrics
 ) {
+    val ratingsText = formatRatingLine(
+        kitchen = kitchenEvaluation,
+        service = serviceEvaluation
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -651,6 +682,20 @@ private fun TipsPremiumHistoryItem(
                     fontWeight = FontWeight.Bold,
                     fontSize = metrics.itemPercentFontSize,
                     lineHeight = metrics.itemPercentLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            ratingsText?.let {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = it,
+                    color = TipsSecondaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -776,4 +821,14 @@ private fun TipsPremiumEmptyState(
 
 private fun formatMoney(value: Double): String {
     return "${"%.2f".format(value)} ₽"
+}
+
+private fun Int?.normalizedRating(): Int? = this?.takeIf { it in 1..5 }
+
+private fun formatRatingLine(kitchen: Int?, service: Int?): String? {
+    val items = listOfNotNull(
+        kitchen.normalizedRating()?.let { "Кухня ${it}★" },
+        service.normalizedRating()?.let { "Сервис ${it}★" }
+    )
+    return items.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
