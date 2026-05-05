@@ -264,36 +264,36 @@ class TipSelectionViewModel(
         return true
     }
 
-    private fun sendReview(
+    private suspend fun sendReview(
         kitchenEvaluation: Int,
         serviceEvaluation: Int
     ) {
-        viewModelScope.launch {
-            addReviewUseCase(
-                kitchenEvaluation = kitchenEvaluation,
-                serviceEvaluation = serviceEvaluation,
-                comment = ""
-            )
-                .onSuccess {
-                    Log.i(
-                        REVIEW_TAG,
-                        "addReview success"
-                    )
-                }
-                .onFailure { error ->
-                    Log.e(
-                        REVIEW_TAG,
-                        "addReview failed but payment flow continues",
-                        error
-                    )
-                }
-        }
+        addReviewUseCase(
+            kitchenEvaluation = kitchenEvaluation,
+            serviceEvaluation = serviceEvaluation,
+            comment = ""
+        )
+            .onSuccess {
+                Log.i(
+                    REVIEW_TAG,
+                    "addReview success"
+                )
+            }
+            .onFailure { error ->
+                Log.e(
+                    REVIEW_TAG,
+                    "addReview failed but payment flow continues",
+                    error
+                )
+            }
     }
 
     fun handlePaymentResult(result: PaymentResult) {
         when (result) {
             is PaymentResult.Approved -> {
-                handleApprovedPayment(result)
+                viewModelScope.launch {
+                    handleApprovedPayment(result)
+                }
             }
 
             is PaymentResult.Declined -> {
@@ -326,7 +326,7 @@ class TipSelectionViewModel(
         }
     }
 
-    fun handleApprovedPayment(result: PaymentResult.Approved) {
+    suspend fun handleApprovedPayment(result: PaymentResult.Approved) {
         Log.i(
             REVIEW_TAG,
             "handlePaymentResult Approved rawMessagePreview=${result.rawMessage.toPaymentMessagePreview()}"

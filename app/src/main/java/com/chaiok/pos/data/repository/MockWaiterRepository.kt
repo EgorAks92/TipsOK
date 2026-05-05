@@ -32,7 +32,8 @@ class MockWaiterRepository(
             id = waiterId,
             firstName = loginNickname.value ?: DEFAULT_WAITER_NAME,
             lastName = "",
-            status = loginPersonalAppeal.value ?: DEFAULT_WAITER_STATUS,
+            status = loginPersonalAppeal.value
+                ?: dataStore.waiterStatusFlow.first().ifBlank { DEFAULT_WAITER_STATUS },
             hasLinkedCard = loginCardConnected.value,
             cardSha256 = null,
             serviceFeePercent = dataStore.serviceFeePercentFlow.first()
@@ -53,13 +54,15 @@ class MockWaiterRepository(
         loginNickname.value = normalizedNickname
         loginPersonalAppeal.value = normalizedPersonalAppeal
 
-        dataStore.setWaiterStatus(normalizedPersonalAppeal ?: DEFAULT_WAITER_STATUS)
+        if (normalizedPersonalAppeal != null) {
+            dataStore.setWaiterStatus(normalizedPersonalAppeal)
+        }
 
         baseProfile.update { profile ->
             profile?.copy(
                 firstName = normalizedNickname ?: DEFAULT_WAITER_NAME,
                 lastName = "",
-                status = normalizedPersonalAppeal ?: DEFAULT_WAITER_STATUS
+                status = normalizedPersonalAppeal ?: profile.status.ifBlank { DEFAULT_WAITER_STATUS }
             )
         }
 
