@@ -1,6 +1,7 @@
 package com.chaiok.pos.presentation.tips
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +24,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
+import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import java.time.format.DateTimeFormatter
@@ -41,28 +43,30 @@ private val TipsSecondaryTextColor = Color(0xFF69707A)
 private val TipsCardColor = Color(0xFFF7F8FA)
 private val TipsAccentColor = Color(0xFF087BE8)
 private val TipsGreenColor = Color(0xFF14B8A6)
+private val TipsStrokeColor = Color(0xFFE2E7EF)
 
-private data class TipsLayoutMetrics(
-    val isSquareCompact: Boolean,
-
-    val headerHeight: Dp,
-    val headerHorizontalPadding: Dp,
-    val headerTopPadding: Dp,
-    val headerToContentSpacing: Dp,
-
-    val summaryHeight: Dp,
-    val summaryCornerRadius: Dp,
-    val summaryShadowElevation: Dp,
-    val summaryHorizontalPadding: Dp,
-    val summaryBottomPadding: Dp,
-    val summaryContentTopPadding: Dp,
-    val summaryColumnSpacing: Dp,
-    val summaryTitleFontSize: TextUnit,
-    val summaryTitleLineHeight: TextUnit,
-    val summaryValueFontSize: TextUnit,
-    val summaryValueLineHeight: TextUnit,
-
+private data class TipsPremiumMetrics(
     val contentHorizontalPadding: Dp,
+    val contentTopPadding: Dp,
+    val contentBottomPadding: Dp,
+
+    val headerTitleFontSize: TextUnit,
+    val headerTitleLineHeight: TextUnit,
+    val headerSubtitleFontSize: TextUnit,
+    val headerSubtitleLineHeight: TextUnit,
+    val headerToChipsSpacing: Dp,
+
+    val chipHeight: Dp,
+    val chipSpacing: Dp,
+    val chipCornerRadius: Dp,
+    val chipShadowElevation: Dp,
+    val chipHorizontalPadding: Dp,
+    val chipTitleFontSize: TextUnit,
+    val chipTitleLineHeight: TextUnit,
+    val chipValueFontSize: TextUnit,
+    val chipValueLineHeight: TextUnit,
+
+    val chipsToHistorySpacing: Dp,
     val historyTitleFontSize: TextUnit,
     val historyTitleLineHeight: TextUnit,
     val historyTitleToListSpacing: Dp,
@@ -70,19 +74,19 @@ private data class TipsLayoutMetrics(
     val listItemSpacing: Dp,
     val listBottomPadding: Dp,
 
+    val itemHeight: Dp,
     val itemCornerRadius: Dp,
     val itemShadowElevation: Dp,
     val itemHorizontalPadding: Dp,
-    val itemVerticalPadding: Dp,
     val itemDateFontSize: TextUnit,
     val itemDateLineHeight: TextUnit,
-    val itemDateToRowsSpacing: Dp,
-    val itemRowsSpacing: Dp,
-
-    val rowTitleFontSize: TextUnit,
-    val rowTitleLineHeight: TextUnit,
-    val rowValueFontSize: TextUnit,
-    val rowValueLineHeight: TextUnit,
+    val itemAmountFontSize: TextUnit,
+    val itemAmountLineHeight: TextUnit,
+    val itemPercentFontSize: TextUnit,
+    val itemPercentLineHeight: TextUnit,
+    val percentBadgeHorizontalPadding: Dp,
+    val percentBadgeVerticalPadding: Dp,
+    val percentBadgeCornerRadius: Dp,
 
     val emptyCornerRadius: Dp,
     val emptyShadowElevation: Dp,
@@ -92,114 +96,57 @@ private data class TipsLayoutMetrics(
     val emptyLineHeight: TextUnit
 )
 
-@Composable
-private fun tipsLayoutMetrics(): TipsLayoutMetrics {
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val screenHeight = configuration.screenHeightDp.dp
-    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+private fun squarePremiumTipsMetrics(): TipsPremiumMetrics {
+    return TipsPremiumMetrics(
+        contentHorizontalPadding = 16.dp,
+        contentTopPadding = 12.dp,
+        contentBottomPadding = 10.dp,
 
-    return if (isSquareCompact) {
-        TipsLayoutMetrics(
-            isSquareCompact = true,
+        headerTitleFontSize = 18.sp,
+        headerTitleLineHeight = 22.sp,
+        headerSubtitleFontSize = 11.sp,
+        headerSubtitleLineHeight = 15.sp,
+        headerToChipsSpacing = 10.dp,
 
-            headerHeight = 124.dp,
-            headerHorizontalPadding = 12.dp,
-            headerTopPadding = 8.dp,
-            headerToContentSpacing = 8.dp,
+        chipHeight = 56.dp,
+        chipSpacing = 7.dp,
+        chipCornerRadius = 18.dp,
+        chipShadowElevation = 3.dp,
+        chipHorizontalPadding = 8.dp,
+        chipTitleFontSize = 9.sp,
+        chipTitleLineHeight = 12.sp,
+        chipValueFontSize = 13.sp,
+        chipValueLineHeight = 16.sp,
 
-            summaryHeight = 112.dp,
-            summaryCornerRadius = 24.dp,
-            summaryShadowElevation = 5.dp,
-            summaryHorizontalPadding = 12.dp,
-            summaryBottomPadding = 10.dp,
-            summaryContentTopPadding = 58.dp,
-            summaryColumnSpacing = 3.dp,
-            summaryTitleFontSize = 10.sp,
-            summaryTitleLineHeight = 13.sp,
-            summaryValueFontSize = 13.sp,
-            summaryValueLineHeight = 16.sp,
+        chipsToHistorySpacing = 14.dp,
+        historyTitleFontSize = 15.sp,
+        historyTitleLineHeight = 18.sp,
+        historyTitleToListSpacing = 8.dp,
 
-            contentHorizontalPadding = 14.dp,
-            historyTitleFontSize = 15.sp,
-            historyTitleLineHeight = 18.sp,
-            historyTitleToListSpacing = 8.dp,
+        listItemSpacing = 8.dp,
+        listBottomPadding = 8.dp,
 
-            listItemSpacing = 8.dp,
-            listBottomPadding = 10.dp,
+        itemHeight = 58.dp,
+        itemCornerRadius = 18.dp,
+        itemShadowElevation = 3.dp,
+        itemHorizontalPadding = 12.dp,
+        itemDateFontSize = 12.sp,
+        itemDateLineHeight = 15.sp,
+        itemAmountFontSize = 15.sp,
+        itemAmountLineHeight = 18.sp,
+        itemPercentFontSize = 10.sp,
+        itemPercentLineHeight = 13.sp,
+        percentBadgeHorizontalPadding = 8.dp,
+        percentBadgeVerticalPadding = 3.dp,
+        percentBadgeCornerRadius = 10.dp,
 
-            itemCornerRadius = 18.dp,
-            itemShadowElevation = 3.dp,
-            itemHorizontalPadding = 12.dp,
-            itemVerticalPadding = 9.dp,
-            itemDateFontSize = 13.sp,
-            itemDateLineHeight = 16.sp,
-            itemDateToRowsSpacing = 5.dp,
-            itemRowsSpacing = 3.dp,
-
-            rowTitleFontSize = 11.sp,
-            rowTitleLineHeight = 14.sp,
-            rowValueFontSize = 12.sp,
-            rowValueLineHeight = 15.sp,
-
-            emptyCornerRadius = 18.dp,
-            emptyShadowElevation = 3.dp,
-            emptyHorizontalPadding = 16.dp,
-            emptyVerticalPadding = 22.dp,
-            emptyFontSize = 13.sp,
-            emptyLineHeight = 16.sp
-        )
-    } else {
-        TipsLayoutMetrics(
-            isSquareCompact = false,
-
-            headerHeight = 178.dp,
-            headerHorizontalPadding = 16.dp,
-            headerTopPadding = 16.dp,
-            headerToContentSpacing = 22.dp,
-
-            summaryHeight = 150.dp,
-            summaryCornerRadius = 28.dp,
-            summaryShadowElevation = 8.dp,
-            summaryHorizontalPadding = 18.dp,
-            summaryBottomPadding = 18.dp,
-            summaryContentTopPadding = 72.dp,
-            summaryColumnSpacing = 6.dp,
-            summaryTitleFontSize = 12.sp,
-            summaryTitleLineHeight = 15.sp,
-            summaryValueFontSize = 17.sp,
-            summaryValueLineHeight = 21.sp,
-
-            contentHorizontalPadding = 24.dp,
-            historyTitleFontSize = 18.sp,
-            historyTitleLineHeight = 22.sp,
-            historyTitleToListSpacing = 12.dp,
-
-            listItemSpacing = 12.dp,
-            listBottomPadding = 18.dp,
-
-            itemCornerRadius = 24.dp,
-            itemShadowElevation = 5.dp,
-            itemHorizontalPadding = 16.dp,
-            itemVerticalPadding = 14.dp,
-            itemDateFontSize = 15.sp,
-            itemDateLineHeight = 19.sp,
-            itemDateToRowsSpacing = 10.dp,
-            itemRowsSpacing = 6.dp,
-
-            rowTitleFontSize = 13.sp,
-            rowTitleLineHeight = 17.sp,
-            rowValueFontSize = 14.sp,
-            rowValueLineHeight = 18.sp,
-
-            emptyCornerRadius = 24.dp,
-            emptyShadowElevation = 5.dp,
-            emptyHorizontalPadding = 20.dp,
-            emptyVerticalPadding = 28.dp,
-            emptyFontSize = 15.sp,
-            emptyLineHeight = 19.sp
-        )
-    }
+        emptyCornerRadius = 20.dp,
+        emptyShadowElevation = 3.dp,
+        emptyHorizontalPadding = 16.dp,
+        emptyVerticalPadding = 26.dp,
+        emptyFontSize = 13.sp,
+        emptyLineHeight = 16.sp
+    )
 }
 
 @Composable
@@ -207,7 +154,88 @@ fun TipsScreen(
     state: TipsUiState,
     onBack: () -> Unit
 ) {
-    val metrics = tipsLayoutMetrics()
+    when (rememberChaiOkDeviceClass()) {
+        ChaiOkDeviceClass.SquareCompact -> {
+            TipsSquarePremiumScreen(
+                state = state,
+                onBack = onBack
+            )
+        }
+
+        ChaiOkDeviceClass.Regular -> {
+            TipsRegularScreen(
+                state = state,
+                onBack = onBack
+            )
+        }
+    }
+}
+
+@Composable
+private fun TipsRegularScreen(
+    state: TipsUiState,
+    onBack: () -> Unit
+) {
+    val dateFormatter = remember {
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TipsBackgroundColor)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TipsRegularHeader(
+                state = state,
+                onBack = onBack
+            )
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+            ) {
+                Text(
+                    text = "История",
+                    color = TipsPrimaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    lineHeight = 22.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (state.tips.isEmpty()) {
+                    TipsRegularEmptyState(isLoading = state.isLoading)
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(state.tips) { tip ->
+                            TipsRegularHistoryItem(
+                                date = tip.dateTime.format(dateFormatter),
+                                tipAmount = formatMoney(tip.tipAmount),
+                                tipPercent = "${tip.tipPercent}%"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TipsSquarePremiumScreen(
+    state: TipsUiState,
+    onBack: () -> Unit
+) {
+    val metrics = squarePremiumTipsMetrics()
 
     val dateFormatter = remember {
         DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
@@ -219,33 +247,93 @@ fun TipsScreen(
             .background(TipsBackgroundColor)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            TipsHeader(
-                state = state,
-                metrics = metrics,
-                onBack = onBack
+            TiplyBackTopAppBar(
+                title = "Мои чаевые",
+                onBack = onBack,
+                elevation = 10.dp,
+                ambientAlpha = 0.16f,
+                spotAlpha = 0.22f
             )
-
-            Spacer(modifier = Modifier.height(metrics.headerToContentSpacing))
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(horizontal = metrics.contentHorizontalPadding)
+                    .padding(
+                        top = metrics.contentTopPadding,
+                        bottom = metrics.contentBottomPadding
+                    )
             ) {
+                Text(
+                    text = "Обзор чаевых",
+                    color = TipsPrimaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = metrics.headerTitleFontSize,
+                    lineHeight = metrics.headerTitleLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = "Сегодняшняя смена и последние операции",
+                    color = TipsSecondaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = metrics.headerSubtitleFontSize,
+                    lineHeight = metrics.headerSubtitleLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(metrics.headerToChipsSpacing))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(metrics.chipSpacing)
+                ) {
+                    TipsPremiumSummaryChip(
+                        title = "Сегодня",
+                        value = formatMoney(state.summary.todayAmount),
+                        metrics = metrics,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    TipsPremiumSummaryChip(
+                        title = "Записей",
+                        value = state.summary.count.toString(),
+                        metrics = metrics,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    TipsPremiumSummaryChip(
+                        title = "Средний",
+                        value = "${"%.1f".format(state.summary.avgPercent)}%",
+                        metrics = metrics,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(metrics.chipsToHistorySpacing))
+
                 Text(
                     text = "История",
                     color = TipsPrimaryTextColor,
                     fontFamily = MontserratFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = metrics.historyTitleFontSize,
-                    lineHeight = metrics.historyTitleLineHeight
+                    lineHeight = metrics.historyTitleLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(modifier = Modifier.height(metrics.historyTitleToListSpacing))
 
                 if (state.tips.isEmpty()) {
-                    TipsEmptyState(
+                    TipsPremiumEmptyState(
                         isLoading = state.isLoading,
                         metrics = metrics
                     )
@@ -256,7 +344,7 @@ fun TipsScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(state.tips) { tip ->
-                            TipsHistoryItem(
+                            TipsPremiumHistoryItem(
                                 date = tip.dateTime.format(dateFormatter),
                                 tipAmount = formatMoney(tip.tipAmount),
                                 tipPercent = "${tip.tipPercent}%",
@@ -271,26 +359,81 @@ fun TipsScreen(
 }
 
 @Composable
-private fun TipsHeader(
+private fun TipsPremiumSummaryChip(
+    title: String,
+    value: String,
+    metrics: TipsPremiumMetrics,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .height(metrics.chipHeight)
+            .shadow(
+                elevation = metrics.chipShadowElevation,
+                shape = RoundedCornerShape(metrics.chipCornerRadius),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.045f),
+                spotColor = Color.Black.copy(alpha = 0.09f)
+            )
+            .clip(RoundedCornerShape(metrics.chipCornerRadius))
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = TipsStrokeColor.copy(alpha = 0.86f),
+                shape = RoundedCornerShape(metrics.chipCornerRadius)
+            )
+            .padding(horizontal = metrics.chipHorizontalPadding),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = title.uppercase(),
+            color = TipsSecondaryTextColor.copy(alpha = 0.82f),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.chipTitleFontSize,
+            lineHeight = metrics.chipTitleLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = value,
+            color = TipsPrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.chipValueFontSize,
+            lineHeight = metrics.chipValueLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun TipsRegularHeader(
     state: TipsUiState,
-    metrics: TipsLayoutMetrics,
     onBack: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(metrics.headerHeight)
+            .height(178.dp)
     ) {
-        TipsSummaryCard(
+        TipsRegularSummaryCard(
             state = state,
-            metrics = metrics,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(
-                    start = metrics.headerHorizontalPadding,
-                    end = metrics.headerHorizontalPadding,
-                    top = metrics.headerTopPadding
-                )
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 16.dp
+                ),
+            contentTopPadding = 72.dp
         )
 
         TiplyBackTopAppBar(
@@ -302,23 +445,23 @@ private fun TipsHeader(
 }
 
 @Composable
-private fun TipsSummaryCard(
+private fun TipsRegularSummaryCard(
     state: TipsUiState,
-    metrics: TipsLayoutMetrics,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentTopPadding: Dp = 18.dp
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(metrics.summaryHeight)
+            .height(150.dp)
             .shadow(
-                elevation = metrics.summaryShadowElevation,
-                shape = RoundedCornerShape(metrics.summaryCornerRadius),
+                elevation = 8.dp,
+                shape = RoundedCornerShape(28.dp),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.10f),
                 spotColor = Color.Black.copy(alpha = 0.16f)
             )
-            .clip(RoundedCornerShape(metrics.summaryCornerRadius))
+            .clip(RoundedCornerShape(28.dp))
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(
@@ -328,10 +471,10 @@ private fun TipsSummaryCard(
                 )
             )
             .padding(
-                start = metrics.summaryHorizontalPadding,
-                end = metrics.summaryHorizontalPadding,
-                top = metrics.summaryContentTopPadding,
-                bottom = metrics.summaryBottomPadding
+                start = 18.dp,
+                end = 18.dp,
+                top = contentTopPadding,
+                bottom = 18.dp
             )
     ) {
         Row(
@@ -341,24 +484,21 @@ private fun TipsSummaryCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SummaryColumn(
+            TipsRegularSummaryColumn(
                 title = "Сегодня",
                 value = formatMoney(state.summary.todayAmount),
-                metrics = metrics,
                 modifier = Modifier.weight(1f)
             )
 
-            SummaryColumn(
+            TipsRegularSummaryColumn(
                 title = "Записей",
                 value = state.summary.count.toString(),
-                metrics = metrics,
                 modifier = Modifier.weight(1f)
             )
 
-            SummaryColumn(
+            TipsRegularSummaryColumn(
                 title = "Средний %",
                 value = "${"%.1f".format(state.summary.avgPercent)}%",
-                metrics = metrics,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -366,27 +506,25 @@ private fun TipsSummaryCard(
 }
 
 @Composable
-private fun SummaryColumn(
+private fun TipsRegularSummaryColumn(
     title: String,
     value: String,
-    metrics: TipsLayoutMetrics,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(metrics.summaryColumnSpacing)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
             text = title,
             color = Color.White.copy(alpha = 0.82f),
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Medium,
-            fontSize = metrics.summaryTitleFontSize,
-            lineHeight = metrics.summaryTitleLineHeight,
+            fontSize = 12.sp,
+            lineHeight = 15.sp,
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 1
         )
 
         Text(
@@ -394,8 +532,8 @@ private fun SummaryColumn(
             color = Color.White,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = metrics.summaryValueFontSize,
-            lineHeight = metrics.summaryValueLineHeight,
+            fontSize = 17.sp,
+            lineHeight = 21.sp,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -404,66 +542,140 @@ private fun SummaryColumn(
 }
 
 @Composable
-private fun TipsHistoryItem(
+private fun TipsRegularHistoryItem(
     date: String,
     tipAmount: String,
-    tipPercent: String,
-    metrics: TipsLayoutMetrics
+    tipPercent: String
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = metrics.itemShadowElevation,
-                shape = RoundedCornerShape(metrics.itemCornerRadius),
+                elevation = 5.dp,
+                shape = RoundedCornerShape(24.dp),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.07f),
                 spotColor = Color.Black.copy(alpha = 0.11f)
             )
-            .clip(RoundedCornerShape(metrics.itemCornerRadius))
+            .clip(RoundedCornerShape(24.dp))
             .background(TipsCardColor)
-            .padding(
-                horizontal = metrics.itemHorizontalPadding,
-                vertical = metrics.itemVerticalPadding
-            )
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Text(
             text = date,
             color = TipsPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = metrics.itemDateFontSize,
-            lineHeight = metrics.itemDateLineHeight,
+            fontSize = 15.sp,
+            lineHeight = 19.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(metrics.itemDateToRowsSpacing))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        TipsRow(
+        TipsRegularRow(
             title = "Чаевые",
             value = tipAmount,
-            valueColor = TipsGreenColor,
-            metrics = metrics
+            valueColor = TipsGreenColor
         )
 
-        Spacer(modifier = Modifier.height(metrics.itemRowsSpacing))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        TipsRow(
+        TipsRegularRow(
             title = "Процент",
             value = tipPercent,
-            valueColor = TipsAccentColor,
-            metrics = metrics
+            valueColor = TipsAccentColor
         )
     }
 }
 
 @Composable
-private fun TipsRow(
+private fun TipsPremiumHistoryItem(
+    date: String,
+    tipAmount: String,
+    tipPercent: String,
+    metrics: TipsPremiumMetrics
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(metrics.itemHeight)
+            .shadow(
+                elevation = metrics.itemShadowElevation,
+                shape = RoundedCornerShape(metrics.itemCornerRadius),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.045f),
+                spotColor = Color.Black.copy(alpha = 0.09f)
+            )
+            .clip(RoundedCornerShape(metrics.itemCornerRadius))
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = TipsStrokeColor.copy(alpha = 0.86f),
+                shape = RoundedCornerShape(metrics.itemCornerRadius)
+            )
+            .padding(horizontal = metrics.itemHorizontalPadding),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = date,
+                color = TipsPrimaryTextColor,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = metrics.itemDateFontSize,
+                lineHeight = metrics.itemDateLineHeight,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(metrics.percentBadgeCornerRadius))
+                    .background(TipsAccentColor.copy(alpha = 0.10f))
+                    .padding(
+                        horizontal = metrics.percentBadgeHorizontalPadding,
+                        vertical = metrics.percentBadgeVerticalPadding
+                    )
+            ) {
+                Text(
+                    text = tipPercent,
+                    color = TipsAccentColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = metrics.itemPercentFontSize,
+                    lineHeight = metrics.itemPercentLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Text(
+            text = tipAmount,
+            color = TipsGreenColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.itemAmountFontSize,
+            lineHeight = metrics.itemAmountLineHeight,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun TipsRegularRow(
     title: String,
     value: String,
-    valueColor: Color,
-    metrics: TipsLayoutMetrics
+    valueColor: Color
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -475,10 +687,8 @@ private fun TipsRow(
             color = TipsSecondaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Normal,
-            fontSize = metrics.rowTitleFontSize,
-            lineHeight = metrics.rowTitleLineHeight,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            fontSize = 13.sp,
+            lineHeight = 17.sp
         )
 
         Text(
@@ -486,19 +696,48 @@ private fun TipsRow(
             color = valueColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = metrics.rowValueFontSize,
-            lineHeight = metrics.rowValueLineHeight,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.End
         )
     }
 }
 
 @Composable
-private fun TipsEmptyState(
+private fun TipsRegularEmptyState(
+    isLoading: Boolean
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 5.dp,
+                shape = RoundedCornerShape(24.dp),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.07f),
+                spotColor = Color.Black.copy(alpha = 0.11f)
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(TipsCardColor)
+            .padding(horizontal = 20.dp, vertical = 28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (isLoading) "Загрузка..." else "Пока нет записей",
+            color = TipsSecondaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 15.sp,
+            lineHeight = 19.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun TipsPremiumEmptyState(
     isLoading: Boolean,
-    metrics: TipsLayoutMetrics
+    metrics: TipsPremiumMetrics
 ) {
     Box(
         modifier = Modifier
@@ -507,11 +746,16 @@ private fun TipsEmptyState(
                 elevation = metrics.emptyShadowElevation,
                 shape = RoundedCornerShape(metrics.emptyCornerRadius),
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.07f),
-                spotColor = Color.Black.copy(alpha = 0.11f)
+                ambientColor = Color.Black.copy(alpha = 0.045f),
+                spotColor = Color.Black.copy(alpha = 0.09f)
             )
             .clip(RoundedCornerShape(metrics.emptyCornerRadius))
-            .background(TipsCardColor)
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = TipsStrokeColor.copy(alpha = 0.86f),
+                shape = RoundedCornerShape(metrics.emptyCornerRadius)
+            )
             .padding(
                 horizontal = metrics.emptyHorizontalPadding,
                 vertical = metrics.emptyVerticalPadding

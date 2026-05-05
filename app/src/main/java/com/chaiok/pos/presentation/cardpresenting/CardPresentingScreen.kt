@@ -45,7 +45,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +54,8 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
+import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
 private val CardPresentingBackgroundColor = Color.White
@@ -67,8 +68,6 @@ private val CardPresentingSoftCardColor = Color(0xFFF7F8FA)
 private val CardPresentingStrokeColor = Color(0xFFE2E7EF)
 
 private data class CardPresentingLayoutMetrics(
-    val isSquareCompact: Boolean,
-
     val horizontalPadding: Dp,
     val topPadding: Dp,
     val bottomPadding: Dp,
@@ -95,6 +94,7 @@ private data class CardPresentingLayoutMetrics(
     val mainCardShadowElevation: Dp,
     val mainCardHorizontalPadding: Dp,
     val mainCardVerticalPadding: Dp,
+
     val visualSize: Dp,
     val visualPulseBaseSize: Dp,
     val visualWavesSize: Dp,
@@ -102,6 +102,12 @@ private data class CardPresentingLayoutMetrics(
     val visualIconBoxCornerRadius: Dp,
     val visualIconBoxShadowElevation: Dp,
     val visualIconSize: Dp,
+    val visualIconBoxIsCircle: Boolean,
+    val showPulseCircle: Boolean,
+    val useProcessingSpinner: Boolean,
+    val spinnerSize: Dp,
+    val spinnerStrokeWidth: Dp,
+
     val nfcWaveStrokeWidth: Dp,
     val nfcWaveRadii: List<Dp>,
 
@@ -126,134 +132,138 @@ private data class CardPresentingLayoutMetrics(
     val cancelButtonLineHeight: TextUnit
 )
 
-@Composable
-private fun cardPresentingLayoutMetrics(): CardPresentingLayoutMetrics {
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val screenHeight = configuration.screenHeightDp.dp
-    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+private fun regularCardPresentingMetrics(): CardPresentingLayoutMetrics {
+    return CardPresentingLayoutMetrics(
+        horizontalPadding = 24.dp,
+        topPadding = 18.dp,
+        bottomPadding = 24.dp,
 
-    return if (isSquareCompact) {
-        CardPresentingLayoutMetrics(
-            isSquareCompact = true,
+        headerHeight = 64.dp,
+        logoWidth = 104.dp,
+        logoHeight = 36.dp,
 
-            horizontalPadding = 14.dp,
-            topPadding = 8.dp,
-            bottomPadding = 10.dp,
+        headerToAmountSpacing = 28.dp,
+        amountToMainSpacing = 24.dp,
+        mainToButtonSpacing = 22.dp,
 
-            headerHeight = 42.dp,
-            logoWidth = 78.dp,
-            logoHeight = 26.dp,
+        amountCardCornerRadius = 28.dp,
+        amountCardShadowElevation = 8.dp,
+        amountCardHorizontalPadding = 20.dp,
+        amountCardVerticalPadding = 18.dp,
+        amountLabelFontSize = 14.sp,
+        amountLabelLineHeight = 18.sp,
+        amountFontSize = 34.sp,
+        amountLineHeight = 40.sp,
+        amountTextSpacing = 6.dp,
 
-            headerToAmountSpacing = 8.dp,
-            amountToMainSpacing = 8.dp,
-            mainToButtonSpacing = 8.dp,
+        mainCardCornerRadius = 34.dp,
+        mainCardShadowElevation = 12.dp,
+        mainCardHorizontalPadding = 22.dp,
+        mainCardVerticalPadding = 26.dp,
 
-            amountCardCornerRadius = 22.dp,
-            amountCardShadowElevation = 4.dp,
-            amountCardHorizontalPadding = 14.dp,
-            amountCardVerticalPadding = 9.dp,
-            amountLabelFontSize = 11.sp,
-            amountLabelLineHeight = 14.sp,
-            amountFontSize = 24.sp,
-            amountLineHeight = 28.sp,
-            amountTextSpacing = 2.dp,
+        visualSize = 190.dp,
+        visualPulseBaseSize = 150.dp,
+        visualWavesSize = 178.dp,
+        visualIconBoxSize = 118.dp,
+        visualIconBoxCornerRadius = 38.dp,
+        visualIconBoxShadowElevation = 14.dp,
+        visualIconSize = 54.dp,
+        visualIconBoxIsCircle = false,
+        showPulseCircle = true,
+        useProcessingSpinner = false,
+        spinnerSize = 34.dp,
+        spinnerStrokeWidth = 3.dp,
 
-            mainCardCornerRadius = 26.dp,
-            mainCardShadowElevation = 6.dp,
-            mainCardHorizontalPadding = 14.dp,
-            mainCardVerticalPadding = 12.dp,
-            visualSize = 120.dp,
-            visualPulseBaseSize = 92.dp,
-            visualWavesSize = 116.dp,
-            visualIconBoxSize = 76.dp,
-            visualIconBoxCornerRadius = 26.dp,
-            visualIconBoxShadowElevation = 8.dp,
-            visualIconSize = 36.dp,
-            nfcWaveStrokeWidth = 3.dp,
-            nfcWaveRadii = listOf(32.dp, 43.dp, 54.dp),
+        nfcWaveStrokeWidth = 4.dp,
+        nfcWaveRadii = listOf(52.dp, 72.dp, 92.dp),
 
-            visualToTitleSpacing = 8.dp,
-            titleFontSize = 18.sp,
-            titleLineHeight = 22.sp,
-            titleMaxLines = 2,
+        visualToTitleSpacing = 26.dp,
+        titleFontSize = 24.sp,
+        titleLineHeight = 30.sp,
+        titleMaxLines = 2,
 
-            titleToMessageSpacing = 4.dp,
-            messageFontSize = 12.sp,
-            messageLineHeight = 16.sp,
-            messageMaxLines = 2,
+        titleToMessageSpacing = 10.dp,
+        messageFontSize = 15.sp,
+        messageLineHeight = 21.sp,
+        messageMaxLines = 3,
 
-            loadingSpacing = 6.dp,
-            loadingSize = 22.dp,
-            loadingStrokeWidth = 2.dp,
+        loadingSpacing = 22.dp,
+        loadingSize = 34.dp,
+        loadingStrokeWidth = 3.dp,
 
-            cancelButtonHeight = 44.dp,
-            cancelButtonCornerRadius = 18.dp,
-            cancelButtonShadowElevation = 4.dp,
-            cancelButtonFontSize = 14.sp,
-            cancelButtonLineHeight = 17.sp
-        )
-    } else {
-        CardPresentingLayoutMetrics(
-            isSquareCompact = false,
+        cancelButtonHeight = 56.dp,
+        cancelButtonCornerRadius = 24.dp,
+        cancelButtonShadowElevation = 8.dp,
+        cancelButtonFontSize = 16.sp,
+        cancelButtonLineHeight = 20.sp
+    )
+}
 
-            horizontalPadding = 24.dp,
-            topPadding = 18.dp,
-            bottomPadding = 24.dp,
+private fun squarePremiumCardPresentingMetrics(): CardPresentingLayoutMetrics {
+    return CardPresentingLayoutMetrics(
+        horizontalPadding = 18.dp,
+        topPadding = 8.dp,
+        bottomPadding = 10.dp,
 
-            headerHeight = 64.dp,
-            logoWidth = 104.dp,
-            logoHeight = 36.dp,
+        headerHeight = 30.dp,
+        logoWidth = 82.dp,
+        logoHeight = 26.dp,
 
-            headerToAmountSpacing = 28.dp,
-            amountToMainSpacing = 24.dp,
-            mainToButtonSpacing = 22.dp,
+        headerToAmountSpacing = 8.dp,
+        amountToMainSpacing = 8.dp,
+        mainToButtonSpacing = 8.dp,
 
-            amountCardCornerRadius = 28.dp,
-            amountCardShadowElevation = 8.dp,
-            amountCardHorizontalPadding = 20.dp,
-            amountCardVerticalPadding = 18.dp,
-            amountLabelFontSize = 14.sp,
-            amountLabelLineHeight = 18.sp,
-            amountFontSize = 34.sp,
-            amountLineHeight = 40.sp,
-            amountTextSpacing = 6.dp,
+        amountCardCornerRadius = 24.dp,
+        amountCardShadowElevation = 5.dp,
+        amountCardHorizontalPadding = 18.dp,
+        amountCardVerticalPadding = 7.dp,
+        amountLabelFontSize = 9.sp,
+        amountLabelLineHeight = 12.sp,
+        amountFontSize = 27.sp,
+        amountLineHeight = 31.sp,
+        amountTextSpacing = 0.dp,
 
-            mainCardCornerRadius = 34.dp,
-            mainCardShadowElevation = 12.dp,
-            mainCardHorizontalPadding = 22.dp,
-            mainCardVerticalPadding = 26.dp,
-            visualSize = 190.dp,
-            visualPulseBaseSize = 150.dp,
-            visualWavesSize = 178.dp,
-            visualIconBoxSize = 118.dp,
-            visualIconBoxCornerRadius = 38.dp,
-            visualIconBoxShadowElevation = 14.dp,
-            visualIconSize = 54.dp,
-            nfcWaveStrokeWidth = 4.dp,
-            nfcWaveRadii = listOf(52.dp, 72.dp, 92.dp),
+        mainCardCornerRadius = 0.dp,
+        mainCardShadowElevation = 0.dp,
+        mainCardHorizontalPadding = 0.dp,
+        mainCardVerticalPadding = 0.dp,
 
-            visualToTitleSpacing = 26.dp,
-            titleFontSize = 24.sp,
-            titleLineHeight = 30.sp,
-            titleMaxLines = 2,
+        visualSize = 176.dp,
+        visualPulseBaseSize = 132.dp,
+        visualWavesSize = 174.dp,
+        visualIconBoxSize = 108.dp,
+        visualIconBoxCornerRadius = 54.dp,
+        visualIconBoxShadowElevation = 15.dp,
+        visualIconSize = 50.dp,
+        visualIconBoxIsCircle = true,
+        showPulseCircle = false,
+        useProcessingSpinner = true,
+        spinnerSize = 42.dp,
+        spinnerStrokeWidth = 4.dp,
 
-            titleToMessageSpacing = 10.dp,
-            messageFontSize = 15.sp,
-            messageLineHeight = 21.sp,
-            messageMaxLines = 3,
+        nfcWaveStrokeWidth = 3.dp,
+        nfcWaveRadii = listOf(46.dp, 64.dp, 82.dp),
 
-            loadingSpacing = 22.dp,
-            loadingSize = 34.dp,
-            loadingStrokeWidth = 3.dp,
+        visualToTitleSpacing = 9.dp,
+        titleFontSize = 21.sp,
+        titleLineHeight = 24.sp,
+        titleMaxLines = 2,
 
-            cancelButtonHeight = 56.dp,
-            cancelButtonCornerRadius = 24.dp,
-            cancelButtonShadowElevation = 8.dp,
-            cancelButtonFontSize = 16.sp,
-            cancelButtonLineHeight = 20.sp
-        )
-    }
+        titleToMessageSpacing = 4.dp,
+        messageFontSize = 12.sp,
+        messageLineHeight = 16.sp,
+        messageMaxLines = 2,
+
+        loadingSpacing = 8.dp,
+        loadingSize = 22.dp,
+        loadingStrokeWidth = 2.dp,
+
+        cancelButtonHeight = 42.dp,
+        cancelButtonCornerRadius = 18.dp,
+        cancelButtonShadowElevation = 0.dp,
+        cancelButtonFontSize = 13.sp,
+        cancelButtonLineHeight = 16.sp
+    )
 }
 
 @Composable
@@ -261,7 +271,29 @@ fun CardPresentingScreen(
     state: CardPresentingUiState,
     onCancel: () -> Unit
 ) {
-    val metrics = cardPresentingLayoutMetrics()
+    when (rememberChaiOkDeviceClass()) {
+        ChaiOkDeviceClass.SquareCompact -> {
+            CardPresentingSquarePremiumScreen(
+                state = state,
+                onCancel = onCancel
+            )
+        }
+
+        ChaiOkDeviceClass.Regular -> {
+            CardPresentingRegularScreen(
+                state = state,
+                onCancel = onCancel
+            )
+        }
+    }
+}
+
+@Composable
+private fun CardPresentingRegularScreen(
+    state: CardPresentingUiState,
+    onCancel: () -> Unit
+) {
+    val metrics = regularCardPresentingMetrics()
 
     Box(
         modifier = Modifier
@@ -298,6 +330,208 @@ fun CardPresentingScreen(
                 enabled = state.canCancel,
                 metrics = metrics,
                 onClick = onCancel
+            )
+        }
+    }
+}
+
+@Composable
+private fun CardPresentingSquarePremiumScreen(
+    state: CardPresentingUiState,
+    onCancel: () -> Unit
+) {
+    val metrics = squarePremiumCardPresentingMetrics()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CardPresentingBackgroundColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = metrics.horizontalPadding)
+                .padding(top = metrics.topPadding, bottom = metrics.bottomPadding),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            PremiumLogoHeader(metrics = metrics)
+
+            Spacer(modifier = Modifier.height(metrics.headerToAmountSpacing))
+
+            PremiumAmountHero(
+                amountText = state.amountText,
+                stage = state.stage,
+                metrics = metrics
+            )
+
+            Spacer(modifier = Modifier.height(metrics.amountToMainSpacing))
+
+            PremiumPaymentFocus(
+                state = state,
+                metrics = metrics,
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(modifier = Modifier.height(metrics.mainToButtonSpacing))
+
+            PremiumCancelButton(
+                enabled = state.canCancel,
+                metrics = metrics,
+                onClick = onCancel
+            )
+        }
+    }
+}
+
+@Composable
+private fun PremiumLogoHeader(
+    metrics: CardPresentingLayoutMetrics
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(metrics.headerHeight),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.tiply_logo_black),
+            contentDescription = "Tiply",
+            modifier = Modifier.size(
+                width = metrics.logoWidth,
+                height = metrics.logoHeight
+            ),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
+
+@Composable
+private fun PremiumAmountHero(
+    amountText: String,
+    stage: CardPresentingStage,
+    metrics: CardPresentingLayoutMetrics
+) {
+    val borderColor = when (stage) {
+        CardPresentingStage.Approved -> CardPresentingGreenColor.copy(alpha = 0.30f)
+
+        CardPresentingStage.Declined,
+        CardPresentingStage.Error,
+        CardPresentingStage.Cancelled -> CardPresentingErrorColor.copy(alpha = 0.28f)
+
+        else -> CardPresentingAccentColor.copy(alpha = 0.20f)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = metrics.amountCardShadowElevation,
+                shape = RoundedCornerShape(metrics.amountCardCornerRadius),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.055f),
+                spotColor = Color.Black.copy(alpha = 0.10f)
+            )
+            .clip(RoundedCornerShape(metrics.amountCardCornerRadius))
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(metrics.amountCardCornerRadius)
+            )
+            .padding(
+                horizontal = metrics.amountCardHorizontalPadding,
+                vertical = metrics.amountCardVerticalPadding
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "СУММА К ОПЛАТЕ",
+            color = CardPresentingSecondaryTextColor.copy(alpha = 0.82f),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.amountLabelFontSize,
+            lineHeight = metrics.amountLabelLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(metrics.amountTextSpacing))
+
+        Text(
+            text = amountText.ifBlank { "₽" },
+            color = CardPresentingPrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.amountFontSize,
+            lineHeight = metrics.amountLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun PremiumPaymentFocus(
+    state: CardPresentingUiState,
+    metrics: CardPresentingLayoutMetrics,
+    modifier: Modifier = Modifier
+) {
+    val accentBrush = paymentAccentBrush(stage = state.stage)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = metrics.mainCardHorizontalPadding,
+                vertical = metrics.mainCardVerticalPadding
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        AnimatedPaymentVisual(
+            stage = state.stage,
+            accentBrush = accentBrush,
+            metrics = metrics
+        )
+
+        Spacer(modifier = Modifier.height(metrics.visualToTitleSpacing))
+
+        Text(
+            text = state.title,
+            color = CardPresentingPrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.titleFontSize,
+            lineHeight = metrics.titleLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = metrics.titleMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(metrics.titleToMessageSpacing))
+
+        Text(
+            text = state.message,
+            color = CardPresentingSecondaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = metrics.messageFontSize,
+            lineHeight = metrics.messageLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = metrics.messageMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (state.isLoading && !state.stage.shouldShowProcessingSpinner()) {
+            Spacer(modifier = Modifier.height(metrics.loadingSpacing))
+
+            CircularProgressIndicator(
+                modifier = Modifier.size(metrics.loadingSize),
+                color = CardPresentingAccentColor,
+                strokeWidth = metrics.loadingStrokeWidth
             )
         }
     }
@@ -386,36 +620,7 @@ private fun CardPresentingMainCard(
     metrics: CardPresentingLayoutMetrics,
     modifier: Modifier = Modifier
 ) {
-    val accentBrush = when (state.stage) {
-        CardPresentingStage.Approved -> {
-            Brush.linearGradient(
-                listOf(
-                    CardPresentingGreenColor,
-                    CardPresentingAccentColor
-                )
-            )
-        }
-
-        CardPresentingStage.Declined,
-        CardPresentingStage.Error,
-        CardPresentingStage.Cancelled -> {
-            Brush.linearGradient(
-                listOf(
-                    CardPresentingErrorColor,
-                    Color(0xFFFF8E8E)
-                )
-            )
-        }
-
-        else -> {
-            Brush.linearGradient(
-                listOf(
-                    CardPresentingAccentColor,
-                    CardPresentingGreenColor
-                )
-            )
-        }
-    }
+    val accentBrush = paymentAccentBrush(stage = state.stage)
 
     Column(
         modifier = modifier
@@ -451,7 +656,6 @@ private fun CardPresentingMainCard(
         AnimatedPaymentVisual(
             stage = state.stage,
             accentBrush = accentBrush,
-            isLoading = state.isLoading,
             metrics = metrics
         )
 
@@ -495,11 +699,45 @@ private fun CardPresentingMainCard(
     }
 }
 
+private fun paymentAccentBrush(
+    stage: CardPresentingStage
+): Brush {
+    return when (stage) {
+        CardPresentingStage.Approved -> {
+            Brush.linearGradient(
+                listOf(
+                    CardPresentingGreenColor,
+                    CardPresentingAccentColor
+                )
+            )
+        }
+
+        CardPresentingStage.Declined,
+        CardPresentingStage.Error,
+        CardPresentingStage.Cancelled -> {
+            Brush.linearGradient(
+                listOf(
+                    CardPresentingErrorColor,
+                    Color(0xFFFF8E8E)
+                )
+            )
+        }
+
+        else -> {
+            Brush.linearGradient(
+                listOf(
+                    CardPresentingAccentColor,
+                    CardPresentingGreenColor
+                )
+            )
+        }
+    }
+}
+
 @Composable
 private fun AnimatedPaymentVisual(
     stage: CardPresentingStage,
     accentBrush: Brush,
-    isLoading: Boolean,
     metrics: CardPresentingLayoutMetrics
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "card_presenting_animation")
@@ -518,8 +756,8 @@ private fun AnimatedPaymentVisual(
     )
 
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.18f,
-        targetValue = 0.44f,
+        initialValue = 0.16f,
+        targetValue = 0.38f,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = 1400,
@@ -550,7 +788,7 @@ private fun AnimatedPaymentVisual(
         modifier = Modifier.size(metrics.visualSize),
         contentAlignment = Alignment.Center
     ) {
-        if (stage.shouldShowNfcPulse()) {
+        if (metrics.showPulseCircle && stage.shouldShowNfcPulse()) {
             Box(
                 modifier = Modifier
                     .size((metrics.visualPulseBaseSize.value * pulseScale).dp)
@@ -559,32 +797,75 @@ private fun AnimatedPaymentVisual(
                         CardPresentingAccentColor.copy(alpha = pulseAlpha)
                     )
             )
-
-            NfcWaves(
-                modifier = Modifier.size(metrics.visualWavesSize),
-                alpha = pulseAlpha,
-                strokeWidth = metrics.nfcWaveStrokeWidth,
-                waveRadii = metrics.nfcWaveRadii
-            )
         }
 
-        Box(
-            modifier = Modifier
-                .size(metrics.visualIconBoxSize)
-                .shadow(
-                    elevation = metrics.visualIconBoxShadowElevation,
-                    shape = RoundedCornerShape(metrics.visualIconBoxCornerRadius),
-                    clip = false,
-                    ambientColor = Color.Black.copy(alpha = 0.12f),
-                    spotColor = Color.Black.copy(alpha = 0.20f)
-                )
-                .clip(RoundedCornerShape(metrics.visualIconBoxCornerRadius))
-                .background(accentBrush),
-            contentAlignment = Alignment.Center
-        ) {
+        NfcWaves(
+            modifier = Modifier.size(metrics.visualWavesSize),
+            alpha = if (stage.shouldShowNfcPulse()) pulseAlpha else 0f,
+            strokeWidth = metrics.nfcWaveStrokeWidth,
+            waveRadii = metrics.nfcWaveRadii
+        )
+
+        PaymentCenterSurface(
+            stage = stage,
+            accentBrush = accentBrush,
+            iconScale = iconScale,
+            metrics = metrics
+        )
+    }
+}
+
+@Composable
+private fun PaymentCenterSurface(
+    stage: CardPresentingStage,
+    accentBrush: Brush,
+    iconScale: Float,
+    metrics: CardPresentingLayoutMetrics
+) {
+    val shape = if (metrics.visualIconBoxIsCircle) {
+        CircleShape
+    } else {
+        RoundedCornerShape(metrics.visualIconBoxCornerRadius)
+    }
+
+    val showSpinner = metrics.useProcessingSpinner && stage.shouldShowProcessingSpinner()
+
+    val baseModifier = Modifier
+        .size(metrics.visualIconBoxSize)
+        .shadow(
+            elevation = metrics.visualIconBoxShadowElevation,
+            shape = shape,
+            clip = false,
+            ambientColor = Color.Black.copy(alpha = 0.12f),
+            spotColor = Color.Black.copy(alpha = 0.20f)
+        )
+        .clip(shape)
+
+    val surfaceModifier = if (showSpinner) {
+        baseModifier
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = CardPresentingAccentColor.copy(alpha = 0.26f),
+                shape = shape
+            )
+    } else {
+        baseModifier.background(accentBrush)
+    }
+
+    Box(
+        modifier = surfaceModifier,
+        contentAlignment = Alignment.Center
+    ) {
+        if (showSpinner) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(metrics.spinnerSize),
+                color = CardPresentingAccentColor,
+                strokeWidth = metrics.spinnerStrokeWidth
+            )
+        } else {
             StageIcon(
                 stage = stage,
-                isLoading = isLoading,
                 modifier = Modifier.size((metrics.visualIconSize.value * iconScale).dp)
             )
         }
@@ -636,15 +917,17 @@ private fun NfcWaves(
 @Composable
 private fun StageIcon(
     stage: CardPresentingStage,
-    isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
     val imageVector = when (stage) {
         CardPresentingStage.Approved -> Icons.Default.Check
+
         CardPresentingStage.Declined,
         CardPresentingStage.Error,
         CardPresentingStage.Cancelled -> Icons.Default.Close
+
         CardPresentingStage.PinRequired -> Icons.Default.Lock
+
         else -> Icons.Default.CreditCard
     }
 
@@ -715,6 +998,59 @@ private fun CancelPaymentButton(
     }
 }
 
+@Composable
+private fun PremiumCancelButton(
+    enabled: Boolean,
+    metrics: CardPresentingLayoutMetrics,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val textColor = if (enabled) {
+        CardPresentingErrorColor
+    } else {
+        CardPresentingSecondaryTextColor.copy(alpha = 0.62f)
+    }
+
+    val borderColor = if (enabled) {
+        CardPresentingErrorColor.copy(alpha = 0.22f)
+    } else {
+        CardPresentingStrokeColor
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(metrics.cancelButtonHeight)
+            .clip(RoundedCornerShape(metrics.cancelButtonCornerRadius))
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(metrics.cancelButtonCornerRadius)
+            )
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (enabled) "Отменить оплату" else "Отмена недоступна",
+            color = textColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.cancelButtonFontSize,
+            lineHeight = metrics.cancelButtonLineHeight,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 private fun CardPresentingStage.shouldShowNfcPulse(): Boolean {
     return when (this) {
         CardPresentingStage.Idle,
@@ -728,6 +1064,23 @@ private fun CardPresentingStage.shouldShowNfcPulse(): Boolean {
         CardPresentingStage.Declined,
         CardPresentingStage.Error,
         CardPresentingStage.Cancelling,
+        CardPresentingStage.Cancelled -> false
+    }
+}
+
+private fun CardPresentingStage.shouldShowProcessingSpinner(): Boolean {
+    return when (this) {
+        CardPresentingStage.Processing,
+        CardPresentingStage.Cancelling -> true
+
+        CardPresentingStage.Idle,
+        CardPresentingStage.Preparing,
+        CardPresentingStage.WaitingForCard,
+        CardPresentingStage.CardDetected,
+        CardPresentingStage.PinRequired,
+        CardPresentingStage.Approved,
+        CardPresentingStage.Declined,
+        CardPresentingStage.Error,
         CardPresentingStage.Cancelled -> false
     }
 }

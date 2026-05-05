@@ -2,6 +2,7 @@ package com.chaiok.pos.presentation.settings
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -24,10 +27,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +39,8 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
+import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
@@ -46,99 +51,69 @@ private val SettingsSecondaryTextColor = Color(0xFF69707A)
 private val SettingsCardColor = Color(0xFFF7F8FA)
 private val SettingsIconBackgroundColor = Color(0xFFF0F2F4)
 private val SettingsAccentColor = Color(0xFF087BE8)
+private val SettingsGreenColor = Color(0xFF14B8A6)
+private val SettingsStrokeColor = Color(0xFFE2E7EF)
 
-private data class SettingsLayoutMetrics(
-    val isSquareCompact: Boolean,
-    val headerToContentSpacing: Dp,
-    val horizontalPadding: Dp,
+private data class SettingsPremiumMetrics(
+    val contentHorizontalPadding: Dp,
+    val contentTopPadding: Dp,
+    val contentBottomPadding: Dp,
+    val headerTitleFontSize: TextUnit,
+    val headerTitleLineHeight: TextUnit,
+    val headerSubtitleFontSize: TextUnit,
+    val headerSubtitleLineHeight: TextUnit,
+    val headerToCardsSpacing: Dp,
     val cardsSpacing: Dp,
 
+    val itemHeight: Dp,
     val itemCornerRadius: Dp,
     val itemShadowElevation: Dp,
     val itemHorizontalPadding: Dp,
-    val itemVerticalPadding: Dp,
-
     val iconBoxSize: Dp,
     val iconBoxCornerRadius: Dp,
     val iconSize: Dp,
-
     val textStartPadding: Dp,
     val textEndPadding: Dp,
     val titleFontSize: TextUnit,
     val titleLineHeight: TextUnit,
-    val titleSubtitleSpacing: Dp,
     val subtitleFontSize: TextUnit,
     val subtitleLineHeight: TextUnit,
     val subtitleMaxLines: Int,
-
+    val arrowBoxSize: Dp,
     val arrowFontSize: TextUnit,
     val arrowLineHeight: TextUnit
 )
 
-@Composable
-private fun settingsLayoutMetrics(): SettingsLayoutMetrics {
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val screenHeight = configuration.screenHeightDp.dp
-    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+private fun squarePremiumSettingsMetrics(): SettingsPremiumMetrics {
+    return SettingsPremiumMetrics(
+        contentHorizontalPadding = 16.dp,
+        contentTopPadding = 14.dp,
+        contentBottomPadding = 12.dp,
+        headerTitleFontSize = 19.sp,
+        headerTitleLineHeight = 23.sp,
+        headerSubtitleFontSize = 12.sp,
+        headerSubtitleLineHeight = 16.sp,
+        headerToCardsSpacing = 12.dp,
+        cardsSpacing = 10.dp,
 
-    return if (isSquareCompact) {
-        SettingsLayoutMetrics(
-            isSquareCompact = true,
-            headerToContentSpacing = 10.dp,
-            horizontalPadding = 14.dp,
-            cardsSpacing = 8.dp,
-
-            itemCornerRadius = 18.dp,
-            itemShadowElevation = 3.dp,
-            itemHorizontalPadding = 12.dp,
-            itemVerticalPadding = 9.dp,
-
-            iconBoxSize = 36.dp,
-            iconBoxCornerRadius = 13.dp,
-            iconSize = 20.dp,
-
-            textStartPadding = 10.dp,
-            textEndPadding = 6.dp,
-            titleFontSize = 13.sp,
-            titleLineHeight = 16.sp,
-            titleSubtitleSpacing = 2.dp,
-            subtitleFontSize = 11.sp,
-            subtitleLineHeight = 14.sp,
-            subtitleMaxLines = 1,
-
-            arrowFontSize = 24.sp,
-            arrowLineHeight = 24.sp
-        )
-    } else {
-        SettingsLayoutMetrics(
-            isSquareCompact = false,
-            headerToContentSpacing = 22.dp,
-            horizontalPadding = 24.dp,
-            cardsSpacing = 12.dp,
-
-            itemCornerRadius = 24.dp,
-            itemShadowElevation = 5.dp,
-            itemHorizontalPadding = 16.dp,
-            itemVerticalPadding = 14.dp,
-
-            iconBoxSize = 44.dp,
-            iconBoxCornerRadius = 16.dp,
-            iconSize = 24.dp,
-
-            textStartPadding = 14.dp,
-            textEndPadding = 10.dp,
-            titleFontSize = 15.sp,
-            titleLineHeight = 19.sp,
-            titleSubtitleSpacing = 4.dp,
-            subtitleFontSize = 12.sp,
-            subtitleLineHeight = 16.sp,
-            subtitleMaxLines = 2,
-
-            arrowFontSize = 28.sp,
-            arrowLineHeight = 28.sp
-        )
-    }
+        itemHeight = 66.dp,
+        itemCornerRadius = 22.dp,
+        itemShadowElevation = 4.dp,
+        itemHorizontalPadding = 12.dp,
+        iconBoxSize = 40.dp,
+        iconBoxCornerRadius = 15.dp,
+        iconSize = 21.dp,
+        textStartPadding = 12.dp,
+        textEndPadding = 8.dp,
+        titleFontSize = 14.sp,
+        titleLineHeight = 17.sp,
+        subtitleFontSize = 11.sp,
+        subtitleLineHeight = 14.sp,
+        subtitleMaxLines = 1,
+        arrowBoxSize = 28.dp,
+        arrowFontSize = 22.sp,
+        arrowLineHeight = 22.sp
+    )
 }
 
 @Composable
@@ -168,8 +143,36 @@ fun SettingsScreen(
     onTips: () -> Unit,
     onBackground: () -> Unit
 ) {
-    val metrics = settingsLayoutMetrics()
+    when (rememberChaiOkDeviceClass()) {
+        ChaiOkDeviceClass.SquareCompact -> {
+            SettingsSquarePremiumScreen(
+                onBack = onBack,
+                onStatus = onStatus,
+                onTips = onTips,
+                onBackground = onBackground
+            )
+        }
 
+        ChaiOkDeviceClass.Regular -> {
+            SettingsRegularScreen(
+                state = state,
+                onBack = onBack,
+                onStatus = onStatus,
+                onTips = onTips,
+                onBackground = onBackground
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsRegularScreen(
+    state: SettingsUiState,
+    onBack: () -> Unit,
+    onStatus: () -> Unit,
+    onTips: () -> Unit,
+    onBackground: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -190,35 +193,32 @@ fun SettingsScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(metrics.headerToContentSpacing))
+            Spacer(modifier = Modifier.height(22.dp))
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = metrics.horizontalPadding),
-                verticalArrangement = Arrangement.spacedBy(metrics.cardsSpacing)
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SettingsItem(
+                SettingsRegularItem(
                     title = "Выбор статуса",
                     subtitle = "Обновить рабочий статус",
                     iconRes = R.drawable.ic_settings_status,
-                    metrics = metrics,
                     onClick = onStatus
                 )
 
-                SettingsItem(
+                SettingsRegularItem(
                     title = "Мои чаевые",
                     subtitle = "История и сводка по чаевым",
                     iconRes = R.drawable.ic_settings_tips,
-                    metrics = metrics,
                     onClick = onTips
                 )
 
-                SettingsItem(
+                SettingsRegularItem(
                     title = "Фон профиля",
                     subtitle = "Настройка плитки на главном экране",
                     iconRes = R.drawable.ic_settings_background,
-                    metrics = metrics,
                     onClick = onBackground
                 )
             }
@@ -227,11 +227,103 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsItem(
+private fun SettingsSquarePremiumScreen(
+    onBack: () -> Unit,
+    onStatus: () -> Unit,
+    onTips: () -> Unit,
+    onBackground: () -> Unit
+) {
+    val metrics = squarePremiumSettingsMetrics()
+    val scrollState = rememberScrollState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SettingsBackgroundColor)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TiplyBackTopAppBar(
+                title = "Настройки",
+                onBack = onBack,
+                elevation = 10.dp,
+                ambientAlpha = 0.16f,
+                spotAlpha = 0.22f
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = metrics.contentHorizontalPadding)
+                    .padding(
+                        top = metrics.contentTopPadding,
+                        bottom = metrics.contentBottomPadding
+                    )
+            ) {
+                Text(
+                    text = "Меню терминала",
+                    color = SettingsPrimaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = metrics.headerTitleFontSize,
+                    lineHeight = metrics.headerTitleLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Text(
+                    text = "Быстрые настройки рабочего экрана",
+                    color = SettingsSecondaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = metrics.headerSubtitleFontSize,
+                    lineHeight = metrics.headerSubtitleLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(metrics.headerToCardsSpacing))
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(metrics.cardsSpacing)
+                ) {
+                    SettingsPremiumItem(
+                        title = "Статус",
+                        subtitle = "Что видят гости",
+                        iconRes = R.drawable.ic_settings_status,
+                        metrics = metrics,
+                        onClick = onStatus
+                    )
+
+                    SettingsPremiumItem(
+                        title = "Чаевые",
+                        subtitle = "История и статистика",
+                        iconRes = R.drawable.ic_settings_tips,
+                        metrics = metrics,
+                        onClick = onTips
+                    )
+
+                    SettingsPremiumItem(
+                        title = "Фон профиля",
+                        subtitle = "Оформление карточки",
+                        iconRes = R.drawable.ic_settings_background,
+                        metrics = metrics,
+                        onClick = onBackground
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsRegularItem(
     title: String,
     subtitle: String,
     iconRes: Int,
-    metrics: SettingsLayoutMetrics,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -240,30 +332,127 @@ private fun SettingsItem(
         modifier = Modifier
             .fillMaxWidth()
             .shadow(
-                elevation = metrics.itemShadowElevation,
-                shape = RoundedCornerShape(metrics.itemCornerRadius),
+                elevation = 5.dp,
+                shape = RoundedCornerShape(24.dp),
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = 0.08f),
                 spotColor = Color.Black.copy(alpha = 0.12f)
             )
-            .clip(RoundedCornerShape(metrics.itemCornerRadius))
+            .clip(RoundedCornerShape(24.dp))
             .background(SettingsCardColor)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(
-                horizontal = metrics.itemHorizontalPadding,
-                vertical = metrics.itemVerticalPadding
-            ),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(SettingsIconBackgroundColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(SettingsAccentColor)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 14.dp, end = 10.dp)
+        ) {
+            Text(
+                text = title,
+                color = SettingsPrimaryTextColor,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                lineHeight = 19.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = subtitle,
+                color = SettingsSecondaryTextColor,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Text(
+            text = "›",
+            color = SettingsPrimaryTextColor.copy(alpha = 0.42f),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Normal,
+            fontSize = 28.sp,
+            lineHeight = 28.sp
+        )
+    }
+}
+
+@Composable
+private fun SettingsPremiumItem(
+    title: String,
+    subtitle: String,
+    iconRes: Int,
+    metrics: SettingsPremiumMetrics,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(metrics.itemHeight)
+            .shadow(
+                elevation = metrics.itemShadowElevation,
+                shape = RoundedCornerShape(metrics.itemCornerRadius),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.055f),
+                spotColor = Color.Black.copy(alpha = 0.105f)
+            )
+            .clip(RoundedCornerShape(metrics.itemCornerRadius))
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = SettingsStrokeColor.copy(alpha = 0.86f),
+                shape = RoundedCornerShape(metrics.itemCornerRadius)
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = metrics.itemHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .size(metrics.iconBoxSize)
                 .clip(RoundedCornerShape(metrics.iconBoxCornerRadius))
-                .background(SettingsIconBackgroundColor),
+                .background(
+                    brush = Brush.linearGradient(
+                        listOf(
+                            SettingsAccentColor.copy(alpha = 0.14f),
+                            SettingsGreenColor.copy(alpha = 0.12f)
+                        )
+                    )
+                ),
             contentAlignment = Alignment.Center
         ) {
             Image(
@@ -294,13 +483,13 @@ private fun SettingsItem(
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(metrics.titleSubtitleSpacing))
+            Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = subtitle,
                 color = SettingsSecondaryTextColor,
                 fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Normal,
+                fontWeight = FontWeight.Medium,
                 fontSize = metrics.subtitleFontSize,
                 lineHeight = metrics.subtitleLineHeight,
                 maxLines = metrics.subtitleMaxLines,
@@ -308,13 +497,21 @@ private fun SettingsItem(
             )
         }
 
-        Text(
-            text = "›",
-            color = SettingsPrimaryTextColor.copy(alpha = 0.42f),
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Normal,
-            fontSize = metrics.arrowFontSize,
-            lineHeight = metrics.arrowLineHeight
-        )
+        Box(
+            modifier = Modifier
+                .size(metrics.arrowBoxSize)
+                .clip(RoundedCornerShape(metrics.arrowBoxSize / 2))
+                .background(SettingsIconBackgroundColor.copy(alpha = 0.92f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "›",
+                color = SettingsPrimaryTextColor.copy(alpha = 0.48f),
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = metrics.arrowFontSize,
+                lineHeight = metrics.arrowLineHeight
+            )
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.chaiok.pos.presentation.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -36,21 +37,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
+import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
+private val HomeBackgroundColor = Color.White
+private val HomePrimaryTextColor = Color(0xFF1B2128)
+private val HomeSecondaryTextColor = Color(0xFF69707A)
+private val HomeAccentColor = Color(0xFF087BE8)
+private val HomeGreenColor = Color(0xFF14B8A6)
+private val HomeStrokeColor = Color(0xFFE2E7EF)
+
 private data class HomeLayoutMetrics(
     val isSquareCompact: Boolean,
+
     val amountLabelSize: Int,
     val amountBaseSize: Int,
     val amountSpacer: Dp,
     val amountSectionHeight: Dp,
     val amountBoxHeight: Dp,
     val amountMaxWidth: Dp,
+
     val topIconSize: Dp,
     val topActionTouchSize: Dp,
     val topBarHeight: Dp,
@@ -60,14 +73,138 @@ private data class HomeLayoutMetrics(
     val topBarShadowElevation: Dp,
     val logoWidth: Dp,
     val logoHeight: Dp,
+
     val headerBottomSpacer: Dp,
+
     val keypadHorizontalPadding: Dp,
     val keypadBottomPadding: Dp,
+    val keypadTouchSize: Dp?,
+    val keypadDigitFontSize: TextUnit?,
+    val keypadRowSpacing: Dp?,
+    val keypadIconSize: Dp?,
+
     val contentBottomPadding: Dp,
+
     val tableModeHorizontalPadding: Dp,
     val tableModeVerticalPadding: Dp,
     val tableModeFontSize: Int
 )
+
+private fun squarePremiumHomeMetrics(): HomeLayoutMetrics {
+    return HomeLayoutMetrics(
+        isSquareCompact = true,
+
+        amountLabelSize = 12,
+        amountBaseSize = 38,
+        amountSpacer = 2.dp,
+        amountSectionHeight = 84.dp,
+        amountBoxHeight = 42.dp,
+        amountMaxWidth = 260.dp,
+
+        topIconSize = 22.dp,
+        topActionTouchSize = 40.dp,
+        topBarHeight = 54.dp,
+        topBarBottomRadius = 30.dp,
+        topBarHorizontalPadding = 24.dp,
+        topBarVerticalPadding = 6.dp,
+        topBarShadowElevation = 8.dp,
+        logoWidth = 78.dp,
+        logoHeight = 26.dp,
+
+        headerBottomSpacer = 8.dp,
+
+        keypadHorizontalPadding = 18.dp,
+        keypadBottomPadding = 8.dp,
+        keypadTouchSize = 56.dp,
+        keypadDigitFontSize = 24.sp,
+        keypadRowSpacing = 0.dp,
+        keypadIconSize = 28.dp,
+
+        contentBottomPadding = 0.dp,
+
+        tableModeHorizontalPadding = 14.dp,
+        tableModeVerticalPadding = 14.dp,
+        tableModeFontSize = 15
+    )
+}
+
+private fun regularHomeMetrics(
+    isCompactPortrait: Boolean
+): HomeLayoutMetrics {
+    return if (isCompactPortrait) {
+        HomeLayoutMetrics(
+            isSquareCompact = false,
+
+            amountLabelSize = 16,
+            amountBaseSize = 48,
+            amountSpacer = 12.dp,
+            amountSectionHeight = 92.dp,
+            amountBoxHeight = 58.dp,
+            amountMaxWidth = 320.dp,
+
+            topIconSize = 30.dp,
+            topActionTouchSize = 48.dp,
+            topBarHeight = 72.dp,
+            topBarBottomRadius = 46.dp,
+            topBarHorizontalPadding = 32.dp,
+            topBarVerticalPadding = 10.dp,
+            topBarShadowElevation = 14.dp,
+            logoWidth = 100.dp,
+            logoHeight = 34.dp,
+
+            headerBottomSpacer = 22.dp,
+
+            keypadHorizontalPadding = 24.dp,
+            keypadBottomPadding = 38.dp,
+            keypadTouchSize = null,
+            keypadDigitFontSize = null,
+            keypadRowSpacing = null,
+            keypadIconSize = null,
+
+            contentBottomPadding = 390.dp,
+
+            tableModeHorizontalPadding = 8.dp,
+            tableModeVerticalPadding = 24.dp,
+            tableModeFontSize = 20
+        )
+    } else {
+        HomeLayoutMetrics(
+            isSquareCompact = false,
+
+            amountLabelSize = 16,
+            amountBaseSize = 48,
+            amountSpacer = 20.dp,
+            amountSectionHeight = 92.dp,
+            amountBoxHeight = 58.dp,
+            amountMaxWidth = 320.dp,
+
+            topIconSize = 34.dp,
+            topActionTouchSize = 48.dp,
+            topBarHeight = 72.dp,
+            topBarBottomRadius = 46.dp,
+            topBarHorizontalPadding = 32.dp,
+            topBarVerticalPadding = 10.dp,
+            topBarShadowElevation = 14.dp,
+            logoWidth = 100.dp,
+            logoHeight = 34.dp,
+
+            headerBottomSpacer = 22.dp,
+
+            keypadHorizontalPadding = 24.dp,
+            keypadBottomPadding = 38.dp,
+            keypadTouchSize = null,
+            keypadDigitFontSize = null,
+            keypadRowSpacing = null,
+            keypadIconSize = null,
+
+            contentBottomPadding = 390.dp,
+
+            tableModeHorizontalPadding = 8.dp,
+            tableModeVerticalPadding = 24.dp,
+            tableModeFontSize = 20
+        )
+    }
+}
 
 @Composable
 fun HomeScreen(
@@ -88,99 +225,6 @@ fun HomeScreen(
         }
     }
 
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val screenHeight = configuration.screenHeightDp.dp
-
-    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
-    val isCompactPortrait = screenHeight < 780.dp
-
-    val metrics = when {
-        isSquareCompact -> {
-            HomeLayoutMetrics(
-                isSquareCompact = true,
-                amountLabelSize = 12,
-                amountBaseSize = 34,
-                amountSpacer = 4.dp,
-                amountSectionHeight = 58.dp,
-                amountBoxHeight = 38.dp,
-                amountMaxWidth = 220.dp,
-                topIconSize = 22.dp,
-                topActionTouchSize = 40.dp,
-                topBarHeight = 54.dp,
-                topBarBottomRadius = 30.dp,
-                topBarHorizontalPadding = 24.dp,
-                topBarVerticalPadding = 6.dp,
-                topBarShadowElevation = 8.dp,
-                logoWidth = 78.dp,
-                logoHeight = 26.dp,
-                headerBottomSpacer = 6.dp,
-                keypadHorizontalPadding = 18.dp,
-                keypadBottomPadding = 8.dp,
-                contentBottomPadding = 272.dp,
-                tableModeHorizontalPadding = 12.dp,
-                tableModeVerticalPadding = 14.dp,
-                tableModeFontSize = 14
-            )
-        }
-
-        isCompactPortrait -> {
-            HomeLayoutMetrics(
-                isSquareCompact = false,
-                amountLabelSize = 16,
-                amountBaseSize = 48,
-                amountSpacer = 12.dp,
-                amountSectionHeight = 92.dp,
-                amountBoxHeight = 58.dp,
-                amountMaxWidth = 320.dp,
-                topIconSize = 30.dp,
-                topActionTouchSize = 48.dp,
-                topBarHeight = 72.dp,
-                topBarBottomRadius = 46.dp,
-                topBarHorizontalPadding = 32.dp,
-                topBarVerticalPadding = 10.dp,
-                topBarShadowElevation = 14.dp,
-                logoWidth = 100.dp,
-                logoHeight = 34.dp,
-                headerBottomSpacer = 22.dp,
-                keypadHorizontalPadding = 24.dp,
-                keypadBottomPadding = 38.dp,
-                contentBottomPadding = 390.dp,
-                tableModeHorizontalPadding = 8.dp,
-                tableModeVerticalPadding = 24.dp,
-                tableModeFontSize = 20
-            )
-        }
-
-        else -> {
-            HomeLayoutMetrics(
-                isSquareCompact = false,
-                amountLabelSize = 16,
-                amountBaseSize = 48,
-                amountSpacer = 20.dp,
-                amountSectionHeight = 92.dp,
-                amountBoxHeight = 58.dp,
-                amountMaxWidth = 320.dp,
-                topIconSize = 34.dp,
-                topActionTouchSize = 48.dp,
-                topBarHeight = 72.dp,
-                topBarBottomRadius = 46.dp,
-                topBarHorizontalPadding = 32.dp,
-                topBarVerticalPadding = 10.dp,
-                topBarShadowElevation = 14.dp,
-                logoWidth = 100.dp,
-                logoHeight = 34.dp,
-                headerBottomSpacer = 22.dp,
-                keypadHorizontalPadding = 24.dp,
-                keypadBottomPadding = 38.dp,
-                contentBottomPadding = 390.dp,
-                tableModeHorizontalPadding = 8.dp,
-                tableModeVerticalPadding = 24.dp,
-                tableModeFontSize = 20
-            )
-        }
-    }
-
     val firstName = state.profile?.firstName.orEmpty().trim()
     val lastName = state.profile?.lastName.orEmpty().trim()
 
@@ -193,15 +237,72 @@ fun HomeScreen(
         ?.ifBlank { "Коплю на отпуск!" }
         ?: "Коплю на отпуск!"
 
+    when (rememberChaiOkDeviceClass()) {
+        ChaiOkDeviceClass.SquareCompact -> {
+            HomeSquarePremiumScreen(
+                state = state,
+                waiterName = waiterName,
+                waiterStatus = waiterStatus,
+                snackState = snackState,
+                onLogout = onLogout,
+                onOpenSettings = onOpenSettings,
+                onDigit = onDigit,
+                onBackspace = onBackspace,
+                onConfirm = onConfirm
+            )
+        }
+
+        ChaiOkDeviceClass.Regular -> {
+            HomeRegularScreen(
+                state = state,
+                waiterName = waiterName,
+                waiterStatus = waiterStatus,
+                snackState = snackState,
+                onLogout = onLogout,
+                onOpenSettings = onOpenSettings,
+                onDigit = onDigit,
+                onBackspace = onBackspace,
+                onConfirm = onConfirm
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeRegularScreen(
+    state: HomeUiState,
+    waiterName: String,
+    waiterStatus: String,
+    snackState: SnackbarHostState,
+    onLogout: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onDigit: (String) -> Unit,
+    onBackspace: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenHeight = configuration.screenHeightDp.dp
+    val isCompactPortrait = screenHeight < 780.dp
+
+    val metrics = regularHomeMetrics(
+        isCompactPortrait = isCompactPortrait
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(HomeBackgroundColor)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = if (state.settings.tableModeEnabled) 0.dp else metrics.contentBottomPadding)
+                .padding(
+                    bottom = if (state.settings.tableModeEnabled) {
+                        0.dp
+                    } else {
+                        metrics.contentBottomPadding
+                    }
+                )
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 WaiterProfileCardHeader(
@@ -239,13 +340,12 @@ fun HomeScreen(
         }
 
         if (!state.settings.tableModeEnabled) {
-            TiplyNumericKeypad(
-                digitColor = Color(0xFF1B2128),
+            HomeNumericKeypad(
+                state = state,
+                metrics = metrics,
                 onDigit = onDigit,
-                onDelete = onBackspace,
+                onBackspace = onBackspace,
                 onConfirm = onConfirm,
-                confirmEnabled = state.amountInput.isNotBlank(),
-                isLoading = false,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
@@ -255,6 +355,96 @@ fun HomeScreen(
                         bottom = metrics.keypadBottomPadding
                     )
             )
+        }
+
+        SnackbarHost(
+            hostState = snackState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 10.dp)
+        )
+    }
+}
+
+@Composable
+private fun HomeSquarePremiumScreen(
+    state: HomeUiState,
+    waiterName: String,
+    waiterStatus: String,
+    snackState: SnackbarHostState,
+    onLogout: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onDigit: (String) -> Unit,
+    onBackspace: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val metrics = squarePremiumHomeMetrics()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(HomeBackgroundColor)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                WaiterProfileCardHeader(
+                    waiterName = waiterName,
+                    waiterStatus = waiterStatus,
+                    background = state.tileBackground
+                )
+
+                HomeTopAppBar(
+                    onLogout = onLogout,
+                    onOpenSettings = onOpenSettings,
+                    metrics = metrics,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(metrics.headerBottomSpacer))
+
+            if (state.settings.tableModeEnabled) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = metrics.keypadHorizontalPadding)
+                        .padding(bottom = metrics.keypadBottomPadding)
+                ) {
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    TableModePlaceholder(metrics = metrics)
+
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = metrics.keypadHorizontalPadding)
+                        .padding(bottom = metrics.keypadBottomPadding),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    PremiumAmountSection(
+                        amountInput = state.amountInput,
+                        metrics = metrics
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    HomeNumericKeypad(
+                        state = state,
+                        metrics = metrics,
+                        onDigit = onDigit,
+                        onBackspace = onBackspace,
+                        onConfirm = onConfirm,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
 
         SnackbarHost(
@@ -288,8 +478,12 @@ private fun HomeTopAppBar(
                 elevation = metrics.topBarShadowElevation,
                 shape = barShape,
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = if (metrics.isSquareCompact) 0.32f else 0.64f),
-                spotColor = Color.Black.copy(alpha = if (metrics.isSquareCompact) 0.42f else 0.72f)
+                ambientColor = Color.Black.copy(
+                    alpha = if (metrics.isSquareCompact) 0.18f else 0.64f
+                ),
+                spotColor = Color.Black.copy(
+                    alpha = if (metrics.isSquareCompact) 0.24f else 0.72f
+                )
             )
             .clip(barShape)
             .background(Color.White)
@@ -309,7 +503,7 @@ private fun HomeTopAppBar(
                 painter = painterResource(id = R.drawable.ic_home_settings),
                 contentDescription = "Настройки",
                 modifier = Modifier.size(metrics.topIconSize),
-                colorFilter = ColorFilter.tint(Color(0xFF1B2128))
+                colorFilter = ColorFilter.tint(HomePrimaryTextColor)
             )
         }
 
@@ -331,7 +525,7 @@ private fun HomeTopAppBar(
                 painter = painterResource(id = R.drawable.ic_home_logout),
                 contentDescription = "Выйти",
                 modifier = Modifier.size(metrics.topIconSize),
-                colorFilter = ColorFilter.tint(Color(0xFF1B2128))
+                colorFilter = ColorFilter.tint(HomePrimaryTextColor)
             )
         }
     }
@@ -379,7 +573,7 @@ private fun AmountSection(
     ) {
         Text(
             text = "Введите сумму счёта:",
-            color = Color(0xFF1B2128),
+            color = HomePrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Normal,
             fontSize = metrics.amountLabelSize.sp,
@@ -398,7 +592,7 @@ private fun AmountSection(
             Text(
                 text = formatAmount(amountInput),
                 modifier = Modifier.widthIn(max = metrics.amountMaxWidth),
-                color = Color(0xFF1B2128),
+                color = HomePrimaryTextColor,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = amountTextSize,
@@ -410,6 +604,97 @@ private fun AmountSection(
             )
         }
     }
+}
+
+@Composable
+private fun PremiumAmountSection(
+    amountInput: String,
+    metrics: HomeLayoutMetrics
+) {
+    val amountTextSize = when (amountInput.length) {
+        in 0..4 -> metrics.amountBaseSize.sp
+        in 5..6 -> (metrics.amountBaseSize - 4).sp
+        else -> (metrics.amountBaseSize - 8).sp
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(metrics.amountSectionHeight)
+            .shadow(
+                elevation = 5.dp,
+                shape = RoundedCornerShape(24.dp),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.055f),
+                spotColor = Color.Black.copy(alpha = 0.10f)
+            )
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = if (amountInput.isNotBlank()) {
+                    HomeAccentColor.copy(alpha = 0.22f)
+                } else {
+                    HomeStrokeColor.copy(alpha = 0.86f)
+                },
+                shape = RoundedCornerShape(24.dp)
+            )
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Сумма счёта",
+            color = HomeSecondaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.amountLabelSize.sp,
+            lineHeight = (metrics.amountLabelSize + 3).sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(metrics.amountSpacer))
+
+        Text(
+            text = formatAmount(amountInput),
+            modifier = Modifier.widthIn(max = metrics.amountMaxWidth),
+            color = HomePrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = amountTextSize,
+            lineHeight = metrics.amountBaseSize.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun HomeNumericKeypad(
+    state: HomeUiState,
+    metrics: HomeLayoutMetrics,
+    onDigit: (String) -> Unit,
+    onBackspace: () -> Unit,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    TiplyNumericKeypad(
+        digitColor = HomePrimaryTextColor,
+        touchSize = metrics.keypadTouchSize,
+        digitFontSize = metrics.keypadDigitFontSize,
+        rowSpacing = metrics.keypadRowSpacing,
+        iconSize = metrics.keypadIconSize,
+        onDigit = onDigit,
+        onDelete = onBackspace,
+        onConfirm = onConfirm,
+        confirmEnabled = state.amountInput.isNotBlank(),
+        isLoading = false,
+        modifier = modifier
+    )
 }
 
 @Composable

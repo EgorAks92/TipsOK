@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -30,63 +29,80 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
+import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
 private data class TiplyBackTopAppBarMetrics(
-    val isSquareCompact: Boolean,
     val height: Dp,
     val horizontalPadding: Dp,
     val topPadding: Dp,
     val bottomPadding: Dp,
-    val bottomRadius: Dp,
-    val shadowElevation: Dp,
+
+    val bottomCornerRadius: Dp,
+
+    val resolvedElevation: Dp,
+    val resolvedAmbientAlpha: Float,
+    val resolvedSpotAlpha: Float,
+
     val titleHorizontalPadding: Dp,
     val titleFontSize: TextUnit,
     val titleLineHeight: TextUnit,
-    val backTouchSize: Dp,
-    val backIconSize: Dp
+
+    val touchSize: Dp,
+    val iconSize: Dp
 )
 
-@Composable
-private fun tiplyBackTopAppBarMetrics(
-    regularElevation: Dp
+private fun regularTiplyBackTopAppBarMetrics(
+    elevation: Dp,
+    ambientAlpha: Float,
+    spotAlpha: Float
 ): TiplyBackTopAppBarMetrics {
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val screenHeight = configuration.screenHeightDp.dp
-    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+    return TiplyBackTopAppBarMetrics(
+        height = 72.dp,
+        horizontalPadding = 32.dp,
+        topPadding = 10.dp,
+        bottomPadding = 10.dp,
 
-    return if (isSquareCompact) {
-        TiplyBackTopAppBarMetrics(
-            isSquareCompact = true,
-            height = 54.dp,
-            horizontalPadding = 20.dp,
-            topPadding = 6.dp,
-            bottomPadding = 6.dp,
-            bottomRadius = 30.dp,
-            shadowElevation = 8.dp,
-            titleHorizontalPadding = 48.dp,
-            titleFontSize = 16.sp,
-            titleLineHeight = 20.sp,
-            backTouchSize = 42.dp,
-            backIconSize = 24.dp
-        )
-    } else {
-        TiplyBackTopAppBarMetrics(
-            isSquareCompact = false,
-            height = 72.dp,
-            horizontalPadding = 32.dp,
-            topPadding = 10.dp,
-            bottomPadding = 10.dp,
-            bottomRadius = 46.dp,
-            shadowElevation = regularElevation,
-            titleHorizontalPadding = 56.dp,
-            titleFontSize = 18.sp,
-            titleLineHeight = 22.sp,
-            backTouchSize = 48.dp,
-            backIconSize = 30.dp
-        )
-    }
+        bottomCornerRadius = 46.dp,
+
+        resolvedElevation = elevation,
+        resolvedAmbientAlpha = ambientAlpha,
+        resolvedSpotAlpha = spotAlpha,
+
+        titleHorizontalPadding = 56.dp,
+        titleFontSize = 18.sp,
+        titleLineHeight = 22.sp,
+
+        touchSize = 48.dp,
+        iconSize = 30.dp
+    )
+}
+
+private fun squareCompactTiplyBackTopAppBarMetrics(
+    elevation: Dp,
+    ambientAlpha: Float,
+    spotAlpha: Float
+): TiplyBackTopAppBarMetrics {
+    return TiplyBackTopAppBarMetrics(
+        height = 54.dp,
+        horizontalPadding = 20.dp,
+        topPadding = 6.dp,
+        bottomPadding = 7.dp,
+
+        bottomCornerRadius = 30.dp,
+
+        resolvedElevation = minOf(elevation, 10.dp),
+        resolvedAmbientAlpha = minOf(ambientAlpha, 0.18f),
+        resolvedSpotAlpha = minOf(spotAlpha, 0.24f),
+
+        titleHorizontalPadding = 46.dp,
+        titleFontSize = 16.sp,
+        titleLineHeight = 19.sp,
+
+        touchSize = 40.dp,
+        iconSize = 24.dp
+    )
 }
 
 @Composable
@@ -100,15 +116,50 @@ fun TiplyBackTopAppBar(
     iconTint: Color = Color(0xFF1B2128),
     titleColor: Color = Color(0xFF1B2128)
 ) {
-    val metrics = tiplyBackTopAppBarMetrics(
-        regularElevation = elevation
-    )
+    val deviceClass = rememberChaiOkDeviceClass()
 
+    val metrics = when (deviceClass) {
+        ChaiOkDeviceClass.SquareCompact -> {
+            squareCompactTiplyBackTopAppBarMetrics(
+                elevation = elevation,
+                ambientAlpha = ambientAlpha,
+                spotAlpha = spotAlpha
+            )
+        }
+
+        ChaiOkDeviceClass.Regular -> {
+            regularTiplyBackTopAppBarMetrics(
+                elevation = elevation,
+                ambientAlpha = ambientAlpha,
+                spotAlpha = spotAlpha
+            )
+        }
+    }
+
+    TiplyBackTopAppBarContent(
+        title = title,
+        onBack = onBack,
+        modifier = modifier,
+        metrics = metrics,
+        iconTint = iconTint,
+        titleColor = titleColor
+    )
+}
+
+@Composable
+private fun TiplyBackTopAppBarContent(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier,
+    metrics: TiplyBackTopAppBarMetrics,
+    iconTint: Color,
+    titleColor: Color
+) {
     val barShape = RoundedCornerShape(
         topStart = 0.dp,
         topEnd = 0.dp,
-        bottomStart = metrics.bottomRadius,
-        bottomEnd = metrics.bottomRadius
+        bottomStart = metrics.bottomCornerRadius,
+        bottomEnd = metrics.bottomCornerRadius
     )
 
     Box(
@@ -116,11 +167,11 @@ fun TiplyBackTopAppBar(
             .fillMaxWidth()
             .height(metrics.height)
             .shadow(
-                elevation = metrics.shadowElevation,
+                elevation = metrics.resolvedElevation,
                 shape = barShape,
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = ambientAlpha),
-                spotColor = Color.Black.copy(alpha = spotAlpha)
+                ambientColor = Color.Black.copy(alpha = metrics.resolvedAmbientAlpha),
+                spotColor = Color.Black.copy(alpha = metrics.resolvedSpotAlpha)
             )
             .clip(barShape)
             .background(Color.White)
@@ -150,7 +201,7 @@ fun TiplyBackTopAppBar(
 
         Box(
             modifier = Modifier
-                .size(metrics.backTouchSize)
+                .size(metrics.touchSize)
                 .align(Alignment.CenterStart)
                 .clickable(
                     interactionSource = interactionSource,
@@ -162,7 +213,7 @@ fun TiplyBackTopAppBar(
             Image(
                 painter = painterResource(id = R.drawable.ic_settings_back),
                 contentDescription = "Назад",
-                modifier = Modifier.size(metrics.backIconSize),
+                modifier = Modifier.size(metrics.iconSize),
                 contentScale = ContentScale.Fit,
                 colorFilter = ColorFilter.tint(iconTint)
             )

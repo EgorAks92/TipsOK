@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +37,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
+import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
+import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.Dispatchers
@@ -58,10 +60,9 @@ private val BackgroundSecondaryTextColor = Color(0xFF69707A)
 private val BackgroundCardColor = Color(0xFFF7F8FA)
 private val BackgroundAccentColor = Color(0xFF087BE8)
 private val BackgroundGreenColor = Color(0xFF14B8A6)
+private val BackgroundStrokeColor = Color(0xFFE2E7EF)
 
 private data class ProfileBackgroundLayoutMetrics(
-    val isSquareCompact: Boolean,
-
     val contentHorizontalPadding: Dp,
     val contentTopPadding: Dp,
     val contentBottomPadding: Dp,
@@ -106,108 +107,98 @@ private data class ProfileBackgroundLayoutMetrics(
     val resetButtonLineHeight: TextUnit
 )
 
-@Composable
-private fun profileBackgroundLayoutMetrics(): ProfileBackgroundLayoutMetrics {
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val screenHeight = configuration.screenHeightDp.dp
-    val isSquareCompact = screenWidth <= 520.dp && screenHeight <= 520.dp
+private fun regularProfileBackgroundMetrics(): ProfileBackgroundLayoutMetrics {
+    return ProfileBackgroundLayoutMetrics(
+        contentHorizontalPadding = 24.dp,
+        contentTopPadding = 28.dp,
+        contentBottomPadding = 24.dp,
+        contentSpacing = 14.dp,
 
-    return if (isSquareCompact) {
-        ProfileBackgroundLayoutMetrics(
-            isSquareCompact = true,
+        titleFontSize = 24.sp,
+        titleLineHeight = 28.sp,
+        subtitleFontSize = 14.sp,
+        subtitleLineHeight = 19.sp,
+        subtitleMaxLines = Int.MAX_VALUE,
 
-            contentHorizontalPadding = 14.dp,
-            contentTopPadding = 10.dp,
-            contentBottomPadding = 12.dp,
-            contentSpacing = 8.dp,
+        previewCardCornerRadius = 28.dp,
+        previewCardShadowElevation = 8.dp,
+        previewCardPadding = 16.dp,
+        previewTitleFontSize = 16.sp,
+        previewTitleLineHeight = 20.sp,
+        previewTitleMaxLines = 1,
+        previewTitleToImageSpacing = 12.dp,
 
-            titleFontSize = 18.sp,
-            titleLineHeight = 22.sp,
-            subtitleFontSize = 12.sp,
-            subtitleLineHeight = 16.sp,
-            subtitleMaxLines = 2,
+        previewImageHeight = 178.dp,
+        previewImageCornerRadius = 32.dp,
+        previewImageShadowElevation = 10.dp,
 
-            previewCardCornerRadius = 20.dp,
-            previewCardShadowElevation = 4.dp,
-            previewCardPadding = 10.dp,
-            previewTitleFontSize = 13.sp,
-            previewTitleLineHeight = 16.sp,
-            previewTitleMaxLines = 1,
-            previewTitleToImageSpacing = 8.dp,
+        previewImageToDescriptionSpacing = 12.dp,
+        previewDescriptionFontSize = 13.sp,
+        previewDescriptionLineHeight = 18.sp,
+        previewDescriptionMaxLines = Int.MAX_VALUE,
 
-            previewImageHeight = 104.dp,
-            previewImageCornerRadius = 22.dp,
-            previewImageShadowElevation = 5.dp,
+        loadingTextFontSize = 14.sp,
+        loadingTextLineHeight = 18.sp,
 
-            previewImageToDescriptionSpacing = 8.dp,
-            previewDescriptionFontSize = 11.sp,
-            previewDescriptionLineHeight = 14.sp,
-            previewDescriptionMaxLines = 2,
+        primaryButtonHeight = 58.dp,
+        primaryButtonCornerRadius = 24.dp,
+        primaryButtonShadowElevation = 8.dp,
+        primaryButtonFontSize = 16.sp,
+        primaryButtonLineHeight = 20.sp,
 
-            loadingTextFontSize = 12.sp,
-            loadingTextLineHeight = 15.sp,
+        resetButtonHeight = 54.dp,
+        resetButtonCornerRadius = 22.dp,
+        resetButtonShadowElevation = 5.dp,
+        resetButtonFontSize = 15.sp,
+        resetButtonLineHeight = 19.sp
+    )
+}
 
-            primaryButtonHeight = 44.dp,
-            primaryButtonCornerRadius = 18.dp,
-            primaryButtonShadowElevation = 5.dp,
-            primaryButtonFontSize = 14.sp,
-            primaryButtonLineHeight = 17.sp,
+private fun squarePremiumProfileBackgroundMetrics(): ProfileBackgroundLayoutMetrics {
+    return ProfileBackgroundLayoutMetrics(
+        contentHorizontalPadding = 16.dp,
+        contentTopPadding = 12.dp,
+        contentBottomPadding = 10.dp,
+        contentSpacing = 8.dp,
 
-            resetButtonHeight = 42.dp,
-            resetButtonCornerRadius = 17.dp,
-            resetButtonShadowElevation = 3.dp,
-            resetButtonFontSize = 13.sp,
-            resetButtonLineHeight = 16.sp
-        )
-    } else {
-        ProfileBackgroundLayoutMetrics(
-            isSquareCompact = false,
+        titleFontSize = 18.sp,
+        titleLineHeight = 22.sp,
+        subtitleFontSize = 11.sp,
+        subtitleLineHeight = 15.sp,
+        subtitleMaxLines = 1,
 
-            contentHorizontalPadding = 24.dp,
-            contentTopPadding = 28.dp,
-            contentBottomPadding = 24.dp,
-            contentSpacing = 14.dp,
+        previewCardCornerRadius = 24.dp,
+        previewCardShadowElevation = 5.dp,
+        previewCardPadding = 12.dp,
+        previewTitleFontSize = 13.sp,
+        previewTitleLineHeight = 16.sp,
+        previewTitleMaxLines = 1,
+        previewTitleToImageSpacing = 9.dp,
 
-            titleFontSize = 24.sp,
-            titleLineHeight = 28.sp,
-            subtitleFontSize = 14.sp,
-            subtitleLineHeight = 19.sp,
-            subtitleMaxLines = Int.MAX_VALUE,
+        previewImageHeight = 154.dp,
+        previewImageCornerRadius = 26.dp,
+        previewImageShadowElevation = 8.dp,
 
-            previewCardCornerRadius = 28.dp,
-            previewCardShadowElevation = 8.dp,
-            previewCardPadding = 16.dp,
-            previewTitleFontSize = 16.sp,
-            previewTitleLineHeight = 20.sp,
-            previewTitleMaxLines = 1,
-            previewTitleToImageSpacing = 12.dp,
+        previewImageToDescriptionSpacing = 9.dp,
+        previewDescriptionFontSize = 11.sp,
+        previewDescriptionLineHeight = 14.sp,
+        previewDescriptionMaxLines = 2,
 
-            previewImageHeight = 178.dp,
-            previewImageCornerRadius = 32.dp,
-            previewImageShadowElevation = 10.dp,
+        loadingTextFontSize = 12.sp,
+        loadingTextLineHeight = 15.sp,
 
-            previewImageToDescriptionSpacing = 12.dp,
-            previewDescriptionFontSize = 13.sp,
-            previewDescriptionLineHeight = 18.sp,
-            previewDescriptionMaxLines = Int.MAX_VALUE,
+        primaryButtonHeight = 44.dp,
+        primaryButtonCornerRadius = 18.dp,
+        primaryButtonShadowElevation = 5.dp,
+        primaryButtonFontSize = 14.sp,
+        primaryButtonLineHeight = 17.sp,
 
-            loadingTextFontSize = 14.sp,
-            loadingTextLineHeight = 18.sp,
-
-            primaryButtonHeight = 58.dp,
-            primaryButtonCornerRadius = 24.dp,
-            primaryButtonShadowElevation = 8.dp,
-            primaryButtonFontSize = 16.sp,
-            primaryButtonLineHeight = 20.sp,
-
-            resetButtonHeight = 54.dp,
-            resetButtonCornerRadius = 22.dp,
-            resetButtonShadowElevation = 5.dp,
-            resetButtonFontSize = 15.sp,
-            resetButtonLineHeight = 19.sp
-        )
-    }
+        resetButtonHeight = 38.dp,
+        resetButtonCornerRadius = 16.dp,
+        resetButtonShadowElevation = 0.dp,
+        resetButtonFontSize = 12.sp,
+        resetButtonLineHeight = 15.sp
+    )
 }
 
 @Composable
@@ -216,9 +207,6 @@ fun ProfileBackgroundScreen(
     onBack: () -> Unit,
     onSelect: (String) -> Unit
 ) {
-    val metrics = profileBackgroundLayoutMetrics()
-    val scrollState = rememberScrollState()
-
     val context = LocalContext.current
     val selectedBackground = state.selectedBackground
     val hasCustomImage = selectedBackground.isCustomBackgroundUri()
@@ -237,6 +225,40 @@ fun ProfileBackgroundScreen(
             onSelect(uri.toString())
         }
     }
+
+    when (rememberChaiOkDeviceClass()) {
+        ChaiOkDeviceClass.SquareCompact -> {
+            ProfileBackgroundSquarePremiumScreen(
+                selectedBackground = selectedBackground,
+                hasCustomImage = hasCustomImage,
+                onBack = onBack,
+                onPickImage = { imagePicker.launch(arrayOf("image/*")) },
+                onReset = { onSelect(DEFAULT_BACKGROUND) }
+            )
+        }
+
+        ChaiOkDeviceClass.Regular -> {
+            ProfileBackgroundRegularScreen(
+                selectedBackground = selectedBackground,
+                hasCustomImage = hasCustomImage,
+                onBack = onBack,
+                onPickImage = { imagePicker.launch(arrayOf("image/*")) },
+                onReset = { onSelect(DEFAULT_BACKGROUND) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileBackgroundRegularScreen(
+    selectedBackground: String?,
+    hasCustomImage: Boolean,
+    onBack: () -> Unit,
+    onPickImage: () -> Unit,
+    onReset: () -> Unit
+) {
+    val metrics = regularProfileBackgroundMetrics()
+    val scrollState = rememberScrollState()
 
     Box(
         modifier = Modifier
@@ -289,7 +311,8 @@ fun ProfileBackgroundScreen(
                 BackgroundPreviewCard(
                     selectedBackground = selectedBackground,
                     hasCustomImage = hasCustomImage,
-                    metrics = metrics
+                    metrics = metrics,
+                    premium = false
                 )
 
                 PickImageButton(
@@ -299,15 +322,113 @@ fun ProfileBackgroundScreen(
                         "Выбрать изображение"
                     },
                     metrics = metrics,
-                    onClick = {
-                        imagePicker.launch(arrayOf("image/*"))
-                    }
+                    premium = false,
+                    onClick = onPickImage
                 )
 
                 if (hasCustomImage) {
                     ResetBackgroundButton(
                         metrics = metrics,
-                        onClick = { onSelect(DEFAULT_BACKGROUND) }
+                        premium = false,
+                        onClick = onReset
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileBackgroundSquarePremiumScreen(
+    selectedBackground: String?,
+    hasCustomImage: Boolean,
+    onBack: () -> Unit,
+    onPickImage: () -> Unit,
+    onReset: () -> Unit
+) {
+    val metrics = squarePremiumProfileBackgroundMetrics()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundScreenColor)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TiplyBackTopAppBar(
+                title = "Фон профиля",
+                onBack = onBack,
+                elevation = 10.dp,
+                ambientAlpha = 0.16f,
+                spotAlpha = 0.22f
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = metrics.contentHorizontalPadding)
+                    .padding(
+                        top = metrics.contentTopPadding,
+                        bottom = 0.dp
+                    )
+            ) {
+                Text(
+                    text = "Оформление",
+                    color = BackgroundPrimaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = metrics.titleFontSize,
+                    lineHeight = metrics.titleLineHeight,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = "Фон карточки официанта на главном экране",
+                    color = BackgroundSecondaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = metrics.subtitleFontSize,
+                    lineHeight = metrics.subtitleLineHeight,
+                    maxLines = metrics.subtitleMaxLines,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(metrics.contentSpacing))
+
+                BackgroundPreviewCard(
+                    selectedBackground = selectedBackground,
+                    hasCustomImage = hasCustomImage,
+                    metrics = metrics,
+                    premium = true
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = metrics.contentHorizontalPadding)
+                    .padding(bottom = metrics.contentBottomPadding),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                PickImageButton(
+                    text = if (hasCustomImage) {
+                        "Выбрать другое изображение"
+                    } else {
+                        "Выбрать изображение"
+                    },
+                    metrics = metrics,
+                    premium = true,
+                    onClick = onPickImage
+                )
+
+                if (hasCustomImage) {
+                    ResetBackgroundButton(
+                        metrics = metrics,
+                        premium = true,
+                        onClick = onReset
                     )
                 }
             }
@@ -319,8 +440,22 @@ fun ProfileBackgroundScreen(
 private fun BackgroundPreviewCard(
     selectedBackground: String?,
     hasCustomImage: Boolean,
-    metrics: ProfileBackgroundLayoutMetrics
+    metrics: ProfileBackgroundLayoutMetrics,
+    premium: Boolean
 ) {
+    val cardBackground = if (premium) {
+        Color.White
+    } else {
+        BackgroundCardColor
+    }
+
+    val borderColor = when {
+        !premium -> Color.Transparent
+        selectedBackground == null -> BackgroundStrokeColor.copy(alpha = 0.86f)
+        hasCustomImage -> BackgroundAccentColor.copy(alpha = 0.22f)
+        else -> BackgroundGreenColor.copy(alpha = 0.18f)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -328,11 +463,16 @@ private fun BackgroundPreviewCard(
                 elevation = metrics.previewCardShadowElevation,
                 shape = RoundedCornerShape(metrics.previewCardCornerRadius),
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.10f),
-                spotColor = Color.Black.copy(alpha = 0.16f)
+                ambientColor = Color.Black.copy(alpha = if (premium) 0.055f else 0.10f),
+                spotColor = Color.Black.copy(alpha = if (premium) 0.10f else 0.16f)
             )
             .clip(RoundedCornerShape(metrics.previewCardCornerRadius))
-            .background(BackgroundCardColor)
+            .background(cardBackground)
+            .border(
+                width = if (premium) 1.dp else 0.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(metrics.previewCardCornerRadius)
+            )
             .padding(metrics.previewCardPadding)
     ) {
         Text(
@@ -360,8 +500,8 @@ private fun BackgroundPreviewCard(
                     elevation = metrics.previewImageShadowElevation,
                     shape = RoundedCornerShape(metrics.previewImageCornerRadius),
                     clip = false,
-                    ambientColor = Color.Black.copy(alpha = 0.18f),
-                    spotColor = Color.Black.copy(alpha = 0.28f)
+                    ambientColor = Color.Black.copy(alpha = if (premium) 0.12f else 0.18f),
+                    spotColor = Color.Black.copy(alpha = if (premium) 0.20f else 0.28f)
                 )
                 .clip(RoundedCornerShape(metrics.previewImageCornerRadius))
                 .background(Color(0xFFF0F2F4)),
@@ -413,7 +553,7 @@ private fun BackgroundPreviewCard(
             },
             color = BackgroundSecondaryTextColor,
             fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Normal,
+            fontWeight = if (premium) FontWeight.Medium else FontWeight.Normal,
             fontSize = metrics.previewDescriptionFontSize,
             lineHeight = metrics.previewDescriptionLineHeight,
             maxLines = metrics.previewDescriptionMaxLines,
@@ -510,6 +650,7 @@ private fun LoadingBackgroundPreview(
 private fun PickImageButton(
     text: String,
     metrics: ProfileBackgroundLayoutMetrics,
+    premium: Boolean,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -522,8 +663,8 @@ private fun PickImageButton(
                 elevation = metrics.primaryButtonShadowElevation,
                 shape = RoundedCornerShape(metrics.primaryButtonCornerRadius),
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.12f),
-                spotColor = Color.Black.copy(alpha = 0.18f)
+                ambientColor = Color.Black.copy(alpha = if (premium) 0.08f else 0.12f),
+                spotColor = Color.Black.copy(alpha = if (premium) 0.14f else 0.18f)
             )
             .clip(RoundedCornerShape(metrics.primaryButtonCornerRadius))
             .background(
@@ -559,9 +700,22 @@ private fun PickImageButton(
 @Composable
 private fun ResetBackgroundButton(
     metrics: ProfileBackgroundLayoutMetrics,
+    premium: Boolean,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+
+    val backgroundColor = if (premium) {
+        Color.White
+    } else {
+        Color(0xFFF7F8FA)
+    }
+
+    val borderColor = if (premium) {
+        BackgroundStrokeColor.copy(alpha = 0.9f)
+    } else {
+        Color.Transparent
+    }
 
     Box(
         modifier = Modifier
@@ -571,11 +725,16 @@ private fun ResetBackgroundButton(
                 elevation = metrics.resetButtonShadowElevation,
                 shape = RoundedCornerShape(metrics.resetButtonCornerRadius),
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.06f),
-                spotColor = Color.Black.copy(alpha = 0.10f)
+                ambientColor = Color.Black.copy(alpha = if (premium) 0f else 0.06f),
+                spotColor = Color.Black.copy(alpha = if (premium) 0f else 0.10f)
             )
             .clip(RoundedCornerShape(metrics.resetButtonCornerRadius))
-            .background(Color(0xFFF7F8FA))
+            .background(backgroundColor)
+            .border(
+                width = if (premium) 1.dp else 0.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(metrics.resetButtonCornerRadius)
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
