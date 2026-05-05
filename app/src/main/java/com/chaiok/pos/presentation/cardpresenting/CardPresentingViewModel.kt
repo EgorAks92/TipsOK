@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class CardPresentingStage {
@@ -218,7 +219,7 @@ class CardPresentingViewModel(
                     )
                 }
 
-                deliverTerminalEvent(event)
+                deliverTerminalEvent(event, APPROVED_RESULT_HOLD_MS)
             }
 
             is PosPaymentEvent.Declined -> {
@@ -238,7 +239,7 @@ class CardPresentingViewModel(
                     )
                 }
 
-                deliverTerminalEvent(event)
+                deliverTerminalEvent(event, FAILED_RESULT_HOLD_MS)
             }
 
             is PosPaymentEvent.Error -> {
@@ -258,7 +259,7 @@ class CardPresentingViewModel(
                     )
                 }
 
-                deliverTerminalEvent(event)
+                deliverTerminalEvent(event, FAILED_RESULT_HOLD_MS)
             }
 
             PosPaymentEvent.Cancelled -> {
@@ -283,7 +284,10 @@ class CardPresentingViewModel(
         }
     }
 
-    private suspend fun deliverTerminalEvent(event: PosPaymentEvent) {
+    private suspend fun deliverTerminalEvent(
+        event: PosPaymentEvent,
+        holdDurationMs: Long
+    ) {
         if (terminalEventDelivered) {
             Log.i(
                 PAYMENT_TAG,
@@ -302,6 +306,9 @@ class CardPresentingViewModel(
         if (result == null) return
 
         terminalEventDelivered = true
+        if (holdDurationMs > 0) {
+            delay(holdDurationMs)
+        }
         events.send(
             CardPresentingOneTimeEvent.PaymentFinished(
                 result = result
@@ -361,3 +368,5 @@ private fun String?.toPaymentMessagePreview(): String {
 }
 
 private const val PAYMENT_TAG = "TipsPaymentFlow"
+private const val APPROVED_RESULT_HOLD_MS = 3_000L
+private const val FAILED_RESULT_HOLD_MS = 4_000L
