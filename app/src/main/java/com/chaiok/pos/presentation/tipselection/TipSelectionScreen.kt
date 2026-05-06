@@ -496,10 +496,13 @@ private fun TipSelectionSquarePremiumLayout(
 
                     Spacer(modifier = Modifier.height(metrics.payButtonTopSpacer))
 
-                    CompactGradientPayButton(
+                    GradientPayButton(
                         amount = state.totalAmount,
                         enabled = state.isPayEnabled,
                         loading = state.paymentState == TipPaymentUiState.Processing,
+                        metrics = metrics,
+                        premium = true,
+                        showChevron = true,
                         onClick = onPay
                     )
                 }
@@ -535,7 +538,7 @@ private fun TipSelectionCompactScreenContent(
         if (state.serviceFeePercent > 0.0) {
             CompactServiceFeeRow(
                 checked = state.isServiceFeeEnabled,
-                percent = state.serviceFeePercent,
+                amount = state.serviceFeeAmount,
                 onCheckedChange = onServiceFeeToggle
             )
         }
@@ -569,7 +572,7 @@ private fun CompactTipTopBar(
         }
         Spacer(modifier = Modifier.width(10.dp))
         Text(
-            text = "Чаевые",
+            text = "Счёт и чаевые",
             color = TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
@@ -596,34 +599,26 @@ private fun CompactSummaryCard(state: TipSelectionUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(88.dp)
-            .shadow(3.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(0.08f), spotColor = Color.Black.copy(0.12f))
-            .clip(RoundedCornerShape(22.dp))
+            .height(80.dp)
+            .shadow(2.dp, RoundedCornerShape(18.dp), ambientColor = Color.Black.copy(0.06f), spotColor = Color.Black.copy(0.1f))
+            .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
-            .border(1.dp, TipSelectionStrokeColor.copy(alpha = 0.86f), RoundedCornerShape(22.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .border(1.dp, TipSelectionStrokeColor.copy(alpha = 0.86f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(58.dp)
-                .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor))),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(10.dp))
-        Column {
-            Text("Итого к оплате", color = TipSelectionSecondaryTextColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text(formatRubles(state.totalAmount), color = TipSelectionPrimaryTextColor, fontWeight = FontWeight.Bold, fontSize = 30.sp)
-            Text("Чаевые ${formatRubles(state.selectedTipAmount)}", color = TipSelectionSecondaryTextColor, fontSize = 13.sp)
-        }
+        CompactSummaryColumn("Счёт", formatRubles(state.billAmount), Modifier.weight(1f))
+        CompactSummaryColumn("Чаевые", formatRubles(state.selectedTipAmount), Modifier.weight(1f))
+        CompactSummaryColumn("Итого", formatRubles(state.totalAmount), Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun CompactSummaryColumn(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = TipSelectionSecondaryTextColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(value, color = TipSelectionPrimaryTextColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -636,19 +631,37 @@ private fun CompactPercentRow(
         .mapIndexed { index, percent -> CompactPresetItem(index, percent) }
         .take(COMPACT_VISIBLE_PRESETS)
 
-    Row(
-        modifier = Modifier.fillMaxWidth().height(120.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.Top
-    ) {
-        visibleItems.forEach { item ->
-            val selected = !state.isCustomSelected && state.selectedPercentIndex == item.originalIndex
-            CompactCarouselTipCard(
-                percentText = formatPercent(item.percent),
-                amountText = formatRubles(state.calculateTipByPercent(item.percent)),
-                selected = selected,
-                onClick = { onPreset(item.originalIndex) }
-            )
+    Box(modifier = Modifier.fillMaxWidth().height(120.dp)) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(6.dp)
+                .height(34.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(TipSelectionAccentColor.copy(alpha = 0.9f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .width(6.dp)
+                .height(34.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(TipSelectionAccentColor.copy(alpha = 0.9f))
+        )
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.Top
+        ) {
+            visibleItems.forEach { item ->
+                val selected = !state.isCustomSelected && state.selectedPercentIndex == item.originalIndex
+                CompactCarouselTipCard(
+                    percentText = formatPercent(item.percent),
+                    amountText = formatRubles(state.calculateTipByPercent(item.percent)),
+                    selected = selected,
+                    onClick = { onPreset(item.originalIndex) }
+                )
+            }
         }
     }
 }
@@ -691,8 +704,8 @@ private fun CompactCarouselTipCard(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val width = if (selected) 112.dp else 86.dp
-    val height = if (selected) 118.dp else 106.dp
+    val width = if (selected) 92.dp else 70.dp
+    val height = if (selected) 114.dp else 102.dp
     Box(
         modifier = Modifier
             .padding(top = if (selected) 0.dp else 6.dp)
@@ -716,17 +729,17 @@ private fun CompactCarouselTipCard(
             .padding(horizontal = 10.dp, vertical = 10.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
-            Text(percentText, color = if (selected) Color.White else TipSelectionPrimaryTextColor, fontSize = if (selected) 32.sp else 25.sp, fontWeight = FontWeight.Bold)
-            Text(amountText, color = if (selected) Color.White else TipSelectionSecondaryTextColor, fontSize = if (selected) 14.sp else 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(percentText, color = if (selected) Color.White else TipSelectionPrimaryTextColor, fontSize = if (selected) 20.sp else 16.sp, fontWeight = FontWeight.Bold)
+            Text(amountText, color = if (selected) Color.White else TipSelectionSecondaryTextColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
             Box(
                 modifier = Modifier
-                    .size(if (selected) 28.dp else 26.dp)
+                    .size(if (selected) 24.dp else 22.dp)
                     .clip(CircleShape)
                     .border(2.dp, if (selected) Color.White else TipSelectionStrokeColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 if (selected) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                 }
             }
         }
@@ -736,7 +749,7 @@ private fun CompactCarouselTipCard(
 @Composable
 private fun CompactServiceFeeRow(
     checked: Boolean,
-    percent: Double,
+    amount: Double,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -760,7 +773,7 @@ private fun CompactServiceFeeRow(
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Комиссия сервиса ${formatPercent(percent)}",
+            text = "Возмещение комиссии (${formatRubles(amount)})",
             color = TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.SemiBold,
@@ -798,38 +811,6 @@ private fun CompactSwitch(
                 .clip(CircleShape)
                 .background(Color.White)
         )
-    }
-}
-
-@Composable
-private fun CompactGradientPayButton(
-    amount: Double,
-    enabled: Boolean,
-    loading: Boolean,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(20.dp)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clip(shape)
-            .background(Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor)))
-            .clickable(enabled = enabled && !loading, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = if (loading) "Обработка..." else "Оплатить ${formatRubles(amount)}",
-                color = Color.White,
-                fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-            if (!loading) {
-                Text("›", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 
@@ -1631,6 +1612,7 @@ private fun GradientPayButton(
     loading: Boolean,
     metrics: TipSelectionLayoutMetrics,
     premium: Boolean,
+    showChevron: Boolean = false,
     onClick: () -> Unit
 ) {
     val animatedAmountKopecks by animateIntAsState(
@@ -1685,21 +1667,26 @@ private fun GradientPayButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = if (loading) {
-                "Оплата..."
-            } else {
-                "Оплатить ${formatKopecks(animatedAmountKopecks)}"
-            },
-            color = if (enabled) Color.White else Color(0xFF8B96A5),
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = metrics.payButtonFontSize.sp,
-            lineHeight = (metrics.payButtonFontSize + 4).sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = if (loading) {
+                    "Оплата..."
+                } else {
+                    "Оплатить ${formatKopecks(animatedAmountKopecks)}"
+                },
+                color = if (enabled) Color.White else Color(0xFF8B96A5),
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = metrics.payButtonFontSize.sp,
+                lineHeight = (metrics.payButtonFontSize + 4).sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (showChevron && !loading) {
+                Text("›", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
