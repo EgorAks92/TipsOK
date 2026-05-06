@@ -6,6 +6,10 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -61,9 +66,7 @@ fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit)
     }
 
     Box(Modifier.fillMaxSize()) {
-        Crossfade(targetState = slides[currentIndex], label = "pc_idle_crossfade") {
-            IdleBackgroundImage(image = it, modifier = Modifier.fillMaxSize())
-        }
+        PremiumIdleSlideshow(slides = slides, currentIndex = currentIndex, modifier = Modifier.fillMaxSize())
 
         StatusChip(
             status = state.connectionStatus,
@@ -71,6 +74,43 @@ fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit)
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(if (isCompact) 10.dp else 18.dp)
+        )
+    }
+}
+
+@Composable
+private fun PremiumIdleSlideshow(slides: List<String>, currentIndex: Int, modifier: Modifier = Modifier) {
+    val motionProgress = remember(currentIndex) { Animatable(0f) }
+    LaunchedEffect(currentIndex) {
+        motionProgress.snapTo(0f)
+        motionProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = SLIDE_INTERVAL_MS.toInt(), easing = LinearEasing)
+        )
+    }
+
+    val scale = 1f + (0.045f * motionProgress.value)
+    val panMagnitude = 16f * motionProgress.value
+    val isEvenSlide = currentIndex % 2 == 0
+    val panX = if (isEvenSlide) -panMagnitude else panMagnitude
+    val panY = if (isEvenSlide) -panMagnitude * 0.6f else panMagnitude * 0.6f
+
+    Crossfade(
+        targetState = slides[currentIndex],
+        animationSpec = tween(durationMillis = 1_200, easing = FastOutSlowInEasing),
+        modifier = modifier,
+        label = "pc_idle_premium_crossfade"
+    ) { image ->
+        IdleBackgroundImage(
+            image = image,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = panX
+                    translationY = panY
+                }
         )
     }
 }
