@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
@@ -70,6 +71,7 @@ private val TipSelectionStrokeColor = Color(0xFFE2E7EF)
 private val TipSelectionAccentColor = Color(0xFF087BE8)
 private val TipSelectionGreenColor = Color(0xFF14B8A6)
 private val TipSelectionWarningColor = Color(0xFFFFB547)
+private const val COMPACT_VISIBLE_PRESETS = 4
 
 private data class TipSelectionLayoutMetrics(
     val isSquareCompact: Boolean,
@@ -203,8 +205,8 @@ private fun squarePremiumTipSelectionMetrics(): TipSelectionLayoutMetrics {
     return TipSelectionLayoutMetrics(
         isSquareCompact = true,
         headerSpacer = 10.dp,
-        horizontalPadding = 16.dp,
-        bottomPadding = 10.dp,
+        horizontalPadding = 12.dp,
+        bottomPadding = 8.dp,
         contentCardSpacing = 10.dp,
         payButtonTopSpacer = 8.dp,
 
@@ -242,13 +244,13 @@ private fun squarePremiumTipSelectionMetrics(): TipSelectionLayoutMetrics {
         starIconSize = 17.dp,
         starSpacing = 4.dp,
 
-        serviceFeeHeight = 56.dp,
+        serviceFeeHeight = 46.dp,
         serviceFeeCorner = 20.dp,
         serviceFeeTitleSize = 12,
         serviceFeeSubtitleSize = 10,
         serviceFeeHorizontalPadding = 12.dp,
 
-        payButtonHeight = 48.dp,
+        payButtonHeight = 46.dp,
         payButtonCorner = 20.dp,
         payButtonFontSize = 16,
 
@@ -450,24 +452,15 @@ private fun TipSelectionSquarePremiumLayout(
             .background(TipSelectionScreenColor)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                WaiterProfileCardHeader(
-                    waiterName = state.waiterName,
-                    waiterStatus = state.waiterStatus,
-                    background = state.tileBackground
-                )
+            CompactTipTopBar(
+                billAmount = state.billAmount,
+                onBack = onBack,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = metrics.horizontalPadding, vertical = 8.dp)
+            )
 
-                TiplyBackTopAppBar(
-                    title = "Чаевые",
-                    onBack = onBack,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    elevation = 8.dp,
-                    ambientAlpha = 0.22f,
-                    spotAlpha = 0.30f
-                )
-            }
-
-            Spacer(modifier = Modifier.height(metrics.headerSpacer))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Column(
                 modifier = Modifier
@@ -529,13 +522,13 @@ private fun TipSelectionCompactScreenContent(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        CompactBillHeader(state = state)
         CompactSummaryCard(state = state)
         CompactPercentRow(state = state, metrics = metrics, onPreset = onPreset)
         CompactSecondaryActions(
             onCustomAmount = onCustomStart,
             onNoTips = {
                 val noTipsIndex = state.availablePercents.indexOfFirst { it == 0.0 }
+                // Prefer native 0% preset to preserve existing preset-selection semantics.
                 if (noTipsIndex >= 0) onPreset(noTipsIndex) else onCustomSet("0")
             }
         )
@@ -554,26 +547,61 @@ private fun TipSelectionCompactScreenContent(
     }
 }
 
-@Composable private fun CompactBillHeader(state: TipSelectionUiState) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+@Composable
+private fun CompactTipTopBar(
+    billAmount: Double,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.height(48.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(TipSelectionSoftCardColor)
+                .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
+                .clickable(onClick = onBack),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Назад",
+                tint = TipSelectionPrimaryTextColor
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
         Text(
-            text = "Счёт ${formatRubles(state.billAmount)}",
+            text = "Чаевые",
+            color = TipSelectionPrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "Счёт ${formatRubles(billAmount)}",
             color = TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp,
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(TipSelectionSoftCardColor)
+                .background(Color.White)
+                .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(999.dp))
                 .padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
 }
 
-@Composable private fun CompactSummaryCard(state: TipSelectionUiState) {
+@Composable
+private fun CompactSummaryCard(state: TipSelectionUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(84.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
             .border(1.dp, TipSelectionStrokeColor.copy(alpha = 0.86f), RoundedCornerShape(20.dp))
@@ -582,10 +610,17 @@ private fun TipSelectionCompactScreenContent(
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(42.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor)))
-        )
+                .background(Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor))),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = Color.White
+            )
+        }
         Spacer(modifier = Modifier.width(10.dp))
         Column {
             Text("Итого к оплате", color = TipSelectionSecondaryTextColor, fontSize = 11.sp)
@@ -595,12 +630,17 @@ private fun TipSelectionCompactScreenContent(
     }
 }
 
-@Composable private fun CompactPercentRow(state: TipSelectionUiState, metrics: TipSelectionLayoutMetrics, onPreset: (Int) -> Unit) {
+@Composable
+private fun CompactPercentRow(
+    state: TipSelectionUiState,
+    metrics: TipSelectionLayoutMetrics,
+    onPreset: (Int) -> Unit
+) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         contentPadding = PaddingValues(horizontal = 2.dp)
     ) {
-        itemsIndexed(state.availablePercents.take(4)) { index, percent ->
+        itemsIndexed(state.availablePercents.take(COMPACT_VISIBLE_PRESETS)) { index, percent ->
             val selected = !state.isCustomSelected && state.selectedPercentIndex == index
             TipPercentCard(
                 percentText = formatPercent(percent),
