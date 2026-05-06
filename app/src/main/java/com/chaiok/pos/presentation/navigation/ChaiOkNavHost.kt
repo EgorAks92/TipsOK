@@ -1,5 +1,6 @@
 package com.chaiok.pos.presentation.navigation
 
+import android.os.SystemClock
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
@@ -811,20 +812,31 @@ private suspend fun startPcUsbPaymentFlow(
     viewModel: TipSelectionViewModel,
     paymentRequest: PosPaymentRequest
 ) {
+    val flowStartMs = SystemClock.elapsedRealtime()
+
     Log.i(
         PAYMENT_TAG,
         "PC USB payment flow requested terminalId=***${paymentRequest.terminalId.takeLast(4)}"
     )
+    Log.i(PAYMENT_TAG, "PC USB payment flow release start")
 
     runCatching {
         container.pcPaymentCommandRepository.stop()
     }.onSuccess {
-        Log.i(PAYMENT_TAG, "PC USB ECR release before POS flow completed")
+        Log.i(
+            PAYMENT_TAG,
+            "PC USB payment flow release done elapsedMs=${SystemClock.elapsedRealtime() - flowStartMs}"
+        )
     }.onFailure { throwable ->
         Log.e(PAYMENT_TAG, "PC USB ECR release before POS flow failed", throwable)
     }
 
-    delay(PC_USB_BEFORE_POS_DELAY_MS)
+    delay(PC_USB_SAFETY_SETTLE_DELAY_MS)
+
+    Log.i(
+        PAYMENT_TAG,
+        "PC USB payment flow navigating to CardPresenting elapsedMs=${SystemClock.elapsedRealtime() - flowStartMs}"
+    )
 
     startPaymentFlow(
         navController = navController,
@@ -1024,4 +1036,5 @@ private const val PAYMENT_RESULT_DECLINED = "declined"
 private const val PAYMENT_RESULT_ERROR = "error"
 private const val PAYMENT_RESULT_CANCELLED = "cancelled"
 
-private const val PC_USB_BEFORE_POS_DELAY_MS = 2_500L
+// Full ECR release is performed when PC command is accepted; this is a final settle delay.
+private const val PC_USB_SAFETY_SETTLE_DELAY_MS = 150L
