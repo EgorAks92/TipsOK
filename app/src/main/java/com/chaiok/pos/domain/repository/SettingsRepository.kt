@@ -8,4 +8,5 @@ interface SettingsRepository {
     suspend fun setIntegrationMode(enabled: Boolean)
     suspend fun setTableMode(enabled: Boolean)
     suspend fun setTileBackground(background: String)
+    suspend fun setPcUsbMode(enabled: Boolean)
 }
