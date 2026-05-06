@@ -8,18 +8,14 @@ import android.provider.MediaStore
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,42 +65,40 @@ fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit)
             IdleBackgroundImage(image = it, modifier = Modifier.fillMaxSize())
         }
 
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.33f)))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.12f)))
 
-        Column(Modifier.fillMaxSize().padding(if (isCompact) 12.dp else 24.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text("ChaiOK", color = Color.White, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, fontSize = if (isCompact) 18.sp else 24.sp)
-                    Text("by Tiply", color = Color.White.copy(alpha = 0.82f), fontFamily = MontserratFontFamily, fontSize = if (isCompact) 10.sp else 12.sp)
-                }
-                StatusChip(state.connectionStatus)
-            }
-
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(state.title, color = Color.White, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, fontSize = if (isCompact) 26.sp else 36.sp)
-                    Text(state.subtitle, color = Color.White.copy(alpha = 0.96f), fontFamily = MontserratFontFamily, fontWeight = FontWeight.SemiBold, fontSize = if (isCompact) 15.sp else 20.sp, modifier = Modifier.padding(top = 10.dp))
-                    Text(state.helperText, color = Color.White.copy(alpha = 0.88f), fontFamily = MontserratFontFamily, fontSize = if (isCompact) 12.sp else 14.sp, modifier = Modifier.padding(top = 8.dp))
-                }
-            }
-
-            TextButton(onClick = onOpenSettings, modifier = Modifier.align(Alignment.End)) {
-                Text("Настройки", color = Color.White, fontFamily = MontserratFontFamily)
-            }
-        }
+        StatusChip(
+            status = state.connectionStatus,
+            onClick = onOpenSettings,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(if (isCompact) 10.dp else 18.dp)
+        )
     }
 }
 
 @Composable
-private fun StatusChip(status: PcUsbConnectionStatus) {
+private fun StatusChip(status: PcUsbConnectionStatus, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val text = when (status) {
         PcUsbConnectionStatus.Idle -> "USB готов"
         PcUsbConnectionStatus.WaitingForData -> "Ожидание команды"
         is PcUsbConnectionStatus.Error -> "Ошибка USB"
         else -> "Подключение"
     }
-    Surface(shape = RoundedCornerShape(16.dp), color = if (status is PcUsbConnectionStatus.Error) Color(0x99D32F2F) else Color(0x664CAF50)) {
-        Text(text, color = Color.White, fontFamily = MontserratFontFamily, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+    val interactionSource = remember { MutableInteractionSource() }
+    Surface(
+        modifier = modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = if (status is PcUsbConnectionStatus.Error) Color(0x99D32F2F) else Color(0x55373D45)
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
     }
 }
 

@@ -27,10 +27,7 @@ import kotlinx.coroutines.withContext
 
 data class PcCommandIdleUiState(
     val connectionStatus: PcUsbConnectionStatus = PcUsbConnectionStatus.Idle,
-    val images: List<String> = emptyList(),
-    val title: String = "Готовы принять чаевые",
-    val subtitle: String = "Ожидание команды с кассы",
-    val helperText: String = "После команды с кассы здесь появится выбор чаевых"
+    val images: List<String> = emptyList()
 )
 
 class PcCommandIdleViewModel(
