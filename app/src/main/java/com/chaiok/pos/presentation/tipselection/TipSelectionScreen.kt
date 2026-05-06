@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
@@ -219,8 +220,8 @@ private fun squarePremiumTipSelectionMetrics(): TipSelectionLayoutMetrics {
         tipCardShadow = 5.dp,
         tipCardsSpacing = 8.dp,
 
-        percentCardWidth = 104.dp,
-        percentCardHeight = 62.dp,
+        percentCardWidth = 90.dp,
+        percentCardHeight = 100.dp,
         percentCardCorner = 18.dp,
         percentCardPaddingHorizontal = 10.dp,
         percentCardPaddingVertical = 7.dp,
@@ -523,7 +524,7 @@ private fun TipSelectionCompactScreenContent(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         CompactSummaryCard(state = state)
-        CompactPercentRow(state = state, metrics = metrics, onPreset = onPreset)
+        CompactPercentRow(state = state, onPreset = onPreset)
         CompactSecondaryActions(
             onCustomAmount = onCustomStart,
             onNoTips = {
@@ -533,16 +534,11 @@ private fun TipSelectionCompactScreenContent(
             }
         )
         if (state.serviceFeePercent > 0.0) {
-            ServiceFeeSwitchCard(
+            CompactServiceFeeRow(
                 checked = state.isServiceFeeEnabled,
                 percent = state.serviceFeePercent,
-                amount = state.serviceFeeAmount,
-                metrics = metrics,
-                premium = true,
                 onCheckedChange = onServiceFeeToggle
             )
-        } else {
-            Spacer(modifier = Modifier.height(56.dp))
         }
     }
 }
@@ -633,44 +629,141 @@ private fun CompactSummaryCard(state: TipSelectionUiState) {
 @Composable
 private fun CompactPercentRow(
     state: TipSelectionUiState,
-    metrics: TipSelectionLayoutMetrics,
     onPreset: (Int) -> Unit
 ) {
     LazyRow(
+        modifier = Modifier.height(114.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         contentPadding = PaddingValues(horizontal = 2.dp)
     ) {
         itemsIndexed(state.availablePercents.take(COMPACT_VISIBLE_PRESETS)) { index, percent ->
             val selected = !state.isCustomSelected && state.selectedPercentIndex == index
-            TipPercentCard(
+            CompactCarouselTipCard(
                 percentText = formatPercent(percent),
                 amountText = formatRubles(state.calculateTipByPercent(percent)),
                 selected = selected,
-                metrics = metrics,
                 onClick = { onPreset(index) }
             )
         }
     }
 }
 
-@Composable private fun CompactSecondaryActions(onCustomAmount: () -> Unit, onNoTips: () -> Unit) {
+@Composable
+private fun CompactSecondaryActions(onCustomAmount: () -> Unit, onNoTips: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        CompactSecondaryButton("Другая сумма", Modifier.weight(1f), onCustomAmount)
-        CompactSecondaryButton("Без чаевых", Modifier.weight(1f), onNoTips)
+        CompactSecondaryButton("Другая сумма", Icons.Default.Edit, Modifier.weight(1f), onCustomAmount)
+        CompactSecondaryButton("Без чаевых", Icons.Default.Close, Modifier.weight(1f), onNoTips)
     }
 }
 
-@Composable private fun CompactSecondaryButton(text: String, modifier: Modifier, onClick: () -> Unit) {
+@Composable
+private fun CompactSecondaryButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
     Box(
         modifier = modifier
-            .height(44.dp)
+            .height(42.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(TipSelectionCardColor)
+            .background(Color.White)
             .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = text, color = TipSelectionPrimaryTextColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(icon, contentDescription = null, tint = TipSelectionAccentColor, modifier = Modifier.size(16.dp))
+            Text(text = text, color = TipSelectionPrimaryTextColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun CompactCarouselTipCard(
+    percentText: String,
+    amountText: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val width = if (selected) 114.dp else 88.dp
+    val height = if (selected) 112.dp else 100.dp
+    Box(
+        modifier = Modifier
+            .padding(top = if (selected) 0.dp else 6.dp)
+            .size(width = width, height = height)
+            .shadow(
+                elevation = if (selected) 6.dp else 2.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = TipSelectionAccentColor.copy(alpha = 0.14f),
+                spotColor = TipSelectionAccentColor.copy(alpha = 0.2f)
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (selected) {
+                    Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor))
+                } else {
+                    Brush.linearGradient(listOf(Color.White, Color.White))
+                }
+            )
+            .border(1.dp, if (selected) Color.Transparent else TipSelectionStrokeColor, RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 10.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
+            Text(percentText, color = if (selected) Color.White else TipSelectionPrimaryTextColor, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text(amountText, color = if (selected) Color.White else TipSelectionSecondaryTextColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .border(2.dp, if (selected) Color.White else TipSelectionStrokeColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactServiceFeeRow(
+    checked: Boolean,
+    percent: Double,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Check, contentDescription = null, tint = TipSelectionGreenColor, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Комиссия сервиса ${formatPercent(percent)}",
+            color = TipSelectionPrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = TipSelectionAccentColor,
+                uncheckedThumbColor = Color.White,
+                uncheckedTrackColor = TipSelectionStrokeColor
+            )
+        )
     }
 }
 
