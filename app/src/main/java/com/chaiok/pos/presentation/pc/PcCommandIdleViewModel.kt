@@ -105,10 +105,9 @@ class PcCommandIdleViewModel(
                 observeSettingsUseCase()
             ) { status, settings ->
                 val configuredImages = settings.pcIdleImages.filter { it.isNotBlank() }
-                val fallbackImage = settings.tileBackground.takeIf { it.isNotBlank() } ?: DEFAULT_IMAGE
                 PcCommandIdleUiState(
                     connectionStatus = status,
-                    images = if (configuredImages.isNotEmpty()) configuredImages else listOf(fallbackImage)
+                    images = if (configuredImages.isNotEmpty()) configuredImages else listOf(DEFAULT_IMAGE)
                 )
             }.collect { nextState ->
                 _uiState.value = nextState

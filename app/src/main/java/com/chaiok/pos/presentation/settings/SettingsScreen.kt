@@ -123,7 +123,8 @@ fun SettingsRoute(
     onBack: () -> Unit,
     onStatus: () -> Unit,
     onTips: () -> Unit,
-    onBackground: () -> Unit
+    onBackground: () -> Unit,
+    onPcIdleImages: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -133,6 +134,7 @@ fun SettingsRoute(
         onStatus = onStatus,
         onTips = onTips,
         onBackground = onBackground,
+        onPcIdleImages = onPcIdleImages,
         onTogglePcUsbMode = viewModel::togglePcUsbMode
     )
 }
@@ -144,6 +146,7 @@ fun SettingsScreen(
     onStatus: () -> Unit,
     onTips: () -> Unit,
     onBackground: () -> Unit,
+    onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit
 ) {
     when (rememberChaiOkDeviceClass()) {
@@ -154,6 +157,7 @@ fun SettingsScreen(
                 onStatus = onStatus,
                 onTips = onTips,
                 onBackground = onBackground,
+        onPcIdleImages = onPcIdleImages,
                 onTogglePcUsbMode = onTogglePcUsbMode
             )
         }
@@ -165,6 +169,7 @@ fun SettingsScreen(
                 onStatus = onStatus,
                 onTips = onTips,
                 onBackground = onBackground,
+        onPcIdleImages = onPcIdleImages,
                 onTogglePcUsbMode = onTogglePcUsbMode
             )
         }
@@ -178,6 +183,7 @@ private fun SettingsRegularScreen(
     onStatus: () -> Unit,
     onTips: () -> Unit,
     onBackground: () -> Unit,
+    onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit
 ) {
     Box(
@@ -229,6 +235,13 @@ private fun SettingsRegularScreen(
                     onClick = onBackground
                 )
 
+                SettingsRegularItem(
+                    title = "Экран ожидания кассы",
+                    subtitle = "Картинки в ECR-режиме",
+                    iconRes = R.drawable.ic_settings_background,
+                    onClick = onPcIdleImages
+                )
+
                 SettingsRegularToggleItem(
                     title = "Режим кассы по USB",
                     subtitle = if (state.pcUsbModeEnabled) "Приложение ждёт сумму от ПК по USB" else "Ожидание команды оплаты от ПК выключено",
@@ -248,6 +261,7 @@ private fun SettingsSquarePremiumScreen(
     onStatus: () -> Unit,
     onTips: () -> Unit,
     onBackground: () -> Unit,
+    onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit
 ) {
     val metrics = squarePremiumSettingsMetrics()
@@ -329,6 +343,14 @@ private fun SettingsSquarePremiumScreen(
                         iconRes = R.drawable.ic_settings_background,
                         metrics = metrics,
                         onClick = onBackground
+                    )
+
+                    SettingsPremiumItem(
+                        title = "Экран ожидания кассы",
+                        subtitle = "Картинки в ECR-режиме",
+                        iconRes = R.drawable.ic_settings_background,
+                        metrics = metrics,
+                        onClick = onPcIdleImages
                     )
 
                     SettingsPremiumToggleItem(

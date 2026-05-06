@@ -38,6 +38,8 @@ import com.chaiok.pos.presentation.login.LoginViewModel
 import com.chaiok.pos.presentation.pc.PcCommandIdleEvent
 import com.chaiok.pos.presentation.pc.PcCommandIdleScreen
 import com.chaiok.pos.presentation.pc.PcCommandIdleViewModel
+import com.chaiok.pos.presentation.pc.PcIdleImagesRoute
+import com.chaiok.pos.presentation.pc.PcIdleImagesViewModel
 import com.chaiok.pos.presentation.settings.SettingsRoute
 import com.chaiok.pos.presentation.settings.SettingsViewModel
 import com.chaiok.pos.presentation.status.StatusScreen
@@ -202,6 +204,9 @@ fun ChaiOkNavHost(container: AppContainer) {
                 },
                 onBackground = {
                     navController.navigate(Routes.Background)
+                },
+                onPcIdleImages = {
+                    navController.navigate(Routes.PcIdleImages)
                 }
             )
         }
@@ -248,6 +253,9 @@ fun ChaiOkNavHost(container: AppContainer) {
                 },
                 onBackground = {
                     navController.navigate(Routes.Background)
+                },
+                onPcIdleImages = {
+                    navController.navigate(Routes.PcIdleImages)
                 }
             )
         }
@@ -524,6 +532,23 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onServiceFeeToggle = vm::toggleServiceFee,
                 onKitchenEvaluation = vm::selectKitchenEvaluation,
                 onServiceEvaluation = vm::selectServiceEvaluation
+            )
+        }
+
+
+        composable(Routes.PcIdleImages) {
+            val vm: PcIdleImagesViewModel = viewModel(
+                factory = SimpleFactory {
+                    PcIdleImagesViewModel(
+                        observeSettingsUseCase = container.observeSettingsUseCase,
+                        updatePcIdleImagesUseCase = container.updatePcIdleImagesUseCase
+                    )
+                }
+            )
+
+            PcIdleImagesRoute(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
             )
         }
 
