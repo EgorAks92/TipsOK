@@ -530,7 +530,10 @@ fun ChaiOkNavHost(container: AppContainer) {
         composable(Routes.PcCommandIdle) {
             val vm: PcCommandIdleViewModel = viewModel(
                 factory = SimpleFactory {
-                    PcCommandIdleViewModel(container.pcPaymentCommandRepository)
+                    PcCommandIdleViewModel(
+                        repository = container.pcPaymentCommandRepository,
+                        observeSettingsUseCase = container.observeSettingsUseCase
+                    )
                 }
             )
 

@@ -9,4 +9,5 @@ interface SettingsRepository {
     suspend fun setTableMode(enabled: Boolean)
     suspend fun setTileBackground(background: String)
     suspend fun setPcUsbMode(enabled: Boolean)
+    suspend fun setPcIdleImages(images: List<String>)
 }
