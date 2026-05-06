@@ -22,6 +22,9 @@ class XchengPcPaymentCommandRepository(
         PcUsbConnectionStatus.Idle
     )
 
+    @Volatile
+    private var stopped = false
+
     override fun observeCommands(): Flow<PcPaymentCommand> = commands
 
     override fun observeStatus(): Flow<PcUsbConnectionStatus> = status
@@ -30,15 +33,25 @@ class XchengPcPaymentCommandRepository(
         return client.send(response.payload.toByteArray(Charsets.UTF_8))
     }
 
-    suspend fun listenOnce() {
+    override suspend fun listenOnce() {
+        stopped = false
+
         status.value = PcUsbConnectionStatus.BindingService
 
         val bound = client.bindService()
         if (bound.isFailure) {
             val message = bound.exceptionOrNull()?.message ?: "bind error"
+            Log.e(TAG, "bind failed: $message", bound.exceptionOrNull())
+
             status.value = PcUsbConnectionStatus.Error(message)
             client.closeAll()
             delay(ERROR_VISIBLE_DELAY_MS)
+            return
+        }
+
+        if (stopped) {
+            client.closeAll()
+            status.value = PcUsbConnectionStatus.Idle
             return
         }
 
@@ -53,9 +66,17 @@ class XchengPcPaymentCommandRepository(
         val connected = client.openAndConnect()
         if (connected.isFailure) {
             val message = connected.exceptionOrNull()?.message ?: "connect error"
+            Log.e(TAG, "connect failed: $message", connected.exceptionOrNull())
+
             status.value = PcUsbConnectionStatus.Error(message)
-            client.closePortOnly()
+            client.closeAll()
             delay(ERROR_VISIBLE_DELAY_MS)
+            return
+        }
+
+        if (stopped) {
+            client.closeAll()
+            status.value = PcUsbConnectionStatus.Idle
             return
         }
 
@@ -67,13 +88,15 @@ class XchengPcPaymentCommandRepository(
         val received = client.receiveOnce()
         if (received.isFailure) {
             val message = received.exceptionOrNull()?.message ?: "receive error"
+            Log.e(TAG, "receive failed: $message", received.exceptionOrNull())
+
             status.value = PcUsbConnectionStatus.Error(message)
-            client.closePortOnly()
+            client.closeAll()
             delay(ERROR_VISIBLE_DELAY_MS)
             return
         }
 
-        val bytes: ByteArray? = received.getOrNull()
+        val bytes = received.getOrNull()
 
         Log.i(TAG, "recv bytes=${bytes?.size ?: 0}")
 
@@ -90,12 +113,21 @@ class XchengPcPaymentCommandRepository(
                             "orderId=${command.orderId ?: "-"}"
                 )
 
+                /*
+                 * Важно:
+                 * Перед переходом в чаевые полностью освобождаем WireECR.
+                 * Это нужно, чтобы SmartSky/SSP POS service смог нормально подключиться.
+                 */
+                status.value = PcUsbConnectionStatus.Idle
+                client.closeAll()
+                delay(POS_SERVICE_RELEASE_DELAY_MS)
+
                 commands.emit(command)
+                return
             } else {
                 Log.w(
                     TAG,
-                    "payload received but parser returned null. " +
-                            "hex=${bytes.toHexPreview()}"
+                    "payload received but parser returned null. hex=${bytes.toHexPreview()}"
                 )
             }
         }
@@ -106,12 +138,13 @@ class XchengPcPaymentCommandRepository(
         delay(LISTEN_LOOP_DELAY_MS)
     }
 
-    suspend fun stop() {
-        client.stop()
+    override suspend fun stop() {
+        stopped = true
+        client.closeAll()
         status.value = PcUsbConnectionStatus.Idle
     }
 
-    private fun ByteArray.toHexPreview(limit: Int = 64): String {
+    private fun ByteArray.toHexPreview(limit: Int = 96): String {
         return take(limit).joinToString(" ") { byte ->
             "%02X".format(byte)
         }
@@ -122,6 +155,7 @@ class XchengPcPaymentCommandRepository(
 
         private const val STEP_VISIBLE_DELAY_MS = 100L
         private const val LISTEN_LOOP_DELAY_MS = 300L
-        private const val ERROR_VISIBLE_DELAY_MS = 2500L
+        private const val ERROR_VISIBLE_DELAY_MS = 2_500L
+        private const val POS_SERVICE_RELEASE_DELAY_MS = 700L
     }
 }
