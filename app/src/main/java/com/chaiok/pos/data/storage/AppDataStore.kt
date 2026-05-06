@@ -28,6 +28,7 @@ class AppDataStore(private val context: Context) {
         val tipRangeDefaultIndex = intPreferencesKey("tip_range_default_index")
 
         val serviceFeePercent = doublePreferencesKey("service_fee_percent")
+        val pcUsbMode = booleanPreferencesKey("pc_usb_mode_enabled")
     }
 
     val integrationModeFlow: Flow<Boolean> =
@@ -50,6 +51,9 @@ class AppDataStore(private val context: Context) {
 
     val serviceFeePercentFlow: Flow<Double> =
         context.dataStore.data.map { it[Keys.serviceFeePercent] ?: 0.0 }
+
+    val pcUsbModeFlow: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.pcUsbMode] ?: false }
 
     val tipRangeFlow: Flow<TipRange?> = context.dataStore.data.map { prefs ->
         val percentsRaw = prefs[Keys.tipRangePercents]
@@ -96,6 +100,10 @@ class AppDataStore(private val context: Context) {
 
     suspend fun setServiceFeePercent(value: Double) = context.dataStore.edit {
         it[Keys.serviceFeePercent] = value.coerceAtLeast(0.0)
+    }
+
+    suspend fun setPcUsbMode(value: Boolean) = context.dataStore.edit {
+        it[Keys.pcUsbMode] = value
     }
 
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {

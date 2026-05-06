@@ -13,12 +13,14 @@ class DataStoreSettingsRepository(
     override fun observeSettings(): Flow<AppSettings> = combine(
         dataStore.integrationModeFlow,
         dataStore.tableModeFlow,
-        dataStore.tileBackgroundFlow
-    ) { integration, table, background ->
+        dataStore.tileBackgroundFlow,
+        dataStore.pcUsbModeFlow
+    ) { integration, table, background, pcUsb ->
         AppSettings(
             integrationModeEnabled = integration,
             tableModeEnabled = table,
-            tileBackground = background
+            tileBackground = background,
+            pcUsbModeEnabled = pcUsb
         )
     }
 
@@ -37,6 +39,12 @@ class DataStoreSettingsRepository(
     override suspend fun setTileBackground(background: String) {
         runCatching {
             dataStore.setTileBackground(background)
+        }
+    }
+
+    override suspend fun setPcUsbMode(enabled: Boolean) {
+        runCatching {
+            dataStore.setPcUsbMode(enabled)
         }
     }
 }

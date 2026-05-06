@@ -3,9 +3,14 @@ package com.chaiok.pos.presentation.navigation
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,6 +34,9 @@ import com.chaiok.pos.presentation.home.HomeViewModel
 import com.chaiok.pos.presentation.login.LoginEvent
 import com.chaiok.pos.presentation.login.LoginScreen
 import com.chaiok.pos.presentation.login.LoginViewModel
+import com.chaiok.pos.presentation.pc.PcCommandIdleEvent
+import com.chaiok.pos.presentation.pc.PcCommandIdleScreen
+import com.chaiok.pos.presentation.pc.PcCommandIdleViewModel
 import com.chaiok.pos.presentation.settings.SettingsRoute
 import com.chaiok.pos.presentation.settings.SettingsViewModel
 import com.chaiok.pos.presentation.status.StatusScreen
@@ -40,6 +48,8 @@ import com.chaiok.pos.presentation.tipselection.TipSelectionUiState
 import com.chaiok.pos.presentation.tipselection.TipSelectionViewModel
 import java.math.BigDecimal
 import java.math.RoundingMode
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @Composable
@@ -65,7 +75,8 @@ fun ChaiOkNavHost(container: AppContainer) {
             LaunchedEffect(Unit) {
                 vm.oneTimeEvents.collect { event ->
                     if (event is LoginEvent.NavigateToHome) {
-                        navController.navigate(Routes.Home) {
+                        val goPc = container.observeSettingsUseCase().first().pcUsbModeEnabled
+                        navController.navigate(if (goPc) Routes.PcCommandIdle else Routes.Home) {
                             popUpTo(Routes.Login) { inclusive = true }
                         }
                     }
@@ -114,7 +125,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                         }
 
                         is HomeEvent.NavigateToTipSelection -> {
-                            navController.navigate(Routes.tipSelection(event.billAmount))
+                            navController.navigate(Routes.tipSelectionFromNormal(event.billAmount))
                         }
                     }
                 }
@@ -136,7 +147,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                 factory = SimpleFactory {
                     SettingsViewModel(
                         observeProfileUseCase = container.observeProfileUseCase,
-                        observeSettingsUseCase = container.observeSettingsUseCase
+                        observeSettingsUseCase = container.observeSettingsUseCase,
+                        updatePcUsbModeUseCase = container.updatePcUsbModeUseCase
                     )
                 }
             )
@@ -144,13 +156,37 @@ fun ChaiOkNavHost(container: AppContainer) {
             SettingsRoute(
                 viewModel = vm,
                 onBack = {
-                    val popped = navController.popBackStack(
-                        route = Routes.Home,
-                        inclusive = false
+                    val popped = navController.popBackStack(route = Routes.Home, inclusive = false)
+                    if (!popped) navController.navigateSingleTopTo(Routes.Home)
+                },
+                onStatus = { navController.navigate(Routes.Status) },
+                onTips = { navController.navigate(Routes.Tips) },
+                onBackground = { navController.navigate(Routes.Background) }
+            )
+        }
+        composable(Routes.SettingsFromPc) {
+            val vm: SettingsViewModel = viewModel(
+                factory = SimpleFactory {
+                    SettingsViewModel(
+                        observeProfileUseCase = container.observeProfileUseCase,
+                        observeSettingsUseCase = container.observeSettingsUseCase,
+                        updatePcUsbModeUseCase = container.updatePcUsbModeUseCase
                     )
+                }
+            )
+            val settingsState by vm.uiState.collectAsStateWithLifecycle()
 
-                    if (!popped) {
-                        navController.navigateSingleTopTo(Routes.Home)
+            SettingsRoute(
+                viewModel = vm,
+                onBack = {
+                    if (settingsState.pcUsbModeEnabled) {
+                        val popped = navController.popBackStack(route = Routes.PcCommandIdle, inclusive = false)
+                        if (!popped) navController.navigateSingleTopTo(Routes.PcCommandIdle)
+                    } else {
+                        navController.navigate(Routes.Home) {
+                            popUpTo(Routes.PcCommandIdle) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 },
                 onStatus = { navController.navigate(Routes.Status) },
@@ -216,15 +252,18 @@ fun ChaiOkNavHost(container: AppContainer) {
         composable(
             route = Routes.TipSelectionWithArg,
             arguments = listOf(
-                navArgument("billAmountRub") {
-                    type = NavType.IntType
-                }
+                navArgument("billAmountKopecks") { type = NavType.LongType },
+                navArgument("source") { type = NavType.StringType; defaultValue = "normal" },
+                navArgument("commandId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("orderId") { type = NavType.StringType; defaultValue = "" }
             )
         ) { backStack ->
             val billAmount = backStack.arguments
-                ?.getInt("billAmountRub")
+                ?.getLong("billAmountKopecks")
                 ?.toDouble()
+                ?.div(100.0)
                 ?: 0.0
+            val isPcUsbSource = backStack.arguments?.getString("source") == "pc_usb"
 
             val vm: TipSelectionViewModel = viewModel(
                 factory = SimpleFactory {
@@ -244,25 +283,19 @@ fun ChaiOkNavHost(container: AppContainer) {
             LaunchedEffect(backStack) {
                 when (val consumedResult = backStack.savedStateHandle.consumePaymentResult()) {
                     is ConsumedPaymentResult.Finished -> {
-                        Log.i(
-                            PAYMENT_TAG,
-                            "TipSelection consumed payment result=${consumedResult.result.javaClass.simpleName}"
-                        )
+                        Log.i(PAYMENT_TAG, "TipSelection consumed payment result=${consumedResult.result.javaClass.simpleName}")
                         when (val result = consumedResult.result) {
                             is PaymentResult.Approved -> {
                                 vm.handleApprovedPayment(result)
-                                backStack.savedStateHandle.remove<PosPaymentRequest>(
-                                    PENDING_PAYMENT_REQUEST_KEY
-                                )
-                                navController.requestHomeAmountResetSafely()
+                                backStack.savedStateHandle.remove<PosPaymentRequest>(PENDING_PAYMENT_REQUEST_KEY)
 
-                                val popped = navController.popBackStack(
-                                    route = Routes.Home,
-                                    inclusive = false
-                                )
-
-                                if (!popped) {
-                                    navController.navigateSingleTopTo(Routes.Home)
+                                if (isPcUsbSource) {
+                                    val popped = navController.popBackStack(route = Routes.PcCommandIdle, inclusive = false)
+                                    if (!popped) navController.navigateSingleTopTo(Routes.PcCommandIdle)
+                                } else {
+                                    navController.requestHomeAmountResetSafely()
+                                    val popped = navController.popBackStack(route = Routes.Home, inclusive = false)
+                                    if (!popped) navController.navigateSingleTopTo(Routes.Home)
                                 }
                             }
 
@@ -274,16 +307,14 @@ fun ChaiOkNavHost(container: AppContainer) {
                     }
 
                     ConsumedPaymentResult.Cancelled -> {
-                        Log.i(
-                            PAYMENT_TAG,
-                            "TipSelection consumed payment cancelled"
-                        )
-
-                        backStack.savedStateHandle.remove<PosPaymentRequest>(
-                            PENDING_PAYMENT_REQUEST_KEY
-                        )
-
+                        Log.i(PAYMENT_TAG, "TipSelection consumed payment cancelled")
+                        backStack.savedStateHandle.remove<PosPaymentRequest>(PENDING_PAYMENT_REQUEST_KEY)
                         vm.resetPaymentState()
+
+                        if (isPcUsbSource) {
+                            val popped = navController.popBackStack(route = Routes.PcCommandIdle, inclusive = false)
+                            if (!popped) navController.navigateSingleTopTo(Routes.PcCommandIdle)
+                        }
                     }
 
                     null -> Unit
@@ -292,29 +323,27 @@ fun ChaiOkNavHost(container: AppContainer) {
 
             TipSelectionScreen(
                 state = state,
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    if (isPcUsbSource) {
+                        val popped = navController.popBackStack(route = Routes.PcCommandIdle, inclusive = false)
+                        if (!popped) navController.navigateSingleTopTo(Routes.PcCommandIdle)
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
                 onPreset = vm::selectPreset,
                 onCustomStart = vm::openCustomDialog,
                 onCustomSet = vm::applyCustom,
                 onDismissCustom = vm::dismissCustomDialog,
                 onPay = {
                     val paymentRequest = buildPaymentRequest(state)
-                    startPaymentFlow(
-                        navController = navController,
-                        viewModel = vm,
-                        paymentRequest = paymentRequest
-                    )
+                    startPaymentFlow(navController = navController, viewModel = vm, paymentRequest = paymentRequest)
                 },
                 onSnackbarShown = vm::onMessageShown,
                 onDone = {
-                    val popped = navController.popBackStack(
-                        route = Routes.Home,
-                        inclusive = false
-                    )
-
-                    if (!popped) {
-                        navController.navigateSingleTopTo(Routes.Home)
-                    }
+                    val route = if (isPcUsbSource) Routes.PcCommandIdle else Routes.Home
+                    val popped = navController.popBackStack(route = route, inclusive = false)
+                    if (!popped) navController.navigateSingleTopTo(route)
                 },
                 onRetry = {
                     val handle = navController.currentBackStackEntry?.savedStateHandle
@@ -322,26 +351,56 @@ fun ChaiOkNavHost(container: AppContainer) {
                     val paymentRequest = reusedRequest ?: buildPaymentRequest(state)
 
                     if (reusedRequest == null) {
-                        Log.w(
-                            PAYMENT_TAG,
-                            "Retry fallback: pending payment request is missing, rebuilding from current state"
-                        )
+                        Log.w(PAYMENT_TAG, "Retry fallback: pending payment request is missing, rebuilding from current state")
                     } else {
-                        Log.i(
-                            PAYMENT_TAG,
-                            "Retry reuses pending payment request terminalId=***${paymentRequest.terminalId.takeLast(4)}"
-                        )
+                        Log.i(PAYMENT_TAG, "Retry reuses pending payment request terminalId=***${paymentRequest.terminalId.takeLast(4)}")
                     }
 
-                    startPaymentFlow(
-                        navController = navController,
-                        viewModel = vm,
-                        paymentRequest = paymentRequest
-                    )
+                    startPaymentFlow(navController = navController, viewModel = vm, paymentRequest = paymentRequest)
                 },
                 onServiceFeeToggle = vm::toggleServiceFee,
                 onKitchenEvaluation = vm::selectKitchenEvaluation,
                 onServiceEvaluation = vm::selectServiceEvaluation
+            )
+        }
+
+
+
+        composable(Routes.PcCommandIdle) {
+            val vm: PcCommandIdleViewModel = viewModel(factory = SimpleFactory { PcCommandIdleViewModel(container.pcPaymentCommandRepository) })
+            val state by vm.state.collectAsStateWithLifecycle()
+            val lifecycleOwner = LocalLifecycleOwner.current
+            val scope = rememberCoroutineScope()
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    when (event) {
+                        Lifecycle.Event.ON_RESUME -> {
+                            scope.launch {
+                                val enabled = container.observeSettingsUseCase().first().pcUsbModeEnabled
+                                if (enabled) {
+                                    vm.resumeListening()
+                                } else {
+                                    vm.pauseListening()
+                                    navController.navigate(Routes.Home) {
+                                        popUpTo(Routes.PcCommandIdle) { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            }
+                        }
+                        Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> vm.pauseListening()
+                        else -> Unit
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
+            LaunchedEffect(Unit) { vm.events.collect { e -> if (e is PcCommandIdleEvent.OpenTipSelection) {
+                navController.navigateSingleTopTo(Routes.tipSelectionFromPc(e.amount, e.commandId, e.orderId))
+            } } }
+            PcCommandIdleScreen(
+                state = state,
+                onOpenSettings = { navController.navigateSingleTopTo(Routes.SettingsFromPc) }
             )
         }
 

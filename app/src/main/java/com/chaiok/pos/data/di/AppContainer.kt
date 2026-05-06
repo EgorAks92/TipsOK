@@ -17,6 +17,8 @@ import com.chaiok.pos.data.repository.PaymentTerminalApi
 import com.chaiok.pos.data.repository.PaymentTerminalDataProvider
 import com.chaiok.pos.data.repository.SmartSkyHeadlessPosPaymentRepository
 import com.chaiok.pos.data.repository.SmartSkyPosTerminalApi
+import com.chaiok.pos.data.ecr.XchengPcPaymentCommandRepository
+import com.chaiok.pos.data.ecr.XchengWireEcrPortClient
 import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.data.storage.EncryptedPrefsSensitiveStorage
 import com.chaiok.pos.domain.repository.AuthRepository
@@ -39,6 +41,7 @@ import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
 import com.chaiok.pos.domain.usecase.UpdateStatusUseCase
+import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateTileBackgroundUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +95,8 @@ class AppContainer(context: Context) {
     val settingsRepository: SettingsRepository =
         DataStoreSettingsRepository(appDataStore)
 
+    val pcPaymentCommandRepository = XchengPcPaymentCommandRepository(XchengWireEcrPortClient(appContext))
+
     val reviewRepository: ReviewRepository =
         BackendReviewRepository(
             api = terminalApi,
@@ -125,6 +130,7 @@ class AppContainer(context: Context) {
     val getTransactionRangeUseCase = GetTransactionRangeUseCase(tipRangeRepository)
     val observeSettingsUseCase = ObserveSettingsUseCase(settingsRepository)
     val updateTileBackgroundUseCase = UpdateTileBackgroundUseCase(settingsRepository)
+    val updatePcUsbModeUseCase = UpdatePcUsbModeUseCase(settingsRepository)
     val addReviewUseCase = AddReviewUseCase(reviewRepository)
     val startPosPaymentUseCase = StartPosPaymentUseCase(posPaymentRepository)
     val cancelPosPaymentUseCase = CancelPosPaymentUseCase(posPaymentRepository)

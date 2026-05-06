@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -131,7 +132,8 @@ fun SettingsRoute(
         onBack = onBack,
         onStatus = onStatus,
         onTips = onTips,
-        onBackground = onBackground
+        onBackground = onBackground,
+        onTogglePcUsbMode = viewModel::togglePcUsbMode
     )
 }
 
@@ -141,15 +143,18 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onStatus: () -> Unit,
     onTips: () -> Unit,
-    onBackground: () -> Unit
+    onBackground: () -> Unit,
+    onTogglePcUsbMode: (Boolean) -> Unit
 ) {
     when (rememberChaiOkDeviceClass()) {
         ChaiOkDeviceClass.SquareCompact -> {
             SettingsSquarePremiumScreen(
+                state = state,
                 onBack = onBack,
                 onStatus = onStatus,
                 onTips = onTips,
-                onBackground = onBackground
+                onBackground = onBackground,
+                onTogglePcUsbMode = onTogglePcUsbMode
             )
         }
 
@@ -159,7 +164,8 @@ fun SettingsScreen(
                 onBack = onBack,
                 onStatus = onStatus,
                 onTips = onTips,
-                onBackground = onBackground
+                onBackground = onBackground,
+                onTogglePcUsbMode = onTogglePcUsbMode
             )
         }
     }
@@ -171,7 +177,8 @@ private fun SettingsRegularScreen(
     onBack: () -> Unit,
     onStatus: () -> Unit,
     onTips: () -> Unit,
-    onBackground: () -> Unit
+    onBackground: () -> Unit,
+    onTogglePcUsbMode: (Boolean) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -221,6 +228,14 @@ private fun SettingsRegularScreen(
                     iconRes = R.drawable.ic_settings_background,
                     onClick = onBackground
                 )
+
+                SettingsRegularToggleItem(
+                    title = "Режим кассы по USB",
+                    subtitle = if (state.pcUsbModeEnabled) "Приложение ждёт сумму от ПК по USB" else "Ожидание команды оплаты от ПК выключено",
+                    iconRes = R.drawable.ic_settings_status,
+                    checked = state.pcUsbModeEnabled,
+                    onToggle = onTogglePcUsbMode
+                )
             }
         }
     }
@@ -228,10 +243,12 @@ private fun SettingsRegularScreen(
 
 @Composable
 private fun SettingsSquarePremiumScreen(
+    state: SettingsUiState,
     onBack: () -> Unit,
     onStatus: () -> Unit,
     onTips: () -> Unit,
-    onBackground: () -> Unit
+    onBackground: () -> Unit,
+    onTogglePcUsbMode: (Boolean) -> Unit
 ) {
     val metrics = squarePremiumSettingsMetrics()
     val scrollState = rememberScrollState()
@@ -312,6 +329,15 @@ private fun SettingsSquarePremiumScreen(
                         iconRes = R.drawable.ic_settings_background,
                         metrics = metrics,
                         onClick = onBackground
+                    )
+
+                    SettingsPremiumToggleItem(
+                        title = "Режим кассы по USB",
+                        subtitle = if (state.pcUsbModeEnabled) "Приложение ждёт сумму от ПК по USB" else "Ожидание команды оплаты от ПК выключено",
+                        iconRes = R.drawable.ic_settings_status,
+                        metrics = metrics,
+                        checked = state.pcUsbModeEnabled,
+                        onToggle = onTogglePcUsbMode
                     )
                 }
             }
@@ -513,5 +539,29 @@ private fun SettingsPremiumItem(
                 lineHeight = metrics.arrowLineHeight
             )
         }
+    }
+}
+
+@Composable
+private fun SettingsRegularToggleItem(title: String, subtitle: String, iconRes: Int, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(SettingsCardColor).clickable { onToggle(!checked) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(24.dp), colorFilter = ColorFilter.tint(SettingsAccentColor))
+        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(title, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, color = SettingsPrimaryTextColor)
+            Text(subtitle, fontFamily = MontserratFontFamily, fontSize = 12.sp, color = SettingsSecondaryTextColor)
+        }
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+@Composable
+private fun SettingsPremiumToggleItem(title: String, subtitle: String, iconRes: Int, metrics: SettingsPremiumMetrics, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().height(metrics.itemHeight).clip(RoundedCornerShape(metrics.itemCornerRadius)).background(Color.White).border(1.dp, SettingsStrokeColor, RoundedCornerShape(metrics.itemCornerRadius)).clickable { onToggle(!checked) }.padding(horizontal = metrics.itemHorizontalPadding), verticalAlignment = Alignment.CenterVertically) {
+        Image(painterResource(iconRes), null, modifier = Modifier.size(metrics.iconSize), colorFilter = ColorFilter.tint(SettingsAccentColor))
+        Column(modifier = Modifier.weight(1f).padding(start = metrics.textStartPadding)) {
+            Text(title, color = SettingsPrimaryTextColor, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, fontSize = metrics.titleFontSize)
+            Text(subtitle, color = SettingsSecondaryTextColor, fontFamily = MontserratFontFamily, fontSize = metrics.subtitleFontSize, maxLines = 2)
+        }
+        Switch(checked = checked, onCheckedChange = null)
     }
 }

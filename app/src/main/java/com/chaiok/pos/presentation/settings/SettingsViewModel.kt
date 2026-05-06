@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
+import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
 import com.chaiok.pos.presentation.background.WaiterBackgroundMemoryCache
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,12 +16,14 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val waiterName: String = "Ваш официант",
     val waiterStatus: String = "Коплю на отпуск!",
-    val tileBackground: String? = WaiterBackgroundMemoryCache.currentBackground
+    val tileBackground: String? = WaiterBackgroundMemoryCache.currentBackground,
+    val pcUsbModeEnabled: Boolean = false
 )
 
 class SettingsViewModel(
     private val observeProfileUseCase: ObserveProfileUseCase,
-    private val observeSettingsUseCase: ObserveSettingsUseCase
+    private val observeSettingsUseCase: ObserveSettingsUseCase,
+    private val updatePcUsbModeUseCase: UpdatePcUsbModeUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -59,11 +62,18 @@ class SettingsViewModel(
                 SettingsUiState(
                     waiterName = waiterName,
                     waiterStatus = waiterStatus,
-                    tileBackground = background
+                    tileBackground = background,
+                    pcUsbModeEnabled = settings.pcUsbModeEnabled
                 )
             }.collect { nextState ->
                 _uiState.update { nextState }
             }
+        }
+    }
+
+    fun togglePcUsbMode(enabled: Boolean) {
+        viewModelScope.launch {
+            updatePcUsbModeUseCase(enabled)
         }
     }
 }

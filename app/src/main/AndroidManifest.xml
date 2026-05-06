@@ -8,6 +8,13 @@
         <intent>
             <action android:name="com.skytech.smartskypos.PAYMENT" />
         </intent>
+        <package android:name="com.xcheng.wiredecr" />
+        <intent>
+            <action android:name="com.xcheng.wiredecr.IWireEcrService" />
+        </intent>
+        <intent>
+            <action android:name="com.xcheng.wiredecr.IWireEcrServiceGS" />
+        </intent>
     </queries>
 
     <application
