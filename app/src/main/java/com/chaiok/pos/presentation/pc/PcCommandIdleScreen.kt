@@ -1,124 +1,148 @@
 package com.chaiok.pos.presentation.pc
 
+import android.content.Context
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.chaiok.pos.R
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
+import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
+import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @Composable
-fun PcCommandIdleScreen(
-    state: PcUsbConnectionStatus,
-    onOpenSettings: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .border(
-                    width = 1.dp,
-                    color = Color(0xFFE6EAF0),
-                    shape = RoundedCornerShape(16.dp)
-                )
-        )
+fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit) {
+    val slides = if (state.images.isEmpty()) listOf(DEFAULT_IMAGE) else state.images
+    val isCompact = rememberChaiOkDeviceClass() == ChaiOkDeviceClass.SquareCompact
+    var currentIndex by remember(slides) { mutableIntStateOf(0) }
 
-        Text(
-            text = "Ожидание команды с кассы",
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 24.sp,
-            modifier = Modifier.padding(top = 24.dp)
-        )
+    LaunchedEffect(slides) {
+        currentIndex = 0
+        if (slides.size > 1) {
+            while (true) {
+                delay(SLIDE_INTERVAL_MS)
+                currentIndex = (currentIndex + 1) % slides.size
+            }
+        }
+    }
 
-        Text(
-            text = "Подключите ПК по USB",
-            fontFamily = MontserratFontFamily,
-            color = Color(0xFF69707A),
-            modifier = Modifier.padding(top = 8.dp)
-        )
+    Box(Modifier.fillMaxSize()) {
+        Crossfade(targetState = slides[currentIndex], label = "pc_idle_crossfade") {
+            IdleBackgroundImage(image = it, modifier = Modifier.fillMaxSize())
+        }
 
-        Text(
-            text = state.toDisplayText(),
-            fontFamily = MontserratFontFamily,
-            color = state.toDisplayColor(),
-            modifier = Modifier.padding(top = 12.dp)
-        )
-
-        TextButton(
+        StatusChip(
+            status = state.connectionStatus,
             onClick = onOpenSettings,
-            modifier = Modifier.padding(top = 20.dp)
-        ) {
-            Text(
-                text = "Настройки",
-                fontFamily = MontserratFontFamily
-            )
-        }
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(if (isCompact) 10.dp else 18.dp)
+        )
     }
 }
 
-private fun PcUsbConnectionStatus.toDisplayText(): String {
-    return when (this) {
-        PcUsbConnectionStatus.Idle -> {
-            "USB-режим готов"
-        }
-
-        PcUsbConnectionStatus.BindingService -> {
-            "Подключение к сервису USB-кассы"
-        }
-
-        PcUsbConnectionStatus.ServiceBound -> {
-            "Сервис USB-кассы подключён"
-        }
-
-        PcUsbConnectionStatus.OpeningPort -> {
-            "Открытие USB-порта"
-        }
-
-        PcUsbConnectionStatus.ConnectingPort -> {
-            "Подключение к USB-порту"
-        }
-
-        PcUsbConnectionStatus.Connected -> {
-            "USB-порт подключён"
-        }
-
-        PcUsbConnectionStatus.WaitingForData -> {
-            "Ожидание команды оплаты от кассы"
-        }
-
-        is PcUsbConnectionStatus.Error -> {
-            "Ошибка USB: $message"
-        }
+@Composable
+private fun StatusChip(status: PcUsbConnectionStatus, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val text = when (status) {
+        PcUsbConnectionStatus.Idle -> "USB готов"
+        PcUsbConnectionStatus.WaitingForData -> "Ожидание команды"
+        is PcUsbConnectionStatus.Error -> "Ошибка USB"
+        else -> "Подключение"
+    }
+    val interactionSource = remember { MutableInteractionSource() }
+    Surface(
+        modifier = modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = if (status is PcUsbConnectionStatus.Error) Color(0x99D32F2F) else Color(0x77373D45)
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
     }
 }
 
-private fun PcUsbConnectionStatus.toDisplayColor(): Color {
-    return when (this) {
-        is PcUsbConnectionStatus.Error -> Color(0xFFD32F2F)
-        else -> Color(0xFF69707A)
+@Composable
+private fun IdleBackgroundImage(image: String, modifier: Modifier) {
+    val isUri = image.startsWith("content://", true) || image.startsWith("file://", true)
+    if (!isUri || image.isBlank() || image == DEFAULT_IMAGE) {
+        FallbackBackground(modifier)
+        return
+    }
+
+    val context = LocalContext.current
+    val bitmap by produceState<ImageBitmap?>(null, image) { value = loadImageBitmapFromUri(context, image) }
+    if (bitmap != null) {
+        Image(bitmap = bitmap!!, contentDescription = null, modifier = modifier, contentScale = ContentScale.Crop)
+    } else {
+        FallbackBackground(modifier)
     }
 }
+
+@Composable
+private fun FallbackBackground(modifier: Modifier) {
+    Box(modifier = modifier.background(Brush.linearGradient(listOf(Color(0xFF0F172A), Color(0xFF1D4ED8), Color(0xFF0EA5E9))))) {
+        Image(
+            painter = painterResource(id = R.drawable.waiter_card_background),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            alpha = 0.20f
+        )
+    }
+}
+
+private suspend fun loadImageBitmapFromUri(context: Context, uriString: String): ImageBitmap? = withContext(Dispatchers.IO) {
+    runCatching {
+        val uri = Uri.parse(uriString)
+        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            ImageDecoder.decodeBitmap(source) { decoder, _, _ -> decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
+        } else {
+            @Suppress("DEPRECATION")
+            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+        }
+        bitmap.asImageBitmap()
+    }.getOrNull()
+}
+
+private const val DEFAULT_IMAGE = "default"
+private const val SLIDE_INTERVAL_MS = 6_000L

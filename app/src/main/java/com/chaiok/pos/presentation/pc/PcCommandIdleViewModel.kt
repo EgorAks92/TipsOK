@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
+import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import java.math.BigDecimal
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,12 +20,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+data class PcCommandIdleUiState(
+    val connectionStatus: PcUsbConnectionStatus = PcUsbConnectionStatus.Idle,
+    val images: List<String> = emptyList()
+)
+
 class PcCommandIdleViewModel(
-    private val repository: PcPaymentCommandRepository
+    private val repository: PcPaymentCommandRepository,
+    private val observeSettingsUseCase: ObserveSettingsUseCase
 ) : ViewModel() {
 
     private val listeningEnabled = MutableStateFlow(false)
@@ -33,9 +41,8 @@ class PcCommandIdleViewModel(
         PcUsbConnectionStatus.Idle
     )
 
-    val status: StateFlow<PcUsbConnectionStatus> = _status.asStateFlow()
-    val state: StateFlow<PcUsbConnectionStatus> = status
-    val uiState: StateFlow<PcUsbConnectionStatus> = status
+    private val _uiState = MutableStateFlow(PcCommandIdleUiState())
+    val uiState: StateFlow<PcCommandIdleUiState> = _uiState.asStateFlow()
 
     private val _events = MutableSharedFlow<PcCommandIdleEvent>(
         extraBufferCapacity = 1
@@ -53,6 +60,7 @@ class PcCommandIdleViewModel(
 
     init {
         observeStatus()
+        observeUiState()
         observeCommands()
         startListeningLoop()
     }
@@ -84,6 +92,23 @@ class PcCommandIdleViewModel(
                     }
                 }
             )
+        }
+    }
+
+    private fun observeUiState() {
+        viewModelScope.launch {
+            combine(
+                _status,
+                observeSettingsUseCase()
+            ) { status, settings ->
+                val configuredImages = settings.pcIdleImages.filter { it.isNotBlank() }
+                PcCommandIdleUiState(
+                    connectionStatus = status,
+                    images = if (configuredImages.isNotEmpty()) configuredImages else listOf(DEFAULT_IMAGE)
+                )
+            }.collect { nextState ->
+                _uiState.value = nextState
+            }
         }
     }
 
@@ -186,6 +211,7 @@ class PcCommandIdleViewModel(
         private const val LISTEN_LOOP_DELAY_MS = 300L
         private const val NO_ID_DEDUPE_WINDOW_MS = 5_000L
         private const val POS_SERVICE_RELEASE_DELAY_MS = 500L
+        private const val DEFAULT_IMAGE = "default"
     }
 }
 

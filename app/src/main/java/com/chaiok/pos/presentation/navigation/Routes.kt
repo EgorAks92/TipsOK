@@ -16,6 +16,7 @@ object Routes {
     const val TipSelectionWithArg = "tip_selection/{billAmountKopecks}?source={source}&commandId={commandId}&orderId={orderId}"
     const val CardPresenting = "card_presenting"
     const val PcCommandIdle = "pc_command_idle"
+    const val PcIdleImages = "pc_idle_images"
 
     fun tipSelectionFromNormal(billAmount: Double): String {
         val kopecks = BigDecimal.valueOf(billAmount)

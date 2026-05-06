@@ -14,13 +14,15 @@ class DataStoreSettingsRepository(
         dataStore.integrationModeFlow,
         dataStore.tableModeFlow,
         dataStore.tileBackgroundFlow,
-        dataStore.pcUsbModeFlow
-    ) { integration, table, background, pcUsb ->
+        dataStore.pcUsbModeFlow,
+        dataStore.pcIdleImagesFlow
+    ) { integration, table, background, pcUsb, pcIdleImages ->
         AppSettings(
             integrationModeEnabled = integration,
             tableModeEnabled = table,
             tileBackground = background,
-            pcUsbModeEnabled = pcUsb
+            pcUsbModeEnabled = pcUsb,
+            pcIdleImages = pcIdleImages
         )
     }
 
@@ -45,6 +47,12 @@ class DataStoreSettingsRepository(
     override suspend fun setPcUsbMode(enabled: Boolean) {
         runCatching {
             dataStore.setPcUsbMode(enabled)
+        }
+    }
+
+    override suspend fun setPcIdleImages(images: List<String>) {
+        runCatching {
+            dataStore.setPcIdleImages(images)
         }
     }
 }

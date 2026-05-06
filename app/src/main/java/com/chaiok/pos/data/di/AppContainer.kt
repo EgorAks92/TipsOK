@@ -41,6 +41,7 @@ import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
 import com.chaiok.pos.domain.usecase.UpdateStatusUseCase
+import com.chaiok.pos.domain.usecase.UpdatePcIdleImagesUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateTileBackgroundUseCase
 import kotlinx.coroutines.CoroutineScope
@@ -131,6 +132,7 @@ class AppContainer(context: Context) {
     val observeSettingsUseCase = ObserveSettingsUseCase(settingsRepository)
     val updateTileBackgroundUseCase = UpdateTileBackgroundUseCase(settingsRepository)
     val updatePcUsbModeUseCase = UpdatePcUsbModeUseCase(settingsRepository)
+    val updatePcIdleImagesUseCase = UpdatePcIdleImagesUseCase(settingsRepository)
     val addReviewUseCase = AddReviewUseCase(reviewRepository)
     val startPosPaymentUseCase = StartPosPaymentUseCase(posPaymentRepository)
     val cancelPosPaymentUseCase = CancelPosPaymentUseCase(posPaymentRepository)
