@@ -65,8 +65,6 @@ fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit)
             IdleBackgroundImage(image = it, modifier = Modifier.fillMaxSize())
         }
 
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.12f)))
-
         StatusChip(
             status = state.connectionStatus,
             onClick = onOpenSettings,
@@ -89,7 +87,7 @@ private fun StatusChip(status: PcUsbConnectionStatus, onClick: () -> Unit, modif
     Surface(
         modifier = modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(14.dp),
-        color = if (status is PcUsbConnectionStatus.Error) Color(0x99D32F2F) else Color(0x55373D45)
+        color = if (status is PcUsbConnectionStatus.Error) Color(0x99D32F2F) else Color(0x77373D45)
     ) {
         Text(
             text = text,
