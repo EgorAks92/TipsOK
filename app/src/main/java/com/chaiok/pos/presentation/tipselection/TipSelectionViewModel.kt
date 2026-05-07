@@ -46,6 +46,7 @@ data class TipSelectionUiState(
     val errorMessage: String? = null,
     val paymentState: TipPaymentUiState = TipPaymentUiState.Idle,
     val showPostPaymentReview: Boolean = false,
+    val isSubmittingReview: Boolean = false,
     val kitchenEvaluation: Int = 0,
     val serviceEvaluation: Int = 0
 ) {
@@ -370,15 +371,24 @@ class TipSelectionViewModel(
     }
 
     suspend fun finishPostPaymentReview(submit: Boolean): Boolean {
+        if (_uiState.value.isSubmittingReview) return false
         if (submit) {
             val state = _uiState.value
             if (state.kitchenEvaluation !in 1..5 || state.serviceEvaluation !in 1..5) {
                 _uiState.update { it.copy(errorMessage = "Оцените кухню и сервис") }
                 return false
             }
+            _uiState.update { it.copy(isSubmittingReview = true) }
             sendReview(state.kitchenEvaluation, state.serviceEvaluation)
+            reviewSentForCurrentPayment = true
         }
-        _uiState.update { it.copy(showPostPaymentReview = false, paymentState = TipPaymentUiState.Idle) }
+        _uiState.update {
+            it.copy(
+                showPostPaymentReview = false,
+                paymentState = TipPaymentUiState.Idle,
+                isSubmittingReview = false
+            )
+        }
         return true
     }
 

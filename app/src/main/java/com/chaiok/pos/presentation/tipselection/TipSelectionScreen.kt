@@ -74,7 +74,6 @@ private val TipSelectionGreenColor = Color(0xFF14B8A6)
 private val TipSelectionWarningColor = Color(0xFFFFB547)
 private val TipSelectionCompactBackgroundColor = Color(0xFFF8F8F8)
 private val TipSelectionCompactShadowColor = Color(0xFFA7A7A7)
-private const val COMPACT_VISIBLE_PRESETS = 4
 private data class CompactPresetItem(val originalIndex: Int, val percent: Double)
 
 private fun Modifier.compactReferenceShadow(shape: androidx.compose.ui.graphics.Shape): Modifier =
@@ -548,13 +547,15 @@ private fun CompactPostPaymentReviewContent(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        Text("Оплата прошла успешно", color = TipSelectionPrimaryTextColor, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Сумма ${formatRubles(state.totalAmount)}", color = TipSelectionSecondaryTextColor, fontSize = 12.sp)
         Text("Оцените заказ", color = TipSelectionPrimaryTextColor, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, fontSize = 20.sp)
         Text("Помогите нам стать лучше", color = TipSelectionSecondaryTextColor, fontSize = 12.sp)
         CompactRatingRow("Кухня", state.kitchenEvaluation, squarePremiumTipSelectionMetrics(), onKitchenEvaluation)
         CompactRatingRow("Сервис", state.serviceEvaluation, squarePremiumTipSelectionMetrics(), onServiceEvaluation)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            CompactSecondaryButton("Отправить", Icons.Default.Check, Modifier.weight(1f), onSubmit)
-            CompactSecondaryButton("Пропустить", Icons.Default.Close, Modifier.weight(1f), onSkip)
+            CompactSecondaryButton("Отправить", Icons.Default.Check, Modifier.weight(1f), enabled = !state.isSubmittingReview, onClick = onSubmit)
+            CompactSecondaryButton("Пропустить", Icons.Default.Close, Modifier.weight(1f), enabled = !state.isSubmittingReview, onClick = onSkip)
         }
     }
 }
@@ -722,6 +723,7 @@ private fun CompactSecondaryButton(
     text: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Box(
@@ -731,12 +733,12 @@ private fun CompactSecondaryButton(
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, contentDescription = null, tint = TipSelectionAccentColor, modifier = Modifier.size(18.dp))
-            Text(text = text, color = TipSelectionPrimaryTextColor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Icon(icon, contentDescription = null, tint = if (enabled) TipSelectionAccentColor else TipSelectionStrokeColor, modifier = Modifier.size(18.dp))
+            Text(text = text, color = if (enabled) TipSelectionPrimaryTextColor else TipSelectionSecondaryTextColor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
