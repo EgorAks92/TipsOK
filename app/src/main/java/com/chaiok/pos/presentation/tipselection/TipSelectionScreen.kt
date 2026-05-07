@@ -28,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
@@ -62,6 +61,9 @@ import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import androidx.annotation.DrawableRes
+import androidx.compose.ui.res.painterResource
+import com.chaiok.pos.R
 
 private val TipSelectionScreenColor = Color.White
 private val TipSelectionPrimaryTextColor = Color(0xFF1B2128)
@@ -219,7 +221,7 @@ private fun squarePremiumTipSelectionMetrics(): TipSelectionLayoutMetrics {
         horizontalPadding = 12.dp,
         bottomPadding = 8.dp,
         contentCardSpacing = 10.dp,
-        payButtonTopSpacer = 8.dp,
+        payButtonTopSpacer = 0.dp,
 
         billFontSize = 14,
         billLineHeight = 17,
@@ -235,9 +237,9 @@ private fun squarePremiumTipSelectionMetrics(): TipSelectionLayoutMetrics {
         percentCardCorner = 18.dp,
         percentCardPaddingHorizontal = 10.dp,
         percentCardPaddingVertical = 7.dp,
-        percentFontSize = 18,
+        percentFontSize = 20,
         percentLineHeight = 21,
-        percentAmountFontSize = 11,
+        percentAmountFontSize = 16,
         percentAmountLineHeight = 14,
 
         customTipHeight = 50.dp,
@@ -261,7 +263,7 @@ private fun squarePremiumTipSelectionMetrics(): TipSelectionLayoutMetrics {
         serviceFeeSubtitleSize = 10,
         serviceFeeHorizontalPadding = 12.dp,
 
-        payButtonHeight = 46.dp,
+        payButtonHeight = 56.dp,
         payButtonCorner = 20.dp,
         payButtonFontSize = 16,
 
@@ -473,10 +475,10 @@ private fun TipSelectionSquarePremiumLayout(
                 onBack = onBack,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = metrics.horizontalPadding, vertical = 8.dp)
+                    .padding(horizontal = metrics.horizontalPadding, vertical = 4.dp)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(0.dp))
 
             Column(
                 modifier = Modifier
@@ -608,17 +610,18 @@ private fun CompactTipTopBar(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .size(34.dp)
-                .compactReferenceShadow(RoundedCornerShape(11.dp))
-                .clip(RoundedCornerShape(11.dp))
+                .compactReferenceShadow(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(Color.White)
-                .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(11.dp))
+                .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(10.dp))
                 .clickable(onClick = onBack),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                painter = painterResource(id = R.drawable.ic_settings_back),
                 contentDescription = "Назад",
-                tint = TipSelectionPrimaryTextColor
+                tint = TipSelectionPrimaryTextColor,
+                modifier = Modifier.size(16.dp)
             )
         }
         Text(
@@ -637,9 +640,9 @@ private fun CompactSummaryCard(state: TipSelectionUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(88.dp)
-            .compactReferenceShadow(RoundedCornerShape(18.dp))
-            .clip(RoundedCornerShape(18.dp))
+            .height(76.dp)
+            .compactReferenceShadow(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
             .border(1.dp, TipSelectionStrokeColor.copy(alpha = 0.86f), RoundedCornerShape(18.dp))
             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -652,20 +655,46 @@ private fun CompactSummaryCard(state: TipSelectionUiState) {
 }
 
 @Composable
-private fun CompactSummaryColumn(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = TipSelectionSecondaryTextColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+private fun CompactSummaryColumn(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            color = TipSelectionSecondaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 16.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
         Spacer(modifier = Modifier.height(4.dp))
-        Text(value, color = TipSelectionPrimaryTextColor, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+
+        Text(
+            text = value,
+            color = TipSelectionPrimaryTextColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 24.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
+
 
 @Composable
 private fun CompactPercentRow(
     state: TipSelectionUiState,
     onPreset: (Int) -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxWidth().height(128.dp)) {
+    Box(modifier = Modifier.fillMaxWidth().height(140.dp)) {
         CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterStart))
         CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterEnd))
 
@@ -674,8 +703,8 @@ private fun CompactPercentRow(
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
             contentPadding = PaddingValues(horizontal = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.Top
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             itemsIndexed(state.availablePercents) { index, percent ->
                 val item = CompactPresetItem(index, percent)
@@ -695,9 +724,9 @@ private fun CompactPercentRow(
 private fun CompactCarouselSideHandle(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .size(width = 30.dp, height = 92.dp)
+            .size(width = 30.dp, height = 124.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.verticalGradient(listOf(TipSelectionGreenColor, TipSelectionAccentColor))),
+            .background(Color.White),
         contentAlignment = Alignment.Center
     ) {
         Box(
@@ -705,7 +734,7 @@ private fun CompactCarouselSideHandle(modifier: Modifier = Modifier) {
                 .width(4.dp)
                 .height(38.dp)
                 .clip(RoundedCornerShape(99.dp))
-                .background(Color.White.copy(alpha = 0.95f))
+                .background(Color(0xFFD0D0D0))
         )
     }
 }
@@ -715,13 +744,13 @@ private fun CompactSecondaryActions(onCustomAmount: () -> Unit, onNoTips: () -> 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         CompactSecondaryButton(
             text = "Другая сумма",
-            icon = Icons.Default.Edit,
+            iconRes = R.drawable.ic_custom_tip_amount,
             modifier = Modifier.weight(1f),
             onClick = onCustomAmount
         )
         CompactSecondaryButton(
             text = "Без чаевых",
-            icon = Icons.Default.Close,
+            iconRes = R.drawable.ic_no_tips,
             modifier = Modifier.weight(1f),
             onClick = onNoTips
         )
@@ -731,24 +760,52 @@ private fun CompactSecondaryActions(onCustomAmount: () -> Unit, onNoTips: () -> 
 @Composable
 private fun CompactSecondaryButton(
     text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     modifier: Modifier,
     enabled: Boolean = true,
+    @DrawableRes iconRes: Int? = null,
     onClick: () -> Unit
 ) {
     Box(
         modifier = modifier
-            .height(42.dp)
-            .compactReferenceShadow(RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
+            .height(48.dp)
+            .compactReferenceShadow(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
-            .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
+            .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(20.dp))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, contentDescription = null, tint = if (enabled) TipSelectionAccentColor else TipSelectionStrokeColor, modifier = Modifier.size(18.dp))
-            Text(text = text, color = if (enabled) TipSelectionPrimaryTextColor else TipSelectionSecondaryTextColor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            when {
+                iconRes != null -> {
+                    Icon(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = null,
+                        tint = Color.Unspecified, // сохраняет цвет твоей SVG/XML иконки
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                icon != null -> {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (enabled) TipSelectionAccentColor else TipSelectionStrokeColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = text,
+                color = if (enabled) TipSelectionPrimaryTextColor else TipSelectionSecondaryTextColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
@@ -760,14 +817,13 @@ private fun CompactCarouselTipCard(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val width = if (selected) 106.dp else 80.dp
-    val height = if (selected) 126.dp else 112.dp
+    val width = if (selected) 90.dp else 90.dp
+    val height = if (selected) 140.dp else 124.dp
     Box(
         modifier = Modifier
-            .padding(top = if (selected) 0.dp else 6.dp)
             .size(width = width, height = height)
-            .compactReferenceShadow(RoundedCornerShape(if (selected) 20.dp else 18.dp))
-            .clip(RoundedCornerShape(if (selected) 20.dp else 18.dp))
+            .compactReferenceShadow(RoundedCornerShape(if (selected) 20.dp else 20.dp))
+            .clip(RoundedCornerShape(if (selected) 20.dp else 20.dp))
             .background(
                 if (selected) {
                     Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor))
@@ -806,24 +862,14 @@ private fun CompactServiceFeeRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(46.dp)
-            .compactReferenceShadow(RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
+            .height(48.dp)
+            .compactReferenceShadow(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
-            .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
+            .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(20.dp))
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .clip(CircleShape)
-                .background(TipSelectionGreenColor.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Check, contentDescription = null, tint = TipSelectionGreenColor, modifier = Modifier.size(14.dp))
-        }
-        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = "Возмещение комиссии (${formatRubles(amount)})",
             color = TipSelectionPrimaryTextColor,
@@ -832,6 +878,7 @@ private fun CompactServiceFeeRow(
             fontSize = 14.sp,
             modifier = Modifier.weight(1f)
         )
+
         CompactSwitch(
             checked = checked,
             onCheckedChange = onCheckedChange
@@ -1677,6 +1724,7 @@ private fun GradientPayButton(
     )
 
     val interactionSource = remember { MutableInteractionSource() }
+    val buttonShape = RoundedCornerShape(metrics.payButtonCorner)
 
     Box(
         modifier = Modifier
@@ -1688,12 +1736,12 @@ private fun GradientPayButton(
                 } else {
                     0.dp
                 },
-                shape = RoundedCornerShape(metrics.payButtonCorner),
+                shape = buttonShape,
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = if (enabled) 0.10f else 0f),
                 spotColor = Color.Black.copy(alpha = if (enabled) 0.16f else 0f)
             )
-            .clip(RoundedCornerShape(metrics.payButtonCorner))
+            .clip(buttonShape)
             .background(
                 brush = if (enabled) {
                     Brush.linearGradient(
@@ -1719,25 +1767,35 @@ private fun GradientPayButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = if (loading) {
+                "Оплата..."
+            } else {
+                "Оплатить ${formatKopecks(animatedAmountKopecks)}"
+            },
+            color = if (enabled) Color.White else Color(0xFF8B96A5),
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = metrics.payButtonFontSize.sp,
+            lineHeight = (metrics.payButtonFontSize + 4).sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.Center)
+        )
+
+        if (showChevron && !loading) {
             Text(
-                text = if (loading) {
-                    "Оплата..."
-                } else {
-                    "Оплатить ${formatKopecks(animatedAmountKopecks)}"
-                },
+                text = "›",
                 color = if (enabled) Color.White else Color(0xFF8B96A5),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = metrics.payButtonFontSize.sp,
-                lineHeight = (metrics.payButtonFontSize + 4).sp,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                fontSize = 28.sp,
+                lineHeight = 28.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 22.dp)
             )
-            if (showChevron && !loading) {
-                Text("›", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            }
         }
     }
 }
