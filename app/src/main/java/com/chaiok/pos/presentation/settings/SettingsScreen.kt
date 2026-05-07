@@ -236,15 +236,15 @@ private fun SettingsRegularScreen(
                 )
 
                 SettingsRegularItem(
-                    title = "Экран ожидания кассы",
-                    subtitle = "Картинки в ECR-режиме",
+                    title = "Фон для кассового режима",
+                    subtitle = "Слайд-шоу для кассового режима",
                     iconRes = R.drawable.ic_settings_background,
                     onClick = onPcIdleImages
                 )
 
                 SettingsRegularToggleItem(
-                    title = "Режим кассы по USB",
-                    subtitle = if (state.pcUsbModeEnabled) "Приложение ждёт сумму от ПК по USB" else "Ожидание команды оплаты от ПК выключено",
+                    title = "Режим работы с кассой",
+                    subtitle = if (state.pcUsbModeEnabled) "Включено" else "Выключено",
                     iconRes = R.drawable.ic_settings_status,
                     checked = state.pcUsbModeEnabled,
                     onToggle = onTogglePcUsbMode
