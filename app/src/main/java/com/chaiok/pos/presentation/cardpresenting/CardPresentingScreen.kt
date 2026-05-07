@@ -418,16 +418,6 @@ private fun PremiumAmountHero(
     stage: CardPresentingStage,
     metrics: CardPresentingLayoutMetrics
 ) {
-    val borderColor = when (stage) {
-        CardPresentingStage.Approved -> CardPresentingGreenColor.copy(alpha = 0.30f)
-
-        CardPresentingStage.Declined,
-        CardPresentingStage.Error,
-        CardPresentingStage.Cancelled -> CardPresentingErrorColor.copy(alpha = 0.28f)
-
-        else -> CardPresentingAccentColor.copy(alpha = 0.20f)
-    }
-
     val shape = RoundedCornerShape(20.dp)
 
     Column(
@@ -439,7 +429,7 @@ private fun PremiumAmountHero(
             .background(Color.White)
             .border(
                 width = 1.dp,
-                color = borderColor.copy(alpha = 0.86f),
+                color = CardPresentingStrokeColor.copy(alpha = 0.86f),
                 shape = shape
             )
             .padding(
@@ -484,7 +474,9 @@ private fun PremiumPaymentFocus(
     modifier: Modifier = Modifier
 ) {
     val accentBrush = paymentAccentBrush(stage = state.stage)
-    val compactTitle = if (state.title == "Поднесите карту") "Приложите карту" else state.title
+    val compactTitle = state.title.replace("Поднесите карту", "Приложите карту")
+    val shouldShowMessage = state.stage != CardPresentingStage.WaitingForCard &&
+        state.message.isNotBlank()
 
     Column(
         modifier = modifier
@@ -515,6 +507,22 @@ private fun PremiumPaymentFocus(
             maxLines = metrics.titleMaxLines,
             overflow = TextOverflow.Ellipsis
         )
+
+        if (shouldShowMessage) {
+            Spacer(modifier = Modifier.height(metrics.titleToMessageSpacing))
+
+            Text(
+                text = state.message,
+                color = CardPresentingSecondaryTextColor,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = metrics.messageFontSize,
+                lineHeight = metrics.messageLineHeight,
+                textAlign = TextAlign.Center,
+                maxLines = metrics.messageMaxLines,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
 
         if (state.isLoading && !state.stage.shouldShowProcessingSpinner()) {
             Spacer(modifier = Modifier.height(metrics.loadingSpacing))
