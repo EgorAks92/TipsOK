@@ -5,6 +5,7 @@ import java.math.RoundingMode
 import java.net.URLEncoder
 
 object Routes {
+    const val Launch = "launch"
     const val Login = "login"
     const val Home = "home"
     const val Settings = "settings"

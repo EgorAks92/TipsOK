@@ -8,6 +8,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -67,9 +72,46 @@ fun ChaiOkNavHost(container: AppContainer) {
 
     NavHost(
         navController = navController,
-        startDestination = Routes.Login
+        startDestination = Routes.Launch
     ) {
+        composable(Routes.Launch) {
+            LaunchedEffect(Unit) {
+                Log.i("StartupTrace", "Session check start")
+                val hasSession = container.sessionRepository.accessToken.first() != null
+                Log.i("StartupTrace", "Session check end hasSession=$hasSession")
+
+                if (!hasSession) {
+                    navController.navigate(Routes.Login) {
+                        popUpTo(Routes.Launch) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    return@LaunchedEffect
+                }
+
+                val settings = container.observeSettingsUseCase().first()
+                Log.i("StartupTrace", "Settings first value received")
+
+                val target = if (settings.pcUsbModeEnabled) {
+                    Routes.PcCommandIdle
+                } else {
+                    Routes.Home
+                }
+
+                navController.navigate(target) {
+                    popUpTo(Routes.Launch) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+
         composable(Routes.Login) {
+            LaunchedEffect(Unit) {
+                Log.i("StartupTrace", "Login route composed")
+            }
             val vm: LoginViewModel = viewModel(
                 factory = SimpleFactory {
                     LoginViewModel(
