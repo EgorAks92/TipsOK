@@ -837,7 +837,7 @@ private fun CompactCarouselTipCard(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
             Text(percentText, color = if (selected) Color.White else TipSelectionPrimaryTextColor, fontSize = if (selected) 30.sp else 24.sp, fontWeight = FontWeight.Bold)
-            Text(amountText, color = if (selected) Color.White else TipSelectionSecondaryTextColor, fontSize = if (selected) 14.sp else 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(amountText, color = if (selected) Color.White else TipSelectionSecondaryTextColor, fontSize = if (selected) 16.sp else 14.sp, fontWeight = FontWeight.SemiBold)
             Box(
                 modifier = Modifier
                     .size(if (selected) 30.dp else 26.dp)
