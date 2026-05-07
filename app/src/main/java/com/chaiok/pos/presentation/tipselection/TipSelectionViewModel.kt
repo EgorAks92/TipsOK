@@ -45,6 +45,8 @@ data class TipSelectionUiState(
     val showCustomTipDialog: Boolean = false,
     val errorMessage: String? = null,
     val paymentState: TipPaymentUiState = TipPaymentUiState.Idle,
+    val showPostPaymentReview: Boolean = false,
+    val isSubmittingReview: Boolean = false,
     val kitchenEvaluation: Int = 0,
     val serviceEvaluation: Int = 0
 ) {
@@ -220,7 +222,7 @@ class TipSelectionViewModel(
         }
     }
 
-    fun startExternalPayment(): Boolean {
+    fun startExternalPayment(requireReviewBeforePayment: Boolean): Boolean {
         val current = _uiState.value
 
         if (current.paymentState == TipPaymentUiState.Processing) {
@@ -248,10 +250,10 @@ class TipSelectionViewModel(
             return false
         }
 
-        if (current.kitchenEvaluation !in 1..5 || current.serviceEvaluation !in 1..5) {
-            _uiState.update {
-                it.copy(errorMessage = "Оцените кухню и сервис")
-            }
+        if (requireReviewBeforePayment &&
+            (current.kitchenEvaluation !in 1..5 || current.serviceEvaluation !in 1..5)
+        ) {
+            _uiState.update { it.copy(errorMessage = "Оцените кухню и сервис") }
             return false
         }
 
@@ -331,24 +333,63 @@ class TipSelectionViewModel(
         }
     }
 
-    suspend fun handleApprovedPayment(result: PaymentResult.Approved) {
+    suspend fun handleApprovedPayment(
+        result: PaymentResult.Approved,
+        requirePostPaymentReview: Boolean
+    ): Boolean {
         Log.i(
             REVIEW_TAG,
             "handlePaymentResult Approved rawMessagePreview=${result.rawMessage.toPaymentMessagePreview()}"
         )
 
+        if (requirePostPaymentReview) {
+            _uiState.update {
+                it.copy(
+                    paymentState = TipPaymentUiState.Approved(result.rawMessage),
+                    showPostPaymentReview = true
+                )
+            }
+            return false
+        }
+
         if (!reviewSentForCurrentPayment) {
             reviewSentForCurrentPayment = true
-
-            sendReview(
-                kitchenEvaluation = _uiState.value.kitchenEvaluation,
-                serviceEvaluation = _uiState.value.serviceEvaluation
-            )
+            val kitchen = _uiState.value.kitchenEvaluation
+            val service = _uiState.value.serviceEvaluation
+            if (kitchen in 1..5 && service in 1..5) {
+                sendReview(
+                    kitchenEvaluation = kitchen,
+                    serviceEvaluation = service
+                )
+            }
         }
 
         _uiState.update {
-            it.copy(paymentState = TipPaymentUiState.Idle)
+            it.copy(paymentState = TipPaymentUiState.Idle, showPostPaymentReview = false)
         }
+        return true
+    }
+
+    suspend fun finishPostPaymentReview(submit: Boolean): Boolean {
+        if (_uiState.value.isSubmittingReview) return false
+        if (submit) {
+            val state = _uiState.value
+            if (state.kitchenEvaluation !in 1..5 || state.serviceEvaluation !in 1..5) {
+                _uiState.update { it.copy(errorMessage = "Оцените кухню и сервис") }
+                return false
+            }
+            _uiState.update { it.copy(isSubmittingReview = true) }
+            sendReview(state.kitchenEvaluation, state.serviceEvaluation)
+            reviewSentForCurrentPayment = true
+        }
+        _uiState.update {
+            it.copy(
+                showPostPaymentReview = false,
+                paymentState = TipPaymentUiState.Idle,
+                isSubmittingReview = false
+            )
+        }
+        return true
     }
 
     fun handlePaymentLaunchError(message: String) {
