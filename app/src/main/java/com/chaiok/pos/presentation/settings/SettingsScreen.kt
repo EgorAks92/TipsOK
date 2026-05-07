@@ -306,7 +306,7 @@ private fun SettingsSquarePremiumScreen(
                     )
 
                     SettingsPremiumItem(
-                        title = "Чаевые",
+                        title = "Мои чаевые",
                         subtitle = "История и статистика",
                         iconRes = R.drawable.ic_settings_tips,
                         metrics = metrics,
@@ -323,7 +323,7 @@ private fun SettingsSquarePremiumScreen(
 
                     SettingsPremiumItem(
                         title = "Фон для кассового режима",
-                        subtitle = "Слайд шоу для кассового режима",
+                        subtitle = "Слайд-шоу для кассового режима",
                         iconRes = R.drawable.ic_cash,
                         metrics = metrics,
                         onClick = onPcIdleImages
@@ -553,13 +553,145 @@ private fun SettingsRegularToggleItem(title: String, subtitle: String, iconRes: 
 }
 
 @Composable
-private fun SettingsPremiumToggleItem(title: String, subtitle: String, iconRes: Int, metrics: SettingsPremiumMetrics, checked: Boolean, onToggle: (Boolean) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().height(metrics.itemHeight).clip(RoundedCornerShape(metrics.itemCornerRadius)).background(Color.White).border(1.dp, SettingsStrokeColor, RoundedCornerShape(metrics.itemCornerRadius)).clickable { onToggle(!checked) }.padding(horizontal = metrics.itemHorizontalPadding), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(iconRes), null, modifier = Modifier.size(metrics.iconSize), colorFilter = ColorFilter.tint(SettingsAccentColor))
-        Column(modifier = Modifier.weight(1f).padding(start = metrics.textStartPadding)) {
-            Text(title, color = SettingsPrimaryTextColor, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, fontSize = metrics.titleFontSize)
-            Text(subtitle, color = SettingsSecondaryTextColor, fontFamily = MontserratFontFamily, fontSize = metrics.subtitleFontSize, maxLines = 2)
+private fun SettingsPremiumToggleItem(
+    title: String,
+    subtitle: String,
+    iconRes: Int,
+    metrics: SettingsPremiumMetrics,
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(metrics.itemHeight)
+            .shadow(
+                elevation = metrics.itemShadowElevation,
+                shape = RoundedCornerShape(metrics.itemCornerRadius),
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.055f),
+                spotColor = Color.Black.copy(alpha = 0.105f)
+            )
+            .clip(RoundedCornerShape(metrics.itemCornerRadius))
+            .background(Color.White)
+            .border(
+                width = 1.dp,
+                color = SettingsStrokeColor.copy(alpha = 0.86f),
+                shape = RoundedCornerShape(metrics.itemCornerRadius)
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { onToggle(!checked) }
+            )
+            .padding(horizontal = metrics.itemHorizontalPadding),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(metrics.iconBoxSize)
+                .clip(RoundedCornerShape(metrics.iconBoxCornerRadius))
+                .background(
+                    brush = Brush.linearGradient(
+                        listOf(
+                            SettingsAccentColor.copy(alpha = 0.14f),
+                            SettingsGreenColor.copy(alpha = 0.12f)
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(metrics.iconSize),
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(SettingsAccentColor)
+            )
         }
-        Switch(checked = checked, onCheckedChange = null)
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(
+                    start = metrics.textStartPadding,
+                    end = metrics.textEndPadding
+                )
+        ) {
+            Text(
+                text = title,
+                color = SettingsPrimaryTextColor,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = metrics.titleFontSize,
+                lineHeight = metrics.titleLineHeight,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Text(
+                text = subtitle,
+                color = SettingsSecondaryTextColor,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = metrics.subtitleFontSize,
+                lineHeight = metrics.subtitleLineHeight,
+                maxLines = metrics.subtitleMaxLines,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        SettingsPremiumGradientToggle(
+            checked = checked,
+            onCheckedChange = onToggle
+        )
+    }
+}
+
+@Composable
+private fun SettingsPremiumGradientToggle(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(width = 42.dp, height = 24.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (checked) {
+                    Brush.horizontalGradient(
+                        listOf(
+                            SettingsAccentColor,
+                            SettingsGreenColor
+                        )
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFFF0F3F7),
+                            Color(0xFFF0F3F7)
+                        )
+                    )
+                }
+            )
+            .border(
+                width = 1.dp,
+                color = if (checked) Color.Transparent else SettingsStrokeColor,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable { onCheckedChange(!checked) }
+            .padding(2.dp),
+        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White)
+        )
     }
 }
