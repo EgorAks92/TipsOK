@@ -389,27 +389,7 @@ fun ChaiOkNavHost(container: AppContainer) {
 
                                 if (!shouldNavigateNow) return@LaunchedEffect
 
-                                if (isPcUsbSource) {
-                                    val popped = navController.popBackStack(
-                                        route = Routes.PcCommandIdle,
-                                        inclusive = false
-                                    )
-
-                                    if (!popped) {
-                                        navController.navigateSingleTopTo(Routes.PcCommandIdle)
-                                    }
-                                } else {
-                                    navController.requestHomeAmountResetSafely()
-
-                                    val popped = navController.popBackStack(
-                                        route = Routes.Home,
-                                        inclusive = false
-                                    )
-
-                                    if (!popped) {
-                                        navController.navigateSingleTopTo(Routes.Home)
-                                    }
-                                }
+                                navController.navigateAfterTipPayment(isPcUsbSource)
                             }
 
                             is PaymentResult.Declined,
@@ -488,33 +468,20 @@ fun ChaiOkNavHost(container: AppContainer) {
                 },
                 onSnackbarShown = vm::onMessageShown,
                 onDone = {
-                    val route = if (isPcUsbSource) {
-                        Routes.PcCommandIdle
-                    } else {
-                        Routes.Home
-                    }
-
-                    val popped = navController.popBackStack(
-                        route = route,
-                        inclusive = false
-                    )
-
-                    if (!popped) {
-                        navController.navigateSingleTopTo(route)
-                    }
+                    navController.navigateAfterTipPayment(isPcUsbSource)
                 },
                 onCompactReviewSubmit = {
-                    if (vm.finishPostPaymentReview(submit = true)) {
-                        val route = if (isPcUsbSource) Routes.PcCommandIdle else Routes.Home
-                        val popped = navController.popBackStack(route = route, inclusive = false)
-                        if (!popped) navController.navigateSingleTopTo(route)
+                    paymentScope.launch {
+                        if (vm.finishPostPaymentReview(submit = true)) {
+                            navController.navigateAfterTipPayment(isPcUsbSource)
+                        }
                     }
                 },
                 onCompactReviewSkip = {
-                    if (vm.finishPostPaymentReview(submit = false)) {
-                        val route = if (isPcUsbSource) Routes.PcCommandIdle else Routes.Home
-                        val popped = navController.popBackStack(route = route, inclusive = false)
-                        if (!popped) navController.navigateSingleTopTo(route)
+                    paymentScope.launch {
+                        if (vm.finishPostPaymentReview(submit = false)) {
+                            navController.navigateAfterTipPayment(isPcUsbSource)
+                        }
                     }
                 },
                 onRetry = {
@@ -787,6 +754,17 @@ private fun NavHostController.requestHomeAmountResetSafely() {
                 ?.savedStateHandle
                 ?.set(CLEAR_HOME_AMOUNT_KEY, true)
         }
+}
+
+private fun NavHostController.navigateAfterTipPayment(isPcUsbSource: Boolean) {
+    if (isPcUsbSource) {
+        val popped = popBackStack(route = Routes.PcCommandIdle, inclusive = false)
+        if (!popped) navigateSingleTopTo(Routes.PcCommandIdle)
+    } else {
+        requestHomeAmountResetSafely()
+        val popped = popBackStack(route = Routes.Home, inclusive = false)
+        if (!popped) navigateSingleTopTo(Routes.Home)
+    }
 }
 
 private fun buildPaymentRequest(state: TipSelectionUiState): PosPaymentRequest {

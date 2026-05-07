@@ -369,16 +369,14 @@ class TipSelectionViewModel(
         return true
     }
 
-    fun finishPostPaymentReview(submit: Boolean): Boolean {
+    suspend fun finishPostPaymentReview(submit: Boolean): Boolean {
         if (submit) {
             val state = _uiState.value
             if (state.kitchenEvaluation !in 1..5 || state.serviceEvaluation !in 1..5) {
                 _uiState.update { it.copy(errorMessage = "Оцените кухню и сервис") }
                 return false
             }
-            viewModelScope.launch {
-                sendReview(state.kitchenEvaluation, state.serviceEvaluation)
-            }
+            sendReview(state.kitchenEvaluation, state.serviceEvaluation)
         }
         _uiState.update { it.copy(showPostPaymentReview = false, paymentState = TipPaymentUiState.Idle) }
         return true

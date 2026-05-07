@@ -377,7 +377,7 @@ private fun TipSelectionRegularLayout(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(TipSelectionCompactBackgroundColor)
+            .background(TipSelectionScreenColor)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -755,12 +755,6 @@ private fun CompactCarouselTipCard(
             .padding(top = if (selected) 0.dp else 6.dp)
             .size(width = width, height = height)
             .compactReferenceShadow(RoundedCornerShape(if (selected) 20.dp else 18.dp))
-            .shadow(
-                elevation = if (selected) 6.dp else 2.dp,
-                shape = RoundedCornerShape(if (selected) 20.dp else 18.dp),
-                ambientColor = TipSelectionAccentColor.copy(alpha = 0.14f),
-                spotColor = TipSelectionAccentColor.copy(alpha = 0.2f)
-            )
             .clip(RoundedCornerShape(if (selected) 20.dp else 18.dp))
             .background(
                 if (selected) {
