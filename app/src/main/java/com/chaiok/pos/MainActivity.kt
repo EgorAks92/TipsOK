@@ -1,6 +1,7 @@
 package com.chaiok.pos
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
@@ -16,13 +17,16 @@ import com.chaiok.pos.presentation.theme.ChaiOkTheme
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        Log.i("StartupTrace", "MainActivity.onCreate start")
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { false }
         super.onCreate(savedInstanceState)
 
         hideSystemBars()
 
         val container = (application as ChaiOkApp).container
 
+        Log.i("StartupTrace", "before setContent")
         setContent {
             ChaiOkTheme {
                 Surface(color = MaterialTheme.colorScheme.background) {
@@ -30,6 +34,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        Log.i("StartupTrace", "after setContent")
     }
 
     override fun onResume() {
