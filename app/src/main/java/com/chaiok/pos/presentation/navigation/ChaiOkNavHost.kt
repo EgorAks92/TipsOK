@@ -187,17 +187,15 @@ fun ChaiOkNavHost(container: AppContainer) {
                 }
             )
 
+            val settingsState by vm.uiState.collectAsStateWithLifecycle()
+
             SettingsRoute(
                 viewModel = vm,
                 onBack = {
-                    val popped = navController.popBackStack(
-                        route = Routes.Home,
-                        inclusive = false
+                    navController.navigateAfterSettings(
+                        pcUsbModeEnabled = settingsState.pcUsbModeEnabled,
+                        openedFromPcIdle = false
                     )
-
-                    if (!popped) {
-                        navController.navigateSingleTopTo(Routes.Home)
-                    }
                 },
                 onStatus = {
                     navController.navigate(Routes.Status)
@@ -230,23 +228,10 @@ fun ChaiOkNavHost(container: AppContainer) {
             SettingsRoute(
                 viewModel = vm,
                 onBack = {
-                    if (settingsState.pcUsbModeEnabled) {
-                        val popped = navController.popBackStack(
-                            route = Routes.PcCommandIdle,
-                            inclusive = false
-                        )
-
-                        if (!popped) {
-                            navController.navigateSingleTopTo(Routes.PcCommandIdle)
-                        }
-                    } else {
-                        navController.navigate(Routes.Home) {
-                            popUpTo(Routes.PcCommandIdle) {
-                                inclusive = true
-                            }
-                            launchSingleTop = true
-                        }
-                    }
+                    navController.navigateAfterSettings(
+                        pcUsbModeEnabled = settingsState.pcUsbModeEnabled,
+                        openedFromPcIdle = true
+                    )
                 },
                 onStatus = {
                     navController.navigate(Routes.Status)
@@ -754,6 +739,27 @@ private fun NavHostController.requestHomeAmountResetSafely() {
                 ?.savedStateHandle
                 ?.set(CLEAR_HOME_AMOUNT_KEY, true)
         }
+}
+
+private fun NavHostController.navigateAfterSettings(
+    pcUsbModeEnabled: Boolean,
+    openedFromPcIdle: Boolean
+) {
+    popBackStack()
+
+    if (pcUsbModeEnabled) {
+        if (currentDestination?.route != Routes.PcCommandIdle) {
+            navigateSingleTopTo(Routes.PcCommandIdle)
+        }
+        return
+    }
+
+    if (openedFromPcIdle) {
+        val poppedToHome = popBackStack(route = Routes.Home, inclusive = false)
+        if (!poppedToHome && currentDestination?.route != Routes.Home) {
+            navigateSingleTopTo(Routes.Home)
+        }
+    }
 }
 
 private fun NavHostController.navigateAfterTipPayment(isPcUsbSource: Boolean) {
