@@ -713,8 +713,18 @@ private fun CompactCarouselSideHandle(modifier: Modifier = Modifier) {
 @Composable
 private fun CompactSecondaryActions(onCustomAmount: () -> Unit, onNoTips: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        CompactSecondaryButton("Другая сумма", Icons.Default.Edit, Modifier.weight(1f), onCustomAmount)
-        CompactSecondaryButton("Без чаевых", Icons.Default.Close, Modifier.weight(1f), onNoTips)
+        CompactSecondaryButton(
+            text = "Другая сумма",
+            icon = Icons.Default.Edit,
+            modifier = Modifier.weight(1f),
+            onClick = onCustomAmount
+        )
+        CompactSecondaryButton(
+            text = "Без чаевых",
+            icon = Icons.Default.Close,
+            modifier = Modifier.weight(1f),
+            onClick = onNoTips
+        )
     }
 }
 
