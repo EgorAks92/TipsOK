@@ -45,6 +45,7 @@ data class TipSelectionUiState(
     val showCustomTipDialog: Boolean = false,
     val errorMessage: String? = null,
     val paymentState: TipPaymentUiState = TipPaymentUiState.Idle,
+    val showPostPaymentReview: Boolean = false,
     val kitchenEvaluation: Int = 0,
     val serviceEvaluation: Int = 0
 ) {
@@ -220,7 +221,7 @@ class TipSelectionViewModel(
         }
     }
 
-    fun startExternalPayment(): Boolean {
+    fun startExternalPayment(requireReviewBeforePayment: Boolean): Boolean {
         val current = _uiState.value
 
         if (current.paymentState == TipPaymentUiState.Processing) {
@@ -245,6 +246,13 @@ class TipSelectionViewModel(
             _uiState.update {
                 it.copy(errorMessage = "Не удалось получить ID терминала")
             }
+            return false
+        }
+
+        if (requireReviewBeforePayment &&
+            (current.kitchenEvaluation !in 1..5 || current.serviceEvaluation !in 1..5)
+        ) {
+            _uiState.update { it.copy(errorMessage = "Оцените кухню и сервис") }
             return false
         }
 
@@ -324,11 +332,24 @@ class TipSelectionViewModel(
         }
     }
 
-    suspend fun handleApprovedPayment(result: PaymentResult.Approved) {
+    suspend fun handleApprovedPayment(
+        result: PaymentResult.Approved,
+        requirePostPaymentReview: Boolean
+    ): Boolean {
         Log.i(
             REVIEW_TAG,
             "handlePaymentResult Approved rawMessagePreview=${result.rawMessage.toPaymentMessagePreview()}"
         )
+
+        if (requirePostPaymentReview) {
+            _uiState.update {
+                it.copy(
+                    paymentState = TipPaymentUiState.Approved(result.rawMessage),
+                    showPostPaymentReview = true
+                )
+            }
+            return false
+        }
 
         if (!reviewSentForCurrentPayment) {
             reviewSentForCurrentPayment = true
@@ -343,8 +364,24 @@ class TipSelectionViewModel(
         }
 
         _uiState.update {
-            it.copy(paymentState = TipPaymentUiState.Idle)
+            it.copy(paymentState = TipPaymentUiState.Idle, showPostPaymentReview = false)
         }
+        return true
+    }
+
+    fun finishPostPaymentReview(submit: Boolean): Boolean {
+        if (submit) {
+            val state = _uiState.value
+            if (state.kitchenEvaluation !in 1..5 || state.serviceEvaluation !in 1..5) {
+                _uiState.update { it.copy(errorMessage = "Оцените кухню и сервис") }
+                return false
+            }
+            viewModelScope.launch {
+                sendReview(state.kitchenEvaluation, state.serviceEvaluation)
+            }
+        }
+        _uiState.update { it.copy(showPostPaymentReview = false, paymentState = TipPaymentUiState.Idle) }
+        return true
     }
 
     fun handlePaymentLaunchError(message: String) {

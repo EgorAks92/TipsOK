@@ -27,6 +27,8 @@ import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
 import com.chaiok.pos.presentation.background.ProfileBackgroundViewModel
+import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
+import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingOneTimeEvent
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingScreen
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingViewModel
@@ -348,6 +350,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                 ?: 0.0
 
             val isPcUsbSource = backStack.arguments?.getString("source") == "pc_usb"
+            val deviceClass = rememberChaiOkDeviceClass()
             val paymentScope = rememberCoroutineScope()
 
             val vm: TipSelectionViewModel = viewModel(
@@ -375,11 +378,16 @@ fun ChaiOkNavHost(container: AppContainer) {
 
                         when (val result = consumedResult.result) {
                             is PaymentResult.Approved -> {
-                                vm.handleApprovedPayment(result)
+                                val shouldNavigateNow = vm.handleApprovedPayment(
+                                    result = result,
+                                    requirePostPaymentReview = deviceClass == ChaiOkDeviceClass.SquareCompact
+                                )
 
                                 backStack.savedStateHandle.remove<PosPaymentRequest>(
                                     PENDING_PAYMENT_REQUEST_KEY
                                 )
+
+                                if (!shouldNavigateNow) return@LaunchedEffect
 
                                 if (isPcUsbSource) {
                                     val popped = navController.popBackStack(
@@ -465,14 +473,16 @@ fun ChaiOkNavHost(container: AppContainer) {
                                 container = container,
                                 navController = navController,
                                 viewModel = vm,
-                                paymentRequest = paymentRequest
+                                paymentRequest = paymentRequest,
+                                requireReviewBeforePayment = deviceClass != ChaiOkDeviceClass.SquareCompact
                             )
                         }
                     } else {
                         startPaymentFlow(
                             navController = navController,
                             viewModel = vm,
-                            paymentRequest = paymentRequest
+                            paymentRequest = paymentRequest,
+                            requireReviewBeforePayment = deviceClass != ChaiOkDeviceClass.SquareCompact
                         )
                     }
                 },
@@ -491,6 +501,20 @@ fun ChaiOkNavHost(container: AppContainer) {
 
                     if (!popped) {
                         navController.navigateSingleTopTo(route)
+                    }
+                },
+                onCompactReviewSubmit = {
+                    if (vm.finishPostPaymentReview(submit = true)) {
+                        val route = if (isPcUsbSource) Routes.PcCommandIdle else Routes.Home
+                        val popped = navController.popBackStack(route = route, inclusive = false)
+                        if (!popped) navController.navigateSingleTopTo(route)
+                    }
+                },
+                onCompactReviewSkip = {
+                    if (vm.finishPostPaymentReview(submit = false)) {
+                        val route = if (isPcUsbSource) Routes.PcCommandIdle else Routes.Home
+                        val popped = navController.popBackStack(route = route, inclusive = false)
+                        if (!popped) navController.navigateSingleTopTo(route)
                     }
                 },
                 onRetry = {
@@ -519,14 +543,16 @@ fun ChaiOkNavHost(container: AppContainer) {
                                 container = container,
                                 navController = navController,
                                 viewModel = vm,
-                                paymentRequest = paymentRequest
+                                paymentRequest = paymentRequest,
+                                requireReviewBeforePayment = deviceClass != ChaiOkDeviceClass.SquareCompact
                             )
                         }
                     } else {
                         startPaymentFlow(
                             navController = navController,
                             viewModel = vm,
-                            paymentRequest = paymentRequest
+                            paymentRequest = paymentRequest,
+                            requireReviewBeforePayment = deviceClass != ChaiOkDeviceClass.SquareCompact
                         )
                     }
                 },
@@ -779,14 +805,15 @@ private fun buildPaymentRequest(state: TipSelectionUiState): PosPaymentRequest {
 private fun startPaymentFlow(
     navController: NavHostController,
     viewModel: TipSelectionViewModel,
-    paymentRequest: PosPaymentRequest
+    paymentRequest: PosPaymentRequest,
+    requireReviewBeforePayment: Boolean
 ) {
     Log.i(
         PAYMENT_TAG,
         "startPaymentFlow requested terminalId=***${paymentRequest.terminalId.takeLast(4)}"
     )
 
-    if (!viewModel.startExternalPayment()) {
+    if (!viewModel.startExternalPayment(requireReviewBeforePayment)) {
         Log.w(
             PAYMENT_TAG,
             "startPaymentFlow aborted: startExternalPayment returned false"
@@ -810,7 +837,8 @@ private suspend fun startPcUsbPaymentFlow(
     container: AppContainer,
     navController: NavHostController,
     viewModel: TipSelectionViewModel,
-    paymentRequest: PosPaymentRequest
+    paymentRequest: PosPaymentRequest,
+    requireReviewBeforePayment: Boolean
 ) {
     val flowStartMs = SystemClock.elapsedRealtime()
 
@@ -841,7 +869,8 @@ private suspend fun startPcUsbPaymentFlow(
     startPaymentFlow(
         navController = navController,
         viewModel = viewModel,
-        paymentRequest = paymentRequest
+        paymentRequest = paymentRequest,
+        requireReviewBeforePayment = requireReviewBeforePayment
     )
 }
 

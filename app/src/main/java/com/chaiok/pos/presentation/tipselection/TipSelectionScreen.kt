@@ -72,8 +72,18 @@ private val TipSelectionStrokeColor = Color(0xFFE2E7EF)
 private val TipSelectionAccentColor = Color(0xFF087BE8)
 private val TipSelectionGreenColor = Color(0xFF14B8A6)
 private val TipSelectionWarningColor = Color(0xFFFFB547)
+private val TipSelectionCompactBackgroundColor = Color(0xFFF8F8F8)
+private val TipSelectionCompactShadowColor = Color(0xFFA7A7A7)
 private const val COMPACT_VISIBLE_PRESETS = 4
 private data class CompactPresetItem(val originalIndex: Int, val percent: Double)
+
+private fun Modifier.compactReferenceShadow(shape: androidx.compose.ui.graphics.Shape): Modifier =
+    this.shadow(
+        elevation = 4.dp,
+        shape = shape,
+        ambientColor = TipSelectionCompactShadowColor.copy(alpha = 0.35f),
+        spotColor = TipSelectionCompactShadowColor.copy(alpha = 0.35f)
+    )
 
 private data class TipSelectionLayoutMetrics(
     val isSquareCompact: Boolean,
@@ -279,6 +289,8 @@ fun TipSelectionScreen(
     onPay: () -> Unit,
     onSnackbarShown: () -> Unit,
     onDone: () -> Unit,
+    onCompactReviewSubmit: () -> Unit = {},
+    onCompactReviewSkip: () -> Unit = {},
     onRetry: () -> Unit,
     onServiceFeeToggle: (Boolean) -> Unit = {},
     onKitchenEvaluation: (Int) -> Unit = {},
@@ -305,6 +317,8 @@ fun TipSelectionScreen(
                     onCustomSet = onCustomSet,
                     onPay = onPay,
                     onDone = onDone,
+                    onCompactReviewSubmit = onCompactReviewSubmit,
+                    onCompactReviewSkip = onCompactReviewSkip,
                     onRetry = onRetry,
                     onServiceFeeToggle = onServiceFeeToggle,
                     onKitchenEvaluation = onKitchenEvaluation,
@@ -363,7 +377,7 @@ private fun TipSelectionRegularLayout(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(TipSelectionScreenColor)
+            .background(TipSelectionCompactBackgroundColor)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -441,6 +455,8 @@ private fun TipSelectionSquarePremiumLayout(
     onCustomSet: (String) -> Unit,
     onPay: () -> Unit,
     onDone: () -> Unit,
+    onCompactReviewSubmit: () -> Unit,
+    onCompactReviewSkip: () -> Unit,
     onRetry: () -> Unit,
     onServiceFeeToggle: (Boolean) -> Unit,
     onKitchenEvaluation: (Int) -> Unit,
@@ -451,7 +467,7 @@ private fun TipSelectionSquarePremiumLayout(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(TipSelectionScreenColor)
+            .background(TipSelectionCompactBackgroundColor)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             CompactTipTopBar(
@@ -474,14 +490,24 @@ private fun TipSelectionSquarePremiumLayout(
                             state.paymentState is TipPaymentUiState.Declined
 
                 if (isResultState) {
-                    PaymentResultContent(
-                        state = state,
-                        metrics = metrics,
-                        premium = true,
-                        onDone = onDone,
-                        onRetry = onRetry,
-                        onBack = onBack
-                    )
+                    if (state.showPostPaymentReview && state.paymentState is TipPaymentUiState.Approved) {
+                        CompactPostPaymentReviewContent(
+                            state = state,
+                            onKitchenEvaluation = onKitchenEvaluation,
+                            onServiceEvaluation = onServiceEvaluation,
+                            onSubmit = onCompactReviewSubmit,
+                            onSkip = onCompactReviewSkip
+                        )
+                    } else {
+                        PaymentResultContent(
+                            state = state,
+                            metrics = metrics,
+                            premium = true,
+                            onDone = onDone,
+                            onRetry = onRetry,
+                            onBack = onBack
+                        )
+                    }
                 } else {
                     TipSelectionCompactScreenContent(
                         state = state,
@@ -506,6 +532,29 @@ private fun TipSelectionSquarePremiumLayout(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CompactPostPaymentReviewContent(
+    state: TipSelectionUiState,
+    onKitchenEvaluation: (Int) -> Unit,
+    onServiceEvaluation: (Int) -> Unit,
+    onSubmit: () -> Unit,
+    onSkip: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Оцените заказ", color = TipSelectionPrimaryTextColor, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        Text("Помогите нам стать лучше", color = TipSelectionSecondaryTextColor, fontSize = 12.sp)
+        CompactRatingRow("Кухня", state.kitchenEvaluation, squarePremiumTipSelectionMetrics(), onKitchenEvaluation)
+        CompactRatingRow("Сервис", state.serviceEvaluation, squarePremiumTipSelectionMetrics(), onServiceEvaluation)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            CompactSecondaryButton("Отправить", Icons.Default.Check, Modifier.weight(1f), onSubmit)
+            CompactSecondaryButton("Пропустить", Icons.Default.Close, Modifier.weight(1f), onSkip)
         }
     }
 }
@@ -558,8 +607,9 @@ private fun CompactTipTopBar(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .size(34.dp)
+                .compactReferenceShadow(RoundedCornerShape(11.dp))
                 .clip(RoundedCornerShape(11.dp))
-                .background(TipSelectionSoftCardColor)
+                .background(Color.White)
                 .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(11.dp))
                 .clickable(onClick = onBack),
             contentAlignment = Alignment.Center
@@ -587,7 +637,7 @@ private fun CompactSummaryCard(state: TipSelectionUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .height(88.dp)
-            .shadow(2.dp, RoundedCornerShape(18.dp), ambientColor = Color.Black.copy(0.06f), spotColor = Color.Black.copy(0.1f))
+            .compactReferenceShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .border(1.dp, TipSelectionStrokeColor.copy(alpha = 0.86f), RoundedCornerShape(18.dp))
@@ -614,22 +664,20 @@ private fun CompactPercentRow(
     state: TipSelectionUiState,
     onPreset: (Int) -> Unit
 ) {
-    val visibleItems = state.availablePercents
-        .mapIndexed { index, percent -> CompactPresetItem(index, percent) }
-        .take(COMPACT_VISIBLE_PRESETS)
-
     Box(modifier = Modifier.fillMaxWidth().height(128.dp)) {
         CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterStart))
         CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterEnd))
 
-        Row(
+        LazyRow(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            contentPadding = PaddingValues(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.Top
         ) {
-            visibleItems.forEach { item ->
+            itemsIndexed(state.availablePercents) { index, percent ->
+                val item = CompactPresetItem(index, percent)
                 val selected = !state.isCustomSelected && state.selectedPercentIndex == item.originalIndex
                 CompactCarouselTipCard(
                     percentText = formatPercent(item.percent),
@@ -679,6 +727,7 @@ private fun CompactSecondaryButton(
     Box(
         modifier = modifier
             .height(42.dp)
+            .compactReferenceShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
@@ -705,6 +754,7 @@ private fun CompactCarouselTipCard(
         modifier = Modifier
             .padding(top = if (selected) 0.dp else 6.dp)
             .size(width = width, height = height)
+            .compactReferenceShadow(RoundedCornerShape(if (selected) 20.dp else 18.dp))
             .shadow(
                 elevation = if (selected) 6.dp else 2.dp,
                 shape = RoundedCornerShape(if (selected) 20.dp else 18.dp),
@@ -751,6 +801,7 @@ private fun CompactServiceFeeRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(46.dp)
+            .compactReferenceShadow(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
