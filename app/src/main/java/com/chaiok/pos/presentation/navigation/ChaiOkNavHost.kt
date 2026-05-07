@@ -755,9 +755,11 @@ private fun NavHostController.navigateAfterSettings(
     }
 
     if (openedFromPcIdle) {
-        val poppedToHome = popBackStack(route = Routes.Home, inclusive = false)
-        if (!poppedToHome && currentDestination?.route != Routes.Home) {
-            navigateSingleTopTo(Routes.Home)
+        navigate(Routes.Home) {
+            popUpTo(Routes.PcCommandIdle) {
+                inclusive = true
+            }
+            launchSingleTop = true
         }
     }
 }
