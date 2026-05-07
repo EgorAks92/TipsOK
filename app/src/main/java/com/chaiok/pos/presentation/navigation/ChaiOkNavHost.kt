@@ -78,15 +78,23 @@ fun ChaiOkNavHost(container: AppContainer) {
             LaunchedEffect(Unit) {
                 Log.i("StartupTrace", "Session check start")
                 val hasSession = container.sessionRepository.accessToken.first() != null
-                Log.i("StartupTrace", "Session check end")
+                Log.i("StartupTrace", "Session check end hasSession=$hasSession")
+
+                if (!hasSession) {
+                    navController.navigate(Routes.Login) {
+                        popUpTo(Routes.Launch) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    return@LaunchedEffect
+                }
 
                 val settings = container.observeSettingsUseCase().first()
                 Log.i("StartupTrace", "Settings first value received")
 
-                val target = when {
-                    !hasSession -> Routes.Login
-                    settings.pcUsbModeEnabled -> Routes.PcCommandIdle
-                    else -> Routes.Home
+                val target = if (settings.pcUsbModeEnabled) {
+                    Routes.PcCommandIdle
+                } else {
+                    Routes.Home
                 }
 
                 navController.navigate(target) {
@@ -101,7 +109,9 @@ fun ChaiOkNavHost(container: AppContainer) {
         }
 
         composable(Routes.Login) {
-            Log.i("StartupTrace", "Login route composed")
+            LaunchedEffect(Unit) {
+                Log.i("StartupTrace", "Login route composed")
+            }
             val vm: LoginViewModel = viewModel(
                 factory = SimpleFactory {
                     LoginViewModel(
