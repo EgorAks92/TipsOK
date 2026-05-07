@@ -549,16 +549,18 @@ private fun CompactTipTopBar(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.height(48.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(48.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .align(Alignment.CenterStart)
+                .size(34.dp)
+                .clip(RoundedCornerShape(11.dp))
                 .background(TipSelectionSoftCardColor)
-                .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(14.dp))
+                .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(11.dp))
                 .clickable(onClick = onBack),
             contentAlignment = Alignment.Center
         ) {
@@ -568,14 +570,13 @@ private fun CompactTipTopBar(
                 tint = TipSelectionPrimaryTextColor
             )
         }
-        Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = "Счёт и чаевые",
+            modifier = Modifier.align(Alignment.Center),
             color = TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 26.sp,
-            modifier = Modifier.weight(1f)
+            fontSize = 19.sp
         )
     }
 }
@@ -617,25 +618,14 @@ private fun CompactPercentRow(
         .mapIndexed { index, percent -> CompactPresetItem(index, percent) }
         .take(COMPACT_VISIBLE_PRESETS)
 
-    Box(modifier = Modifier.fillMaxWidth().height(132.dp)) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .width(6.dp)
-                .height(42.dp)
-                .clip(RoundedCornerShape(99.dp))
-                .background(TipSelectionAccentColor.copy(alpha = 0.9f))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .width(6.dp)
-                .height(42.dp)
-                .clip(RoundedCornerShape(99.dp))
-                .background(TipSelectionAccentColor.copy(alpha = 0.9f))
-        )
+    Box(modifier = Modifier.fillMaxWidth().height(128.dp)) {
+        CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterStart))
+        CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterEnd))
+
         Row(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.Top
         ) {
@@ -649,6 +639,25 @@ private fun CompactPercentRow(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CompactCarouselSideHandle(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(width = 30.dp, height = 92.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.verticalGradient(listOf(TipSelectionGreenColor, TipSelectionAccentColor))),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(38.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(Color.White.copy(alpha = 0.95f))
+        )
     }
 }
 

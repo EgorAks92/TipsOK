@@ -332,11 +332,14 @@ class TipSelectionViewModel(
 
         if (!reviewSentForCurrentPayment) {
             reviewSentForCurrentPayment = true
-
-            sendReview(
-                kitchenEvaluation = _uiState.value.kitchenEvaluation,
-                serviceEvaluation = _uiState.value.serviceEvaluation
-            )
+            val kitchen = _uiState.value.kitchenEvaluation
+            val service = _uiState.value.serviceEvaluation
+            if (kitchen in 1..5 && service in 1..5) {
+                sendReview(
+                    kitchenEvaluation = kitchen,
+                    serviceEvaluation = service
+                )
+            }
         }
 
         _uiState.update {
