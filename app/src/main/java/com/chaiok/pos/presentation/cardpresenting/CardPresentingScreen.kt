@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -66,6 +67,16 @@ private val CardPresentingGreenColor = Color(0xFF14B8A6)
 private val CardPresentingErrorColor = Color(0xFFFF5A5F)
 private val CardPresentingSoftCardColor = Color(0xFFF7F8FA)
 private val CardPresentingStrokeColor = Color(0xFFE2E7EF)
+private val CardPresentingCompactBackgroundColor = Color(0xFFF8F8F8)
+private val CardPresentingCompactShadowColor = Color(0xFFA7A7A7)
+
+private fun Modifier.compactReferenceShadow(shape: Shape): Modifier =
+    this.shadow(
+        elevation = 4.dp,
+        shape = shape,
+        ambientColor = CardPresentingCompactShadowColor.copy(alpha = 0.35f),
+        spotColor = CardPresentingCompactShadowColor.copy(alpha = 0.35f)
+    )
 
 private data class CardPresentingLayoutMetrics(
     val horizontalPadding: Dp,
@@ -345,7 +356,7 @@ private fun CardPresentingSquarePremiumScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(CardPresentingBackgroundColor)
+            .background(CardPresentingCompactBackgroundColor)
     ) {
         Column(
             modifier = Modifier
@@ -354,10 +365,6 @@ private fun CardPresentingSquarePremiumScreen(
                 .padding(top = metrics.topPadding, bottom = metrics.bottomPadding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            PremiumLogoHeader(metrics = metrics)
-
-            Spacer(modifier = Modifier.height(metrics.headerToAmountSpacing))
-
             PremiumAmountHero(
                 amountText = state.amountText,
                 stage = state.stage,
@@ -421,36 +428,33 @@ private fun PremiumAmountHero(
         else -> CardPresentingAccentColor.copy(alpha = 0.20f)
     }
 
+    val shape = RoundedCornerShape(20.dp)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = metrics.amountCardShadowElevation,
-                shape = RoundedCornerShape(metrics.amountCardCornerRadius),
-                clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.055f),
-                spotColor = Color.Black.copy(alpha = 0.10f)
-            )
-            .clip(RoundedCornerShape(metrics.amountCardCornerRadius))
+            .height(76.dp)
+            .compactReferenceShadow(shape)
+            .clip(shape)
             .background(Color.White)
             .border(
                 width = 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(metrics.amountCardCornerRadius)
+                color = borderColor.copy(alpha = 0.86f),
+                shape = shape
             )
             .padding(
-                horizontal = metrics.amountCardHorizontalPadding,
-                vertical = metrics.amountCardVerticalPadding
+                horizontal = 12.dp,
+                vertical = 8.dp
             ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "СУММА К ОПЛАТЕ",
+            text = "К оплате",
             color = CardPresentingSecondaryTextColor.copy(alpha = 0.82f),
             fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = metrics.amountLabelFontSize,
-            lineHeight = metrics.amountLabelLineHeight,
+            fontWeight = FontWeight.Medium,
+            fontSize = 16.sp,
+            lineHeight = 20.sp,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -463,8 +467,8 @@ private fun PremiumAmountHero(
             color = CardPresentingPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = metrics.amountFontSize,
-            lineHeight = metrics.amountLineHeight,
+            fontSize = 28.sp,
+            lineHeight = 32.sp,
             textAlign = TextAlign.Center,
             maxLines = 1,
             softWrap = false,
@@ -480,6 +484,7 @@ private fun PremiumPaymentFocus(
     modifier: Modifier = Modifier
 ) {
     val accentBrush = paymentAccentBrush(stage = state.stage)
+    val compactTitle = if (state.title == "Поднесите карту") "Приложите карту" else state.title
 
     Column(
         modifier = modifier
@@ -500,7 +505,7 @@ private fun PremiumPaymentFocus(
         Spacer(modifier = Modifier.height(metrics.visualToTitleSpacing))
 
         Text(
-            text = state.title,
+            text = compactTitle,
             color = CardPresentingPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
@@ -508,20 +513,6 @@ private fun PremiumPaymentFocus(
             lineHeight = metrics.titleLineHeight,
             textAlign = TextAlign.Center,
             maxLines = metrics.titleMaxLines,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(metrics.titleToMessageSpacing))
-
-        Text(
-            text = state.message,
-            color = CardPresentingSecondaryTextColor,
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = metrics.messageFontSize,
-            lineHeight = metrics.messageLineHeight,
-            textAlign = TextAlign.Center,
-            maxLines = metrics.messageMaxLines,
             overflow = TextOverflow.Ellipsis
         )
 
