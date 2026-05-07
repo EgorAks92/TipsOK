@@ -292,30 +292,6 @@ private fun SettingsSquarePremiumScreen(
                         bottom = metrics.contentBottomPadding
                     )
             ) {
-                Text(
-                    text = "Меню терминала",
-                    color = SettingsPrimaryTextColor,
-                    fontFamily = MontserratFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = metrics.headerTitleFontSize,
-                    lineHeight = metrics.headerTitleLineHeight,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = "Быстрые настройки рабочего экрана",
-                    color = SettingsSecondaryTextColor,
-                    fontFamily = MontserratFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = metrics.headerSubtitleFontSize,
-                    lineHeight = metrics.headerSubtitleLineHeight,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
                 Spacer(modifier = Modifier.height(metrics.headerToCardsSpacing))
 
                 Column(
@@ -346,17 +322,17 @@ private fun SettingsSquarePremiumScreen(
                     )
 
                     SettingsPremiumItem(
-                        title = "Экран ожидания кассы",
-                        subtitle = "Картинки в ECR-режиме",
-                        iconRes = R.drawable.ic_settings_background,
+                        title = "Фон для кассового режима",
+                        subtitle = "Слайд шоу для кассового режима",
+                        iconRes = R.drawable.ic_cash,
                         metrics = metrics,
                         onClick = onPcIdleImages
                     )
 
                     SettingsPremiumToggleItem(
-                        title = "Режим кассы по USB",
-                        subtitle = if (state.pcUsbModeEnabled) "Приложение ждёт сумму от ПК по USB" else "Ожидание команды оплаты от ПК выключено",
-                        iconRes = R.drawable.ic_settings_status,
+                        title = "Режим работы с кассой",
+                        subtitle = if (state.pcUsbModeEnabled) "Включено" else "Выключено",
+                        iconRes = R.drawable.ic_settings_pc_idle,
                         metrics = metrics,
                         checked = state.pcUsbModeEnabled,
                         onToggle = onTogglePcUsbMode
