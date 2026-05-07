@@ -248,13 +248,6 @@ class TipSelectionViewModel(
             return false
         }
 
-        if (current.kitchenEvaluation !in 1..5 || current.serviceEvaluation !in 1..5) {
-            _uiState.update {
-                it.copy(errorMessage = "Оцените кухню и сервис")
-            }
-            return false
-        }
-
         reviewSentForCurrentPayment = false
 
         _uiState.update {

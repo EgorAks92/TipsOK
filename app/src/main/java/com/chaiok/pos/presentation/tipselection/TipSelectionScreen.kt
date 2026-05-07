@@ -455,7 +455,6 @@ private fun TipSelectionSquarePremiumLayout(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             CompactTipTopBar(
-                billAmount = state.billAmount,
                 onBack = onBack,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -547,7 +546,6 @@ private fun TipSelectionCompactScreenContent(
 
 @Composable
 private fun CompactTipTopBar(
-    billAmount: Double,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -576,20 +574,8 @@ private fun CompactTipTopBar(
             color = TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
+            fontSize = 26.sp,
             modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = "Счёт ${formatRubles(billAmount)}",
-            color = TipSelectionPrimaryTextColor,
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(Color.White)
-                .border(1.dp, TipSelectionStrokeColor, RoundedCornerShape(999.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
         )
     }
 }
@@ -599,7 +585,7 @@ private fun CompactSummaryCard(state: TipSelectionUiState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(80.dp)
+            .height(88.dp)
             .shadow(2.dp, RoundedCornerShape(18.dp), ambientColor = Color.Black.copy(0.06f), spotColor = Color.Black.copy(0.1f))
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
@@ -616,9 +602,9 @@ private fun CompactSummaryCard(state: TipSelectionUiState) {
 @Composable
 private fun CompactSummaryColumn(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = TipSelectionSecondaryTextColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(label, color = TipSelectionSecondaryTextColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(value, color = TipSelectionPrimaryTextColor, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = TipSelectionPrimaryTextColor, fontSize = 22.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -631,12 +617,12 @@ private fun CompactPercentRow(
         .mapIndexed { index, percent -> CompactPresetItem(index, percent) }
         .take(COMPACT_VISIBLE_PRESETS)
 
-    Box(modifier = Modifier.fillMaxWidth().height(120.dp)) {
+    Box(modifier = Modifier.fillMaxWidth().height(132.dp)) {
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .width(6.dp)
-                .height(34.dp)
+                .height(42.dp)
                 .clip(RoundedCornerShape(99.dp))
                 .background(TipSelectionAccentColor.copy(alpha = 0.9f))
         )
@@ -644,7 +630,7 @@ private fun CompactPercentRow(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .width(6.dp)
-                .height(34.dp)
+                .height(42.dp)
                 .clip(RoundedCornerShape(99.dp))
                 .background(TipSelectionAccentColor.copy(alpha = 0.9f))
         )
@@ -692,7 +678,7 @@ private fun CompactSecondaryButton(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(icon, contentDescription = null, tint = TipSelectionAccentColor, modifier = Modifier.size(18.dp))
-            Text(text = text, color = TipSelectionPrimaryTextColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = text, color = TipSelectionPrimaryTextColor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -704,8 +690,8 @@ private fun CompactCarouselTipCard(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val width = if (selected) 92.dp else 70.dp
-    val height = if (selected) 114.dp else 102.dp
+    val width = if (selected) 106.dp else 80.dp
+    val height = if (selected) 126.dp else 112.dp
     Box(
         modifier = Modifier
             .padding(top = if (selected) 0.dp else 6.dp)
@@ -729,17 +715,17 @@ private fun CompactCarouselTipCard(
             .padding(horizontal = 10.dp, vertical = 10.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
-            Text(percentText, color = if (selected) Color.White else TipSelectionPrimaryTextColor, fontSize = if (selected) 20.sp else 16.sp, fontWeight = FontWeight.Bold)
-            Text(amountText, color = if (selected) Color.White else TipSelectionSecondaryTextColor, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(percentText, color = if (selected) Color.White else TipSelectionPrimaryTextColor, fontSize = if (selected) 30.sp else 24.sp, fontWeight = FontWeight.Bold)
+            Text(amountText, color = if (selected) Color.White else TipSelectionSecondaryTextColor, fontSize = if (selected) 14.sp else 12.sp, fontWeight = FontWeight.SemiBold)
             Box(
                 modifier = Modifier
-                    .size(if (selected) 24.dp else 22.dp)
+                    .size(if (selected) 30.dp else 26.dp)
                     .clip(CircleShape)
                     .border(2.dp, if (selected) Color.White else TipSelectionStrokeColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 if (selected) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -777,7 +763,7 @@ private fun CompactServiceFeeRow(
             color = TipSelectionPrimaryTextColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
+            fontSize = 14.sp,
             modifier = Modifier.weight(1f)
         )
         CompactSwitch(
