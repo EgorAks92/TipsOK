@@ -899,13 +899,13 @@ private fun CompactPercentRow(
     onPreset: (Int) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxWidth().height(140.dp)) {
-        CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterStart))
-        CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterEnd))
+        //CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterStart))
+        //CompactCarouselSideHandle(modifier = Modifier.align(Alignment.CenterEnd))
 
         LazyRow(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 0.dp),
             contentPadding = PaddingValues(horizontal = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically

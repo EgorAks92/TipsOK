@@ -269,10 +269,10 @@ private fun squarePremiumCardPresentingMetrics(): CardPresentingLayoutMetrics {
         loadingSize = 22.dp,
         loadingStrokeWidth = 2.dp,
 
-        cancelButtonHeight = 42.dp,
-        cancelButtonCornerRadius = 18.dp,
+        cancelButtonHeight = 56.dp,
+        cancelButtonCornerRadius = 20.dp,
         cancelButtonShadowElevation = 0.dp,
-        cancelButtonFontSize = 13.sp,
+        cancelButtonFontSize = 14.sp,
         cancelButtonLineHeight = 16.sp
     )
 }
