@@ -6,9 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,13 +31,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
@@ -71,7 +66,6 @@ fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit)
         PremiumIdleSlideshow(
             slides = slides,
             currentIndex = currentIndex,
-            maxPanDp = if (isCompact) 12.dp else 18.dp,
             modifier = Modifier.fillMaxSize()
         )
 
@@ -86,49 +80,15 @@ fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit)
 }
 
 @Composable
-private fun PremiumIdleSlideshow(slides: List<String>, currentIndex: Int, maxPanDp: Dp, modifier: Modifier = Modifier) {
-    val indexedSlides = remember(slides) {
-        slides.mapIndexed { index, image -> IndexedIdleSlide(index = index, image = image) }
-    }
+private fun PremiumIdleSlideshow(slides: List<String>, currentIndex: Int, modifier: Modifier = Modifier) {
     Crossfade(
-        targetState = indexedSlides[currentIndex],
-        animationSpec = tween(durationMillis = 1_200, easing = FastOutSlowInEasing),
+        targetState = slides[currentIndex],
+        animationSpec = tween(durationMillis = 1_350, easing = FastOutSlowInEasing),
         modifier = modifier,
-        label = "pc_idle_premium_crossfade"
-    ) { slide ->
-        PremiumSlideImage(
-            image = slide.image,
-            slideIndex = slide.index,
-            maxPanDp = maxPanDp,
-            modifier = Modifier.fillMaxSize()
-        )
+        label = "pc_idle_premium_dissolve"
+    ) { image ->
+        IdleBackgroundImage(image = image, modifier = Modifier.fillMaxSize())
     }
-}
-
-@Composable
-private fun PremiumSlideImage(image: String, slideIndex: Int, maxPanDp: Dp, modifier: Modifier = Modifier) {
-    val motionProgress = remember(image, slideIndex) { Animatable(0f) }
-    LaunchedEffect(image, slideIndex) {
-        motionProgress.snapTo(0f)
-        motionProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = SLIDE_INTERVAL_MS.toInt(), easing = LinearEasing)
-        )
-    }
-    val maxPanPx = with(LocalDensity.current) { maxPanDp.toPx() }
-    val panMagnitude = maxPanPx * motionProgress.value
-    val scale = BASE_SLIDE_SCALE + (SLIDE_ZOOM_DELTA * motionProgress.value)
-    val isEvenSlide = slideIndex % 2 == 0
-
-    IdleBackgroundImage(
-        image = image,
-        modifier = modifier.graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-            translationX = if (isEvenSlide) -panMagnitude else panMagnitude
-            translationY = if (isEvenSlide) -panMagnitude * 0.6f else panMagnitude * 0.6f
-        }
-    )
 }
 
 @Composable
@@ -202,10 +162,3 @@ private suspend fun loadImageBitmapFromUri(context: Context, uriString: String):
 
 private const val DEFAULT_IMAGE = "default"
 private const val SLIDE_INTERVAL_MS = 6_000L
-private const val BASE_SLIDE_SCALE = 1.06f
-private const val SLIDE_ZOOM_DELTA = 0.035f
-
-private data class IndexedIdleSlide(
-    val index: Int,
-    val image: String
-)
