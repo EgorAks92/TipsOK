@@ -16,12 +16,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,8 +38,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -46,6 +50,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,6 +59,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.sin
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
 import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
@@ -351,187 +357,258 @@ private fun CardPresentingSquarePremiumScreen(
     state: CardPresentingUiState,
     onCancel: () -> Unit
 ) {
-    val metrics = squarePremiumCardPresentingMetrics()
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CardPresentingCompactBackgroundColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = metrics.horizontalPadding)
-                .padding(top = metrics.topPadding, bottom = metrics.bottomPadding),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            PremiumAmountHero(
-                amountText = state.amountText,
-                stage = state.stage,
-                metrics = metrics
-            )
-
-            Spacer(modifier = Modifier.height(metrics.amountToMainSpacing))
-
-            PremiumPaymentFocus(
-                state = state,
-                metrics = metrics,
-                modifier = Modifier.weight(1f)
-            )
-
-            Spacer(modifier = Modifier.height(metrics.mainToButtonSpacing))
-
-            PremiumCancelButton(
-                enabled = state.canCancel,
-                metrics = metrics,
-                onClick = onCancel
-            )
-        }
-    }
-}
-
-@Composable
-private fun PremiumLogoHeader(
-    metrics: CardPresentingLayoutMetrics
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(metrics.headerHeight),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.tiply_logo_black),
-            contentDescription = "Tiply",
-            modifier = Modifier.size(
-                width = metrics.logoWidth,
-                height = metrics.logoHeight
-            ),
-            contentScale = ContentScale.Fit
-        )
-    }
-}
-
-@Composable
-private fun PremiumAmountHero(
-    amountText: String,
-    stage: CardPresentingStage,
-    metrics: CardPresentingLayoutMetrics
-) {
-    val shape = RoundedCornerShape(20.dp)
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(76.dp)
-            .compactReferenceShadow(shape)
-            .clip(shape)
-            .background(Color.White)
-            .border(
-                width = 1.dp,
-                color = CardPresentingStrokeColor.copy(alpha = 0.86f),
-                shape = shape
-            )
-            .padding(
-                horizontal = 12.dp,
-                vertical = 8.dp
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "К оплате",
-            color = CardPresentingSecondaryTextColor.copy(alpha = 0.82f),
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 16.sp,
-            lineHeight = 20.sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(metrics.amountTextSpacing))
-
-        Text(
-            text = amountText.ifBlank { "₽" },
-            color = CardPresentingPrimaryTextColor,
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 28.sp,
-            lineHeight = 32.sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun PremiumPaymentFocus(
-    state: CardPresentingUiState,
-    metrics: CardPresentingLayoutMetrics,
-    modifier: Modifier = Modifier
-) {
-    val accentBrush = paymentAccentBrush(stage = state.stage)
     val compactTitle = state.title.replace("Поднесите карту", "Приложите карту")
     val shouldShowMessage = state.stage != CardPresentingStage.WaitingForCard &&
         state.message.isNotBlank()
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = metrics.mainCardHorizontalPadding,
-                vertical = metrics.mainCardVerticalPadding
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color(0xFFFFFFFF),
+                        CardPresentingCompactBackgroundColor
+                    )
+                )
+            )
     ) {
-        AnimatedPaymentVisual(
-            stage = state.stage,
-            accentBrush = accentBrush,
-            metrics = metrics
+        CompactCloseButton(
+            enabled = state.canCancel,
+            onClick = onCancel,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 16.dp, end = 16.dp)
         )
 
-        Spacer(modifier = Modifier.height(metrics.visualToTitleSpacing))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
 
-        Text(
-            text = compactTitle,
-            color = CardPresentingPrimaryTextColor,
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = metrics.titleFontSize,
-            lineHeight = metrics.titleLineHeight,
-            textAlign = TextAlign.Center,
-            maxLines = metrics.titleMaxLines,
-            overflow = TextOverflow.Ellipsis
-        )
+            PremiumAmountPill(amountText = state.amountText)
 
-        if (shouldShowMessage) {
-            Spacer(modifier = Modifier.height(metrics.titleToMessageSpacing))
+            Spacer(modifier = Modifier.height(40.dp))
+
+            PremiumAnimatedContactlessHero(
+                stage = state.stage,
+                modifier = Modifier.size(292.dp)
+            )
+
+            if (state.stage.shouldShowProcessingSpinner()) {
+                Spacer(modifier = Modifier.height(18.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = CardPresentingAccentColor,
+                    strokeWidth = 3.dp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
 
             Text(
-                text = state.message,
-                color = CardPresentingSecondaryTextColor,
+                text = if (state.stage == CardPresentingStage.WaitingForCard) "Приложите карту" else compactTitle,
+                color = Color(0xFF07143F),
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 40.sp,
+                lineHeight = 44.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            if (shouldShowMessage) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = state.message,
+                    color = CardPresentingSecondaryTextColor,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactCloseButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .size(44.dp)
+            .shadow(
+                elevation = 6.dp,
+                shape = RoundedCornerShape(14.dp),
+                ambientColor = Color.Black.copy(alpha = 0.08f),
+                spotColor = Color.Black.copy(alpha = 0.16f)
+            )
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = if (enabled) 0.96f else 0.8f))
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "Отменить",
+            tint = Color(0xFF07143F).copy(alpha = if (enabled) 1f else 0.35f),
+            modifier = Modifier.size(26.dp)
+        )
+    }
+}
+
+@Composable
+private fun PremiumAmountPill(amountText: String, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(44.dp)
+    Row(
+        modifier = modifier
+            .size(width = 292.dp, height = 92.dp)
+            .shadow(
+                elevation = 9.dp,
+                shape = shape,
+                ambientColor = Color.Black.copy(alpha = 0.06f),
+                spotColor = Color.Black.copy(alpha = 0.14f)
+            )
+            .clip(shape)
+            .background(Color.White)
+            .border(1.dp, CardPresentingStrokeColor.copy(alpha = 0.7f), shape)
+            .padding(horizontal = 22.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.CreditCard,
+            contentDescription = null,
+            tint = Color(0xFF8E99AD),
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = "К оплате",
+                color = Color(0xFF8E99AD),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = metrics.messageFontSize,
-                lineHeight = metrics.messageLineHeight,
-                textAlign = TextAlign.Center,
-                maxLines = metrics.messageMaxLines,
+                fontSize = 19.sp,
+                lineHeight = 23.sp
+            )
+            Text(
+                text = amountText.ifBlank { "₽" },
+                color = Color(0xFF07143F),
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 40.sp,
+                lineHeight = 42.sp,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
+    }
+}
 
-        if (state.isLoading && !state.stage.shouldShowProcessingSpinner()) {
-            Spacer(modifier = Modifier.height(metrics.loadingSpacing))
+@Composable
+private fun PremiumAnimatedContactlessHero(
+    stage: CardPresentingStage,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "premiumPaymentHero")
+    val glowAlpha by transition.animateFloat(0.35f, 1f, infiniteRepeatable(tween(2100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "glow")
+    val rippleProgress by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "ripple")
+    val cardFloat by transition.animateFloat(-4f, 4f, infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "cardFloat")
 
-            CircularProgressIndicator(
-                modifier = Modifier.size(metrics.loadingSize),
-                color = CardPresentingAccentColor,
-                strokeWidth = metrics.loadingStrokeWidth
-            )
+    val accentBrush = paymentAccentBrush(stage)
+    val density = LocalDensity.current
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        PremiumRippleCanvas(
+            rippleProgress = rippleProgress,
+            glowAlpha = glowAlpha,
+            stage = stage,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .size(286.dp)
+                .shadow(16.dp, RoundedCornerShape(64.dp), ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.16f))
+                .clip(RoundedCornerShape(64.dp))
+                .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFF4F9FF))))
+                .border(1.4.dp, accentBrush, RoundedCornerShape(64.dp))
+        )
+        PremiumFloatingPaymentCard(
+            modifier = Modifier.graphicsLayer {
+                rotationZ = -10f
+                translationY = with(density) { cardFloat.dp.toPx() }
+            },
+            wavesAlpha = 0.48f + (sin(rippleProgress * Math.PI * 2).toFloat() * 0.14f),
+            stage = stage
+        )
+    }
+}
+
+@Composable
+private fun PremiumFloatingPaymentCard(modifier: Modifier = Modifier, wavesAlpha: Float, stage: CardPresentingStage) {
+    Box(
+        modifier = modifier
+            .size(width = 232.dp, height = 122.dp)
+            .shadow(14.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.16f))
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(Color.White, Color(0xFFEAF5FF))))
+            .border(1.dp, Color(0xFFDDE7F4), RoundedCornerShape(24.dp))
+            .padding(horizontal = 18.dp, vertical = 16.dp)
+    ) {
+        PremiumCardChip(Modifier.align(Alignment.CenterStart))
+        ContactlessWaves(alpha = wavesAlpha, stage = stage, modifier = Modifier.align(Alignment.TopEnd).size(48.dp))
+        if (stage == CardPresentingStage.Approved) {
+            Icon(Icons.Default.Check, null, tint = CardPresentingGreenColor, modifier = Modifier.align(Alignment.BottomEnd).size(22.dp))
+        }
+    }
+}
+
+@Composable private fun PremiumCardChip(modifier: Modifier = Modifier) { Box(modifier.size(34.dp,24.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFD59A))) }
+
+@Composable
+private fun ContactlessWaves(alpha: Float, stage: CardPresentingStage, modifier: Modifier = Modifier) {
+    val color = if (stage == CardPresentingStage.Declined || stage == CardPresentingStage.Error || stage == CardPresentingStage.Cancelled) CardPresentingErrorColor else CardPresentingAccentColor
+    Canvas(modifier.alpha(alpha.coerceIn(0.2f, 0.9f))) {
+        val stroke = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
+        val c = Offset(size.width * 0.34f, size.height * 0.7f)
+        listOf(8f, 14f, 20f).forEachIndexed { i, r ->
+            drawArc(color.copy(alpha = 0.25f + i * 0.16f), -52f, 100f, false, Offset(c.x - r.dp.toPx(), c.y - r.dp.toPx()), androidx.compose.ui.geometry.Size(r.dp.toPx()*2, r.dp.toPx()*2), stroke)
+        }
+    }
+}
+
+@Composable
+private fun PremiumRippleCanvas(rippleProgress: Float, glowAlpha: Float, stage: CardPresentingStage, modifier: Modifier = Modifier) {
+    val baseColor = when (stage) {
+        CardPresentingStage.Declined, CardPresentingStage.Error, CardPresentingStage.Cancelled -> CardPresentingErrorColor
+        CardPresentingStage.Approved -> CardPresentingGreenColor
+        else -> CardPresentingAccentColor
+    }
+    Canvas(modifier) {
+        val center = center
+        val maxRadius = size.minDimension * 0.48f
+        repeat(3) { i ->
+            val shifted = (rippleProgress + i * 0.28f) % 1f
+            val radius = maxRadius * (0.34f + shifted * 0.66f)
+            val alpha = ((1f - shifted) * 0.16f * glowAlpha).coerceIn(0f, 1f)
+            drawCircle(baseColor.copy(alpha = alpha), center = center, radius = radius, style = Stroke(width = 1.5.dp.toPx()))
         }
     }
 }
