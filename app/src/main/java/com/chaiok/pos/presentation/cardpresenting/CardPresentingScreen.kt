@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -75,6 +76,25 @@ private val CardPresentingSoftCardColor = Color(0xFFF7F8FA)
 private val CardPresentingStrokeColor = Color(0xFFE2E7EF)
 private val CardPresentingCompactBackgroundColor = Color(0xFFF8F8F8)
 private val CardPresentingCompactShadowColor = Color(0xFFA7A7A7)
+
+private val CompactPaymentHorizontalPadding = 16.dp
+private val CompactPaymentTopSpacer = 24.dp
+private val CompactAmountPillWidth = 272.dp
+private val CompactAmountPillHeight = 84.dp
+private val CompactAmountPillCorner = 40.dp
+private val CompactAmountIconSize = 22.dp
+private val CompactAmountLabelSize = 17.sp
+private val CompactAmountTextSize = 36.sp
+private val CompactAmountTextLineHeight = 38.sp
+private val CompactAmountToHeroSpacer = 24.dp
+private val CompactHeroSize = 244.dp
+private val CompactHeroPlatformSize = 238.dp
+private val CompactHeroPlatformCorner = 56.dp
+private val CompactFloatingCardWidth = 198.dp
+private val CompactFloatingCardHeight = 104.dp
+private val CompactHeroToTitleSpacer = 20.dp
+private val CompactTitleSize = 34.sp
+private val CompactTitleLineHeight = 38.sp
 
 private fun Modifier.compactReferenceShadow(shape: Shape): Modifier =
     this.shadow(
@@ -384,22 +404,22 @@ private fun CardPresentingSquarePremiumScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = CompactPaymentHorizontalPadding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(CompactPaymentTopSpacer))
 
             PremiumAmountPill(amountText = state.amountText)
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(CompactAmountToHeroSpacer))
 
             PremiumAnimatedContactlessHero(
                 stage = state.stage,
-                modifier = Modifier.size(292.dp)
+                modifier = Modifier.size(CompactHeroSize)
             )
 
             if (state.stage.shouldShowProcessingSpinner()) {
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 CircularProgressIndicator(
                     modifier = Modifier.size(28.dp),
                     color = CardPresentingAccentColor,
@@ -407,22 +427,22 @@ private fun CardPresentingSquarePremiumScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(CompactHeroToTitleSpacer))
 
             Text(
                 text = if (state.stage == CardPresentingStage.WaitingForCard) "Приложите карту" else compactTitle,
                 color = Color(0xFF07143F),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 40.sp,
-                lineHeight = 44.sp,
+                fontSize = CompactTitleSize,
+                lineHeight = CompactTitleLineHeight,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
             if (shouldShowMessage) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = state.message,
                     color = CardPresentingSecondaryTextColor,
@@ -477,10 +497,10 @@ private fun CompactCloseButton(
 
 @Composable
 private fun PremiumAmountPill(amountText: String, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(44.dp)
+    val shape = RoundedCornerShape(CompactAmountPillCorner)
     Row(
         modifier = modifier
-            .size(width = 292.dp, height = 92.dp)
+            .size(width = CompactAmountPillWidth, height = CompactAmountPillHeight)
             .shadow(
                 elevation = 9.dp,
                 shape = shape,
@@ -497,7 +517,7 @@ private fun PremiumAmountPill(amountText: String, modifier: Modifier = Modifier)
             imageVector = Icons.Default.CreditCard,
             contentDescription = null,
             tint = Color(0xFF8E99AD),
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(CompactAmountIconSize)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column {
@@ -506,16 +526,16 @@ private fun PremiumAmountPill(amountText: String, modifier: Modifier = Modifier)
                 color = Color(0xFF8E99AD),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 19.sp,
-                lineHeight = 23.sp
+                fontSize = CompactAmountLabelSize,
+                lineHeight = 21.sp
             )
             Text(
                 text = amountText.ifBlank { "₽" },
                 color = Color(0xFF07143F),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 40.sp,
-                lineHeight = 42.sp,
+                fontSize = CompactAmountTextSize,
+                lineHeight = CompactAmountTextLineHeight,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -544,11 +564,11 @@ private fun PremiumAnimatedContactlessHero(
         )
         Box(
             modifier = Modifier
-                .size(286.dp)
-                .shadow(16.dp, RoundedCornerShape(64.dp), ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.16f))
-                .clip(RoundedCornerShape(64.dp))
+                .size(CompactHeroPlatformSize)
+                .shadow(16.dp, RoundedCornerShape(CompactHeroPlatformCorner), ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.16f))
+                .clip(RoundedCornerShape(CompactHeroPlatformCorner))
                 .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFF4F9FF))))
-                .border(1.4.dp, accentBrush, RoundedCornerShape(64.dp))
+                .border(1.4.dp, accentBrush, RoundedCornerShape(CompactHeroPlatformCorner))
         )
         PremiumFloatingPaymentCard(
             modifier = Modifier.graphicsLayer {
@@ -565,7 +585,7 @@ private fun PremiumAnimatedContactlessHero(
 private fun PremiumFloatingPaymentCard(modifier: Modifier = Modifier, wavesAlpha: Float, stage: CardPresentingStage) {
     Box(
         modifier = modifier
-            .size(width = 232.dp, height = 122.dp)
+            .size(width = CompactFloatingCardWidth, height = CompactFloatingCardHeight)
             .shadow(14.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.16f))
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.linearGradient(listOf(Color.White, Color(0xFFEAF5FF))))
@@ -589,7 +609,21 @@ private fun ContactlessWaves(alpha: Float, stage: CardPresentingStage, modifier:
         val stroke = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
         val c = Offset(size.width * 0.34f, size.height * 0.7f)
         listOf(8f, 14f, 20f).forEachIndexed { i, r ->
-            drawArc(color.copy(alpha = 0.25f + i * 0.16f), -52f, 100f, false, Offset(c.x - r.dp.toPx(), c.y - r.dp.toPx()), androidx.compose.ui.geometry.Size(r.dp.toPx()*2, r.dp.toPx()*2), stroke)
+            drawArc(
+                color = color.copy(alpha = 0.25f + i * 0.16f),
+                startAngle = -52f,
+                sweepAngle = 100f,
+                useCenter = false,
+                topLeft = Offset(
+                    x = c.x - r.dp.toPx(),
+                    y = c.y - r.dp.toPx()
+                ),
+                size = Size(
+                    width = r.dp.toPx() * 2f,
+                    height = r.dp.toPx() * 2f
+                ),
+                style = stroke
+            )
         }
     }
 }
