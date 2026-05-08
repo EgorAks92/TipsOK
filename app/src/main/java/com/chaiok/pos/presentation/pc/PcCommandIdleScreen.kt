@@ -12,10 +12,21 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Dialog
+import androidx.compose.material3.DialogProperties
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,19 +46,28 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
 import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
+import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
-fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit) {
+fun PcCommandIdleScreen(
+    state: PcCommandIdleUiState,
+    onRequestUnlock: () -> Unit,
+    onCancelUnlock: () -> Unit,
+    onUnlockDigit: (String) -> Unit,
+    onUnlockBackspace: () -> Unit,
+    onSubmitUnlockPin: () -> Unit
+) {
     val slides = if (state.images.isEmpty()) listOf(DEFAULT_IMAGE) else state.images
     val isCompact = rememberChaiOkDeviceClass() == ChaiOkDeviceClass.SquareCompact
     var currentIndex by remember(slides) { mutableIntStateOf(0) }
@@ -71,11 +91,121 @@ fun PcCommandIdleScreen(state: PcCommandIdleUiState, onOpenSettings: () -> Unit)
 
         StatusChip(
             status = state.connectionStatus,
-            onClick = onOpenSettings,
+            onClick = onRequestUnlock,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(if (isCompact) 10.dp else 18.dp)
         )
+
+        if (state.showUnlockDialog) {
+            UnlockPinDialog(
+                pin = state.unlockPin,
+                error = state.unlockError,
+                isLoading = state.isUnlocking,
+                onCancel = onCancelUnlock,
+                onDigit = onUnlockDigit,
+                onBackspace = onUnlockBackspace,
+                onSubmit = onSubmitUnlockPin
+            )
+        }
+    }
+}
+
+@Composable
+private fun UnlockPinDialog(
+    pin: String,
+    error: String?,
+    isLoading: Boolean,
+    onCancel: () -> Unit,
+    onDigit: (String) -> Unit,
+    onBackspace: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(
+            dismissOnBackPress = !isLoading,
+            dismissOnClickOutside = !isLoading
+        )
+    ) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+            modifier = Modifier.widthIn(max = 420.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Введите PIN официанта",
+                    color = Color(0xFF1B2128),
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                PinDots(pinLength = pin.length)
+
+                if (error != null) {
+                    Text(
+                        text = error,
+                        color = Color(0xFFD32F2F),
+                        fontFamily = MontserratFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                TiplyNumericKeypad(
+                    onDigit = onDigit,
+                    onDelete = onBackspace,
+                    onConfirm = onSubmit,
+                    confirmEnabled = pin.isNotBlank() && !isLoading,
+                    isLoading = isLoading,
+                    digitColor = Color(0xFF1B2128),
+                    touchSize = 58.dp,
+                    iconSize = 28.dp,
+                    digitFontSize = 24.sp,
+                    rowSpacing = 0.dp,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Button(
+                    onClick = onCancel,
+                    enabled = !isLoading,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF3F6FB),
+                        contentColor = Color(0xFF1B2128)
+                    )
+                ) {
+                    Text("Отмена", fontFamily = MontserratFontFamily, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PinDots(pinLength: Int) {
+    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(4) { index ->
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(
+                        color = if (index < pinLength) Color(0xFF1B2128) else Color(0xFFD5DBE5),
+                        shape = RoundedCornerShape(50)
+                    )
+            )
+        }
     }
 }
 

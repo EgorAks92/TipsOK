@@ -578,7 +578,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                 factory = SimpleFactory {
                     PcCommandIdleViewModel(
                         repository = container.pcPaymentCommandRepository,
-                        observeSettingsUseCase = container.observeSettingsUseCase
+                        observeSettingsUseCase = container.observeSettingsUseCase,
+                        loginWithPinUseCase = container.loginWithPinUseCase
                     )
                 }
             )
@@ -640,6 +641,10 @@ fun ChaiOkNavHost(container: AppContainer) {
                     object : FlowCollector<PcCommandIdleEvent> {
                         override suspend fun emit(value: PcCommandIdleEvent) {
                             when (value) {
+                                PcCommandIdleEvent.NavigateToSettings -> {
+                                    navController.navigateSingleTopTo(Routes.SettingsFromPc)
+                                }
+
                                 is PcCommandIdleEvent.OpenTipSelection -> {
                                     navController.navigateSingleTopTo(
                                         Routes.tipSelectionFromPc(
@@ -657,9 +662,11 @@ fun ChaiOkNavHost(container: AppContainer) {
 
             PcCommandIdleScreen(
                 state = state,
-                onOpenSettings = {
-                    navController.navigateSingleTopTo(Routes.SettingsFromPc)
-                }
+                onRequestUnlock = vm::openUnlockDialog,
+                onCancelUnlock = vm::closeUnlockDialog,
+                onUnlockDigit = vm::onUnlockDigit,
+                onUnlockBackspace = vm::onUnlockBackspace,
+                onSubmitUnlockPin = vm::submitUnlockPin
             )
         }
 
