@@ -32,7 +32,15 @@ data class PcCommandIdleUiState(
     val showUnlockDialog: Boolean = false,
     val unlockPin: String = "",
     val isUnlocking: Boolean = false,
-    val unlockError: String? = null
+    val unlockError: String? = null,
+    val unlockPinMaxLength: Int = UNLOCK_PIN_MAX_LENGTH
+)
+
+private data class UnlockState(
+    val showDialog: Boolean = false,
+    val pin: String = "",
+    val isLoading: Boolean = false,
+    val error: String? = null
 )
 
 class PcCommandIdleViewModel(
@@ -49,6 +57,8 @@ class PcCommandIdleViewModel(
 
     private val _uiState = MutableStateFlow(PcCommandIdleUiState())
     val uiState: StateFlow<PcCommandIdleUiState> = _uiState.asStateFlow()
+
+    private val unlockState = MutableStateFlow(UnlockState())
 
     private val _events = MutableSharedFlow<PcCommandIdleEvent>(
         extraBufferCapacity = 1
@@ -90,61 +100,47 @@ class PcCommandIdleViewModel(
     }
 
     fun openUnlockDialog() {
-        _uiState.value = _uiState.value.copy(
-            showUnlockDialog = true,
-            unlockPin = "",
-            unlockError = null,
-            isUnlocking = false
-        )
+        unlockState.value = UnlockState(showDialog = true)
     }
 
     fun closeUnlockDialog() {
-        if (_uiState.value.isUnlocking) return
-        _uiState.value = _uiState.value.copy(
-            showUnlockDialog = false,
-            unlockPin = "",
-            unlockError = null,
-            isUnlocking = false
-        )
+        val current = unlockState.value
+        if (current.isLoading) return
+        unlockState.value = UnlockState()
     }
 
     fun onUnlockDigit(digit: String) {
-        val state = _uiState.value
-        if (!state.showUnlockDialog || state.isUnlocking || state.unlockPin.length >= UNLOCK_PIN_MAX_LENGTH) return
-        _uiState.value = state.copy(unlockPin = state.unlockPin + digit, unlockError = null)
+        val current = unlockState.value
+        if (!current.showDialog || current.isLoading || current.pin.length >= UNLOCK_PIN_MAX_LENGTH) return
+        unlockState.value = current.copy(pin = current.pin + digit, error = null)
     }
 
     fun onUnlockBackspace() {
-        val state = _uiState.value
-        if (!state.showUnlockDialog || state.isUnlocking || state.unlockPin.isEmpty()) return
-        _uiState.value = state.copy(unlockPin = state.unlockPin.dropLast(1), unlockError = null)
+        val current = unlockState.value
+        if (!current.showDialog || current.isLoading || current.pin.isEmpty()) return
+        unlockState.value = current.copy(pin = current.pin.dropLast(1), error = null)
     }
 
     fun submitUnlockPin() {
-        val state = _uiState.value
-        if (!state.showUnlockDialog || state.isUnlocking) return
-        if (state.unlockPin.isBlank()) {
-            _uiState.value = state.copy(unlockError = "Введите пароль")
+        val current = unlockState.value
+        if (!current.showDialog || current.isLoading) return
+        if (current.pin.isBlank()) {
+            unlockState.value = current.copy(error = "Введите пароль")
             return
         }
 
-        val pin = state.unlockPin
+        val pin = current.pin
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isUnlocking = true, unlockError = null)
+            unlockState.value = unlockState.value.copy(isLoading = true, error = null)
             val result = loginWithPinUseCase(pin)
             result.onSuccess {
-                _uiState.value = _uiState.value.copy(
-                    showUnlockDialog = false,
-                    unlockPin = "",
-                    isUnlocking = false,
-                    unlockError = null
-                )
+                unlockState.value = UnlockState()
                 _events.emit(PcCommandIdleEvent.NavigateToSettings)
             }.onFailure {
-                _uiState.value = _uiState.value.copy(
-                    unlockPin = "",
-                    isUnlocking = false,
-                    unlockError = "Неверный пароль"
+                unlockState.value = unlockState.value.copy(
+                    pin = "",
+                    isLoading = false,
+                    error = "Неверный пароль"
                 )
             }
         }
@@ -166,16 +162,18 @@ class PcCommandIdleViewModel(
         viewModelScope.launch {
             combine(
                 _status,
-                observeSettingsUseCase()
-            ) { status, settings ->
+                observeSettingsUseCase(),
+                unlockState
+            ) { status, settings, unlock ->
                 val configuredImages = settings.pcIdleImages.filter { it.isNotBlank() }
                 PcCommandIdleUiState(
                     connectionStatus = status,
                     images = if (configuredImages.isNotEmpty()) configuredImages else listOf(DEFAULT_IMAGE),
-                    showUnlockDialog = _uiState.value.showUnlockDialog,
-                    unlockPin = _uiState.value.unlockPin,
-                    isUnlocking = _uiState.value.isUnlocking,
-                    unlockError = _uiState.value.unlockError
+                    showUnlockDialog = unlock.showDialog,
+                    unlockPin = unlock.pin,
+                    isUnlocking = unlock.isLoading,
+                    unlockError = unlock.error,
+                    unlockPinMaxLength = UNLOCK_PIN_MAX_LENGTH
                 )
             }.collect { nextState ->
                 _uiState.value = nextState

@@ -100,6 +100,7 @@ fun PcCommandIdleScreen(
         if (state.showUnlockDialog) {
             UnlockPinDialog(
                 pin = state.unlockPin,
+                maxPinLength = state.unlockPinMaxLength,
                 error = state.unlockError,
                 isLoading = state.isUnlocking,
                 onCancel = onCancelUnlock,
@@ -114,6 +115,7 @@ fun PcCommandIdleScreen(
 @Composable
 private fun UnlockPinDialog(
     pin: String,
+    maxPinLength: Int,
     error: String?,
     isLoading: Boolean,
     onCancel: () -> Unit,
@@ -152,7 +154,7 @@ private fun UnlockPinDialog(
 
                 PinDots(
                     pinLength = pin.length,
-                    maxLength = UNLOCK_PIN_MAX_LENGTH
+                    maxLength = maxPinLength
                 )
 
                 if (error != null) {
@@ -295,4 +297,3 @@ private suspend fun loadImageBitmapFromUri(context: Context, uriString: String):
 
 private const val DEFAULT_IMAGE = "default"
 private const val SLIDE_INTERVAL_MS = 6_000L
-private const val UNLOCK_PIN_MAX_LENGTH = 4
