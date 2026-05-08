@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -95,6 +96,9 @@ private val CompactFloatingCardHeight = 104.dp
 private val CompactHeroToTitleSpacer = 20.dp
 private val CompactTitleSize = 34.sp
 private val CompactTitleLineHeight = 38.sp
+private val CompactFloatingCardCorner = 24.dp
+private val CompactCloseButtonSize = 44.dp
+private val CompactCloseIconSize = 24.dp
 
 private fun Modifier.compactReferenceShadow(shape: Shape): Modifier =
     this.shadow(
@@ -381,7 +385,7 @@ private fun CardPresentingSquarePremiumScreen(
     val shouldShowMessage = state.stage != CardPresentingStage.WaitingForCard &&
         state.message.isNotBlank()
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(
@@ -393,6 +397,20 @@ private fun CardPresentingSquarePremiumScreen(
                 )
             )
     ) {
+        val screenHeight = maxHeight
+        val screenWidth = maxWidth
+        val topSpacer = (screenHeight * 0.06f).coerceIn(24.dp, 30.dp)
+        val amountWidth = (screenWidth * 0.72f).coerceIn(270.dp, 300.dp)
+        val amountHeight = (screenHeight * 0.14f).coerceIn(82.dp, 88.dp)
+        val amountToHeroSpacer = (screenHeight * 0.07f).coerceIn(28.dp, 36.dp)
+        val heroSize = minOf(
+            (screenWidth * 0.82f).coerceAtMost(320.dp),
+            (screenHeight * 0.43f).coerceAtMost(320.dp)
+        ).coerceAtLeast(260.dp)
+        val heroToTitleSpacer = (screenHeight * 0.04f).coerceIn(14.dp, 20.dp)
+        val titleSize = (screenWidth.value * 0.08f).sp.coerceIn(28.sp, 31.sp)
+        val titleLineHeight = (titleSize.value + 4f).sp
+
         CompactCloseButton(
             enabled = state.canCancel,
             onClick = onCancel,
@@ -407,15 +425,20 @@ private fun CardPresentingSquarePremiumScreen(
                 .padding(horizontal = CompactPaymentHorizontalPadding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(CompactPaymentTopSpacer))
+            Spacer(modifier = Modifier.height(topSpacer))
 
-            PremiumAmountPill(amountText = state.amountText)
+            PremiumAmountPill(
+                amountText = state.amountText,
+                width = amountWidth,
+                height = amountHeight
+            )
 
-            Spacer(modifier = Modifier.height(CompactAmountToHeroSpacer))
+            Spacer(modifier = Modifier.height(amountToHeroSpacer))
 
             PremiumAnimatedContactlessHero(
                 stage = state.stage,
-                modifier = Modifier.size(CompactHeroSize)
+                heroSize = heroSize,
+                modifier = Modifier.size(heroSize)
             )
 
             if (state.stage.shouldShowProcessingSpinner()) {
@@ -427,15 +450,15 @@ private fun CardPresentingSquarePremiumScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(CompactHeroToTitleSpacer))
+            Spacer(modifier = Modifier.height(heroToTitleSpacer))
 
             Text(
                 text = if (state.stage == CardPresentingStage.WaitingForCard) "Приложите карту" else compactTitle,
                 color = Color(0xFF07143F),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = CompactTitleSize,
-                lineHeight = CompactTitleLineHeight,
+                fontSize = titleSize,
+                lineHeight = titleLineHeight,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -469,7 +492,7 @@ private fun CompactCloseButton(
 
     Box(
         modifier = modifier
-            .size(44.dp)
+            .size(CompactCloseButtonSize)
             .shadow(
                 elevation = 6.dp,
                 shape = RoundedCornerShape(14.dp),
@@ -490,19 +513,24 @@ private fun CompactCloseButton(
             imageVector = Icons.Default.Close,
             contentDescription = "Отменить",
             tint = Color(0xFF07143F).copy(alpha = if (enabled) 1f else 0.35f),
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier.size(CompactCloseIconSize)
         )
     }
 }
 
 @Composable
-private fun PremiumAmountPill(amountText: String, modifier: Modifier = Modifier) {
+private fun PremiumAmountPill(
+    amountText: String,
+    width: Dp,
+    height: Dp,
+    modifier: Modifier = Modifier
+) {
     val shape = RoundedCornerShape(CompactAmountPillCorner)
     Row(
         modifier = modifier
-            .size(width = CompactAmountPillWidth, height = CompactAmountPillHeight)
+            .size(width = width, height = height)
             .shadow(
-                elevation = 9.dp,
+                elevation = 12.dp,
                 shape = shape,
                 ambientColor = Color.Black.copy(alpha = 0.06f),
                 spotColor = Color.Black.copy(alpha = 0.14f)
@@ -516,7 +544,7 @@ private fun PremiumAmountPill(amountText: String, modifier: Modifier = Modifier)
         Icon(
             imageVector = Icons.Default.CreditCard,
             contentDescription = null,
-            tint = Color(0xFF8E99AD),
+            tint = CardPresentingAccentColor.copy(alpha = 0.85f),
             modifier = Modifier.size(CompactAmountIconSize)
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -546,15 +574,20 @@ private fun PremiumAmountPill(amountText: String, modifier: Modifier = Modifier)
 @Composable
 private fun PremiumAnimatedContactlessHero(
     stage: CardPresentingStage,
+    heroSize: Dp,
     modifier: Modifier = Modifier
 ) {
     val transition = rememberInfiniteTransition(label = "premiumPaymentHero")
-    val glowAlpha by transition.animateFloat(0.35f, 1f, infiniteRepeatable(tween(2100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "glow")
+    val glowAlpha by transition.animateFloat(0.45f, 1f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "glow")
     val rippleProgress by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "ripple")
     val cardFloat by transition.animateFloat(-4f, 4f, infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "cardFloat")
 
     val accentBrush = paymentAccentBrush(stage)
     val density = LocalDensity.current
+    val platformSize = (heroSize * 0.88f).coerceIn(260.dp, 285.dp)
+    val platformCorner = (platformSize * 0.23f).coerceIn(58.dp, 68.dp)
+    val cardWidth = (platformSize * 0.84f).coerceIn(220.dp, 240.dp)
+    val cardHeight = (platformSize * 0.45f).coerceIn(115.dp, 128.dp)
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         PremiumRippleCanvas(
             rippleProgress = rippleProgress,
@@ -564,11 +597,18 @@ private fun PremiumAnimatedContactlessHero(
         )
         Box(
             modifier = Modifier
-                .size(CompactHeroPlatformSize)
-                .shadow(16.dp, RoundedCornerShape(CompactHeroPlatformCorner), ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.16f))
-                .clip(RoundedCornerShape(CompactHeroPlatformCorner))
-                .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFF4F9FF))))
-                .border(1.4.dp, accentBrush, RoundedCornerShape(CompactHeroPlatformCorner))
+                .size(platformSize)
+                .shadow(20.dp, RoundedCornerShape(platformCorner), ambientColor = Color.Black.copy(alpha = 0.1f), spotColor = Color.Black.copy(alpha = 0.16f))
+                .clip(RoundedCornerShape(platformCorner))
+                .background(Brush.verticalGradient(listOf(Color.White, Color(0xFFF1F8FF))))
+                .border(1.5.dp, accentBrush, RoundedCornerShape(platformCorner))
+        )
+        Box(
+            modifier = Modifier
+                .size(platformSize * 0.92f)
+                .clip(RoundedCornerShape(platformCorner * 0.9f))
+                .background(Color.White.copy(alpha = 0.55f))
+                .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(platformCorner * 0.9f))
         )
         PremiumFloatingPaymentCard(
             modifier = Modifier.graphicsLayer {
@@ -576,20 +616,28 @@ private fun PremiumAnimatedContactlessHero(
                 translationY = with(density) { cardFloat.dp.toPx() }
             },
             wavesAlpha = 0.48f + (sin(rippleProgress * Math.PI * 2).toFloat() * 0.14f),
-            stage = stage
+            stage = stage,
+            cardWidth = cardWidth,
+            cardHeight = cardHeight
         )
     }
 }
 
 @Composable
-private fun PremiumFloatingPaymentCard(modifier: Modifier = Modifier, wavesAlpha: Float, stage: CardPresentingStage) {
+private fun PremiumFloatingPaymentCard(
+    modifier: Modifier = Modifier,
+    wavesAlpha: Float,
+    stage: CardPresentingStage,
+    cardWidth: Dp,
+    cardHeight: Dp
+) {
     Box(
         modifier = modifier
-            .size(width = CompactFloatingCardWidth, height = CompactFloatingCardHeight)
-            .shadow(14.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.16f))
-            .clip(RoundedCornerShape(24.dp))
+            .size(width = cardWidth, height = cardHeight)
+            .shadow(16.dp, RoundedCornerShape(CompactFloatingCardCorner), ambientColor = Color.Black.copy(alpha = 0.1f), spotColor = Color.Black.copy(alpha = 0.18f))
+            .clip(RoundedCornerShape(CompactFloatingCardCorner))
             .background(Brush.linearGradient(listOf(Color.White, Color(0xFFEAF5FF))))
-            .border(1.dp, Color(0xFFDDE7F4), RoundedCornerShape(24.dp))
+            .border(1.dp, Color(0xFFDDE7F4), RoundedCornerShape(CompactFloatingCardCorner))
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
         PremiumCardChip(Modifier.align(Alignment.CenterStart))
@@ -600,7 +648,32 @@ private fun PremiumFloatingPaymentCard(modifier: Modifier = Modifier, wavesAlpha
     }
 }
 
-@Composable private fun PremiumCardChip(modifier: Modifier = Modifier) { Box(modifier.size(34.dp,24.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFEFD59A))) }
+@Composable
+private fun PremiumCardChip(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(width = 34.dp, height = 24.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFEADAA8))
+            .border(1.dp, Color(0xFFE7D39A), RoundedCornerShape(8.dp))
+            .padding(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .size(width = 9.dp, height = 12.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color(0xCCBCA56B))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(width = 7.dp, height = 10.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color(0x99BCA56B))
+        )
+    }
+}
 
 @Composable
 private fun ContactlessWaves(alpha: Float, stage: CardPresentingStage, modifier: Modifier = Modifier) {
@@ -637,12 +710,22 @@ private fun PremiumRippleCanvas(rippleProgress: Float, glowAlpha: Float, stage: 
     }
     Canvas(modifier) {
         val center = center
-        val maxRadius = size.minDimension * 0.48f
-        repeat(3) { i ->
+        val maxRadius = size.minDimension * 0.56f
+        drawCircle(
+            color = baseColor.copy(alpha = (0.06f * glowAlpha).coerceIn(0.04f, 0.08f)),
+            center = center,
+            radius = maxRadius * 0.82f
+        )
+        repeat(4) { i ->
             val shifted = (rippleProgress + i * 0.28f) % 1f
-            val radius = maxRadius * (0.34f + shifted * 0.66f)
-            val alpha = ((1f - shifted) * 0.16f * glowAlpha).coerceIn(0f, 1f)
-            drawCircle(baseColor.copy(alpha = alpha), center = center, radius = radius, style = Stroke(width = 1.5.dp.toPx()))
+            val radius = maxRadius * (0.28f + shifted * 0.72f)
+            val alpha = ((1f - shifted) * 0.13f * glowAlpha).coerceIn(0f, 1f)
+            drawCircle(
+                baseColor.copy(alpha = alpha),
+                center = center,
+                radius = radius,
+                style = Stroke(width = 1.5.dp.toPx())
+            )
         }
     }
 }
