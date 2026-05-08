@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -103,6 +104,7 @@ fun PcCommandIdleScreen(
                 maxPinLength = state.unlockPinMaxLength,
                 error = state.unlockError,
                 isLoading = state.isUnlocking,
+                isCompact = isCompact,
                 onCancel = onCancelUnlock,
                 onDigit = onUnlockDigit,
                 onBackspace = onUnlockBackspace,
@@ -118,11 +120,20 @@ private fun UnlockPinDialog(
     maxPinLength: Int,
     error: String?,
     isLoading: Boolean,
+    isCompact: Boolean,
     onCancel: () -> Unit,
     onDigit: (String) -> Unit,
     onBackspace: () -> Unit,
     onSubmit: () -> Unit
 ) {
+    val dialogPaddingHorizontal = if (isCompact) 16.dp else 20.dp
+    val dialogPaddingVertical = if (isCompact) 14.dp else 18.dp
+    val contentSpacing = if (isCompact) 10.dp else 14.dp
+    val keypadTouchSize = if (isCompact) 50.dp else 58.dp
+    val keypadIconSize = if (isCompact) 24.dp else 28.dp
+    val keypadFontSize = if (isCompact) 22.sp else 24.sp
+    val titleFontSize = if (isCompact) 17.sp else 18.sp
+
     Dialog(
         onDismissRequest = onCancel,
         properties = DialogProperties(
@@ -139,16 +150,19 @@ private fun UnlockPinDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                    .padding(
+                        horizontal = dialogPaddingHorizontal,
+                        vertical = dialogPaddingVertical
+                    ),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(contentSpacing)
             ) {
                 Text(
-                    text = "Введите PIN официанта",
+                    text = "Введите пароль",
                     color = Color(0xFF1B2128),
                     fontFamily = MontserratFontFamily,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp,
+                    fontSize = titleFontSize,
                     textAlign = TextAlign.Center
                 )
 
@@ -157,16 +171,15 @@ private fun UnlockPinDialog(
                     maxLength = maxPinLength
                 )
 
-                if (error != null) {
-                    Text(
-                        text = error,
-                        color = Color(0xFFD32F2F),
-                        fontFamily = MontserratFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                Text(
+                    text = error.orEmpty(),
+                    color = if (error != null) Color(0xFFD32F2F) else Color.Transparent,
+                    fontFamily = MontserratFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    minLines = 1
+                )
 
                 TiplyNumericKeypad(
                     onDigit = onDigit,
@@ -175,9 +188,9 @@ private fun UnlockPinDialog(
                     confirmEnabled = pin.isNotBlank() && !isLoading,
                     isLoading = isLoading,
                     digitColor = Color(0xFF1B2128),
-                    touchSize = 58.dp,
-                    iconSize = 28.dp,
-                    digitFontSize = 24.sp,
+                    touchSize = keypadTouchSize,
+                    iconSize = keypadIconSize,
+                    digitFontSize = keypadFontSize,
                     rowSpacing = 0.dp,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -191,7 +204,11 @@ private fun UnlockPinDialog(
                         contentColor = Color(0xFF1B2128)
                     )
                 ) {
-                    Text("Отмена", fontFamily = MontserratFontFamily, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = "Отмена",
+                        fontFamily = MontserratFontFamily,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
@@ -200,13 +217,17 @@ private fun UnlockPinDialog(
 
 @Composable
 private fun PinDots(pinLength: Int, maxLength: Int) {
-    androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         repeat(maxLength) { index ->
             Box(
                 modifier = Modifier
                     .size(16.dp)
                     .background(
-                        color = if (index < pinLength) Color(0xFF1B2128) else Color(0xFFD5DBE5),
+                        color = if (index < pinLength) {
+                            Color(0xFF1B2128)
+                        } else {
+                            Color(0xFFD5DBE5)
+                        },
                         shape = RoundedCornerShape(50)
                     )
             )
@@ -215,30 +236,51 @@ private fun PinDots(pinLength: Int, maxLength: Int) {
 }
 
 @Composable
-private fun PremiumIdleSlideshow(slides: List<String>, currentIndex: Int, modifier: Modifier = Modifier) {
+private fun PremiumIdleSlideshow(
+    slides: List<String>,
+    currentIndex: Int,
+    modifier: Modifier = Modifier
+) {
     Crossfade(
         targetState = slides[currentIndex],
         animationSpec = tween(durationMillis = 1_350, easing = FastOutSlowInEasing),
         modifier = modifier,
         label = "pc_idle_premium_dissolve"
     ) { image ->
-        IdleBackgroundImage(image = image, modifier = Modifier.fillMaxSize())
+        IdleBackgroundImage(
+            image = image,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
 @Composable
-private fun StatusChip(status: PcUsbConnectionStatus, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun StatusChip(
+    status: PcUsbConnectionStatus,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val text = when (status) {
         PcUsbConnectionStatus.Idle -> "USB готов"
         PcUsbConnectionStatus.WaitingForData -> "Ожидание команды"
         is PcUsbConnectionStatus.Error -> "Ошибка USB"
         else -> "Подключение"
     }
+
     val interactionSource = remember { MutableInteractionSource() }
+
     Surface(
-        modifier = modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        modifier = modifier.clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick
+        ),
         shape = RoundedCornerShape(14.dp),
-        color = if (status is PcUsbConnectionStatus.Error) Color(0x99D32F2F) else Color(0x77373D45)
+        color = if (status is PcUsbConnectionStatus.Error) {
+            Color(0x99D32F2F)
+        } else {
+            Color(0x77373D45)
+        }
     ) {
         Text(
             text = text,
@@ -253,16 +295,26 @@ private fun StatusChip(status: PcUsbConnectionStatus, onClick: () -> Unit, modif
 
 @Composable
 private fun IdleBackgroundImage(image: String, modifier: Modifier) {
-    val isUri = image.startsWith("content://", true) || image.startsWith("file://", true)
+    val isUri = image.startsWith("content://", ignoreCase = true) ||
+            image.startsWith("file://", ignoreCase = true)
+
     if (!isUri || image.isBlank() || image == DEFAULT_IMAGE) {
         FallbackBackground(modifier)
         return
     }
 
     val context = LocalContext.current
-    val bitmap by produceState<ImageBitmap?>(null, image) { value = loadImageBitmapFromUri(context, image) }
+    val bitmap by produceState<ImageBitmap?>(null, image) {
+        value = loadImageBitmapFromUri(context, image)
+    }
+
     if (bitmap != null) {
-        Image(bitmap = bitmap!!, contentDescription = null, modifier = modifier, contentScale = ContentScale.Crop)
+        Image(
+            bitmap = bitmap!!,
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Crop
+        )
     } else {
         FallbackBackground(modifier)
     }
@@ -270,7 +322,17 @@ private fun IdleBackgroundImage(image: String, modifier: Modifier) {
 
 @Composable
 private fun FallbackBackground(modifier: Modifier) {
-    Box(modifier = modifier.background(Brush.linearGradient(listOf(Color(0xFF0F172A), Color(0xFF1D4ED8), Color(0xFF0EA5E9))))) {
+    Box(
+        modifier = modifier.background(
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFF0F172A),
+                    Color(0xFF1D4ED8),
+                    Color(0xFF0EA5E9)
+                )
+            )
+        )
+    ) {
         Image(
             painter = painterResource(id = R.drawable.waiter_card_background),
             contentDescription = null,
@@ -281,16 +343,22 @@ private fun FallbackBackground(modifier: Modifier) {
     }
 }
 
-private suspend fun loadImageBitmapFromUri(context: Context, uriString: String): ImageBitmap? = withContext(Dispatchers.IO) {
+private suspend fun loadImageBitmapFromUri(
+    context: Context,
+    uriString: String
+): ImageBitmap? = withContext(Dispatchers.IO) {
     runCatching {
         val uri = Uri.parse(uriString)
         val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val source = ImageDecoder.createSource(context.contentResolver, uri)
-            ImageDecoder.decodeBitmap(source) { decoder, _, _ -> decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
+            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
         } else {
             @Suppress("DEPRECATION")
             MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
         }
+
         bitmap.asImageBitmap()
     }.getOrNull()
 }
