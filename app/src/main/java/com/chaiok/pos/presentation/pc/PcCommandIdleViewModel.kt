@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
+import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import java.math.BigDecimal
 import kotlinx.coroutines.CoroutineScope
@@ -25,14 +26,29 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val UNLOCK_PIN_MAX_LENGTH = 4
+
 data class PcCommandIdleUiState(
     val connectionStatus: PcUsbConnectionStatus = PcUsbConnectionStatus.Idle,
-    val images: List<String> = emptyList()
+    val images: List<String> = emptyList(),
+    val showUnlockDialog: Boolean = false,
+    val unlockPin: String = "",
+    val isUnlocking: Boolean = false,
+    val unlockError: String? = null,
+    val unlockPinMaxLength: Int = UNLOCK_PIN_MAX_LENGTH
+)
+
+private data class UnlockState(
+    val showDialog: Boolean = false,
+    val pin: String = "",
+    val isLoading: Boolean = false,
+    val error: String? = null
 )
 
 class PcCommandIdleViewModel(
     private val repository: PcPaymentCommandRepository,
-    private val observeSettingsUseCase: ObserveSettingsUseCase
+    private val observeSettingsUseCase: ObserveSettingsUseCase,
+    private val loginWithPinUseCase: LoginWithPinUseCase
 ) : ViewModel() {
 
     private val listeningEnabled = MutableStateFlow(false)
@@ -43,6 +59,8 @@ class PcCommandIdleViewModel(
 
     private val _uiState = MutableStateFlow(PcCommandIdleUiState())
     val uiState: StateFlow<PcCommandIdleUiState> = _uiState.asStateFlow()
+
+    private val unlockState = MutableStateFlow(UnlockState())
 
     private val _events = MutableSharedFlow<PcCommandIdleEvent>(
         extraBufferCapacity = 1
@@ -83,6 +101,59 @@ class PcCommandIdleViewModel(
         }
     }
 
+    fun openUnlockDialog() {
+        unlockState.value = UnlockState(showDialog = true)
+    }
+
+    fun closeUnlockDialog() {
+        val current = unlockState.value
+        if (current.isLoading) return
+        unlockState.value = UnlockState()
+    }
+
+    fun onUnlockDigit(digit: String) {
+        val current = unlockState.value
+        if (
+            !current.showDialog ||
+            current.isLoading ||
+            current.pin.length >= UNLOCK_PIN_MAX_LENGTH ||
+            digit.length != 1 ||
+            !digit[0].isDigit()
+        ) return
+        unlockState.value = current.copy(pin = current.pin + digit, error = null)
+    }
+
+    fun onUnlockBackspace() {
+        val current = unlockState.value
+        if (!current.showDialog || current.isLoading || current.pin.isEmpty()) return
+        unlockState.value = current.copy(pin = current.pin.dropLast(1), error = null)
+    }
+
+    fun submitUnlockPin() {
+        val current = unlockState.value
+        if (!current.showDialog || current.isLoading) return
+        if (current.pin.isBlank()) {
+            unlockState.value = current.copy(error = "Введите PIN")
+            return
+        }
+
+        val pin = current.pin
+        viewModelScope.launch {
+            unlockState.value = unlockState.value.copy(isLoading = true, error = null)
+            val result = loginWithPinUseCase(pin)
+            result.onSuccess {
+                unlockState.value = UnlockState()
+                _events.emit(PcCommandIdleEvent.NavigateToSettings)
+            }.onFailure {
+                unlockState.value = unlockState.value.copy(
+                    pin = "",
+                    isLoading = false,
+                    error = "Неверный пароль"
+                )
+            }
+        }
+    }
+
     private fun observeStatus() {
         viewModelScope.launch {
             repository.observeStatus().collect(
@@ -99,12 +170,18 @@ class PcCommandIdleViewModel(
         viewModelScope.launch {
             combine(
                 _status,
-                observeSettingsUseCase()
-            ) { status, settings ->
+                observeSettingsUseCase(),
+                unlockState
+            ) { status, settings, unlock ->
                 val configuredImages = settings.pcIdleImages.filter { it.isNotBlank() }
                 PcCommandIdleUiState(
                     connectionStatus = status,
-                    images = if (configuredImages.isNotEmpty()) configuredImages else listOf(DEFAULT_IMAGE)
+                    images = if (configuredImages.isNotEmpty()) configuredImages else listOf(DEFAULT_IMAGE),
+                    showUnlockDialog = unlock.showDialog,
+                    unlockPin = unlock.pin,
+                    isUnlocking = unlock.isLoading,
+                    unlockError = unlock.error,
+                    unlockPinMaxLength = UNLOCK_PIN_MAX_LENGTH
                 )
             }.collect { nextState ->
                 _uiState.value = nextState
@@ -216,6 +293,8 @@ class PcCommandIdleViewModel(
 }
 
 sealed interface PcCommandIdleEvent {
+    data object NavigateToSettings : PcCommandIdleEvent
+
     data class OpenTipSelection(
         val amount: BigDecimal,
         val commandId: String?,
