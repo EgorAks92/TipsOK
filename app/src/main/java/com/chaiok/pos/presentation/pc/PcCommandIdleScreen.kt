@@ -25,8 +25,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Dialog
-import androidx.compose.material3.DialogProperties
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +47,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.chaiok.pos.R
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
@@ -150,7 +150,10 @@ private fun UnlockPinDialog(
                     textAlign = TextAlign.Center
                 )
 
-                PinDots(pinLength = pin.length)
+                PinDots(
+                    pinLength = pin.length,
+                    maxLength = UNLOCK_PIN_MAX_LENGTH
+                )
 
                 if (error != null) {
                     Text(
@@ -194,9 +197,9 @@ private fun UnlockPinDialog(
 }
 
 @Composable
-private fun PinDots(pinLength: Int) {
+private fun PinDots(pinLength: Int, maxLength: Int) {
     androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        repeat(4) { index ->
+        repeat(maxLength) { index ->
             Box(
                 modifier = Modifier
                     .size(16.dp)
@@ -292,3 +295,4 @@ private suspend fun loadImageBitmapFromUri(context: Context, uriString: String):
 
 private const val DEFAULT_IMAGE = "default"
 private const val SLIDE_INTERVAL_MS = 6_000L
+private const val UNLOCK_PIN_MAX_LENGTH = 4

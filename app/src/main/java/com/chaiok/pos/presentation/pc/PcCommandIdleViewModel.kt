@@ -110,7 +110,7 @@ class PcCommandIdleViewModel(
 
     fun onUnlockDigit(digit: String) {
         val state = _uiState.value
-        if (!state.showUnlockDialog || state.isUnlocking || state.unlockPin.length >= 8) return
+        if (!state.showUnlockDialog || state.isUnlocking || state.unlockPin.length >= UNLOCK_PIN_MAX_LENGTH) return
         _uiState.value = state.copy(unlockPin = state.unlockPin + digit, unlockError = null)
     }
 
@@ -142,6 +142,7 @@ class PcCommandIdleViewModel(
                 _events.emit(PcCommandIdleEvent.NavigateToSettings)
             }.onFailure {
                 _uiState.value = _uiState.value.copy(
+                    unlockPin = "",
                     isUnlocking = false,
                     unlockError = "Неверный пароль"
                 )
@@ -282,6 +283,7 @@ class PcCommandIdleViewModel(
         private const val NO_ID_DEDUPE_WINDOW_MS = 5_000L
         private const val POS_SERVICE_RELEASE_DELAY_MS = 500L
         private const val DEFAULT_IMAGE = "default"
+        private const val UNLOCK_PIN_MAX_LENGTH = 4
     }
 }
 
