@@ -26,6 +26,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val UNLOCK_PIN_MAX_LENGTH = 4
+
 data class PcCommandIdleUiState(
     val connectionStatus: PcUsbConnectionStatus = PcUsbConnectionStatus.Idle,
     val images: List<String> = emptyList(),
@@ -111,7 +113,13 @@ class PcCommandIdleViewModel(
 
     fun onUnlockDigit(digit: String) {
         val current = unlockState.value
-        if (!current.showDialog || current.isLoading || current.pin.length >= UNLOCK_PIN_MAX_LENGTH) return
+        if (
+            !current.showDialog ||
+            current.isLoading ||
+            current.pin.length >= UNLOCK_PIN_MAX_LENGTH ||
+            digit.length != 1 ||
+            !digit[0].isDigit()
+        ) return
         unlockState.value = current.copy(pin = current.pin + digit, error = null)
     }
 
@@ -125,7 +133,7 @@ class PcCommandIdleViewModel(
         val current = unlockState.value
         if (!current.showDialog || current.isLoading) return
         if (current.pin.isBlank()) {
-            unlockState.value = current.copy(error = "Введите пароль")
+            unlockState.value = current.copy(error = "Введите PIN")
             return
         }
 
@@ -281,7 +289,6 @@ class PcCommandIdleViewModel(
         private const val NO_ID_DEDUPE_WINDOW_MS = 5_000L
         private const val POS_SERVICE_RELEASE_DELAY_MS = 500L
         private const val DEFAULT_IMAGE = "default"
-        private const val UNLOCK_PIN_MAX_LENGTH = 4
     }
 }
 
