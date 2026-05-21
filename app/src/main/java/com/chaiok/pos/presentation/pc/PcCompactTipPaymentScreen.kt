@@ -686,19 +686,20 @@ private fun PcCompactTipPresetCard(
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
+    val visualAlpha = if (enabled) 1f else 0.5f
 
     val backgroundBrush = if (selected) {
         Brush.verticalGradient(
             listOf(
-                Color(0xFF67E0DC),
-                Color(0xFF20AFC2)
+                Color(0xFF67E0DC).copy(alpha = visualAlpha),
+                Color(0xFF20AFC2).copy(alpha = visualAlpha)
             )
         )
     } else {
         Brush.verticalGradient(
             listOf(
-                Color.White.copy(alpha = 0.22f),
-                Color.White.copy(alpha = 0.11f)
+                Color.White.copy(alpha = 0.22f * visualAlpha),
+                Color.White.copy(alpha = 0.11f * visualAlpha)
             )
         )
     }
@@ -709,16 +710,14 @@ private fun PcCompactTipPresetCard(
                 width = 90.dp,
                 height = if (selected) 140.dp else 124.dp
             )
-            .alpha(if (enabled) 1f else 0.5f)
-            .shadow(
-                elevation = if (selected) 10.dp else 3.dp,
-                shape = shape
-            )
+            // ВАЖНО: shadow и alpha убраны, чтобы не было квадратов за карточками.
             .clip(shape)
             .background(backgroundBrush)
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = if (selected) 0.45f else 0.35f),
+                color = Color.White.copy(
+                    alpha = if (selected) 0.45f * visualAlpha else 0.35f * visualAlpha
+                ),
                 shape = shape
             )
             .clickable(
@@ -736,7 +735,7 @@ private fun PcCompactTipPresetCard(
         ) {
             Text(
                 text = percentText,
-                color = Color.White,
+                color = Color.White.copy(alpha = visualAlpha),
                 fontSize = if (selected) 24.sp else 22.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = MontserratFontFamily
@@ -744,7 +743,7 @@ private fun PcCompactTipPresetCard(
 
             Text(
                 text = amountText,
-                color = Color.White.copy(alpha = 0.92f),
+                color = Color.White.copy(alpha = 0.92f * visualAlpha),
                 fontSize = if (selected) 16.sp else 15.sp,
                 fontFamily = MontserratFontFamily
             )
@@ -755,7 +754,7 @@ private fun PcCompactTipPresetCard(
                     .clip(CircleShape)
                     .border(
                         width = 2.dp,
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = Color.White.copy(alpha = 0.85f * visualAlpha),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -764,7 +763,7 @@ private fun PcCompactTipPresetCard(
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = Color.White.copy(alpha = visualAlpha),
                         modifier = Modifier.size(14.dp)
                     )
                 }
