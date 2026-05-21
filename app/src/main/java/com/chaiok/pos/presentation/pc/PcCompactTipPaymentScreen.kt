@@ -178,7 +178,7 @@ private fun PcCompactTipSelectionStateScreen(
 }
 
 @Composable
-private fun PcCompactCenteredAmountHeader(amountText: String) {
+private fun BoxScope.PcCompactCenteredAmountHeader(amountText: String) {
     Column(modifier = Modifier.align(Alignment.TopCenter).padding(top = 145.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("оплата", color = Color.White.copy(alpha = 0.82f), fontSize = 30.sp, fontFamily = MontserratFontFamily)
         Text(amountText, color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
@@ -190,8 +190,20 @@ private fun PcCompactProcessingSpinner(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "spinner")
     val rotation = transition.animateFloat(0f, 360f, infiniteRepeatable(tween(1300, easing = LinearEasing), RepeatMode.Restart), label = "rot")
     Canvas(modifier = modifier.size(120.dp).graphicsLayer { rotationZ = rotation.value }) {
-        drawArc(Color(0x3320D6D2), -90f, 300f, false, style = Stroke(width = 26.dp.toPx(), cap = StrokeCap.Round))
-        drawArc(Color(0xFF89E3EA).copy(alpha = 0.85f), -90f, 285f, false, style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Round))
+        drawArc(
+            color = Color(0x3320D6D2),
+            startAngle = -90f,
+            sweepAngle = 300f,
+            useCenter = false,
+            style = Stroke(width = 26.dp.toPx(), cap = StrokeCap.Round)
+        )
+        drawArc(
+            color = Color(0xFF89E3EA).copy(alpha = 0.85f),
+            startAngle = -90f,
+            sweepAngle = 285f,
+            useCenter = false,
+            style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Round)
+        )
     }
 }
 
