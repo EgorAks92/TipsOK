@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -433,40 +434,42 @@ private fun PcCompactPaymentStatusStateScreen(
         }
     }
 
-    if (result == PcCompactPaymentResultVisual.Declined) {
-        AnimatedVisibility(
-            visible = true,
-            enter = fadeIn(animationSpec = tween(durationMillis = 280, delayMillis = 170)),
-            exit = fadeOut(animationSpec = tween(120))
+    AnimatedVisibility(
+        visible = result == PcCompactPaymentResultVisual.Declined,
+        enter = fadeIn(animationSpec = tween(durationMillis = 280, delayMillis = 170)) +
+            slideInVertically(
+                initialOffsetY = { it / 8 },
+                animationSpec = tween(durationMillis = 280, delayMillis = 170)
+            ),
+        exit = fadeOut(animationSpec = tween(120))
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 34.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 34.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (!errorMessage.isNullOrBlank()) {
-                    Text(
-                        text = errorMessage,
-                        color = Color.White.copy(alpha = 0.78f),
-                        fontSize = 12.sp,
-                        fontFamily = MontserratFontFamily,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Text(
-                        text = "Повторить",
-                        color = Color.White.copy(alpha = 0.9f),
-                        modifier = Modifier.clickable(onClick = onRetry)
-                    )
-                    Text(
-                        text = "Отмена",
-                        color = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.clickable(onClick = onCancel)
-                    )
-                }
+            if (!errorMessage.isNullOrBlank()) {
+                Text(
+                    text = errorMessage,
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 12.sp,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Text(
+                    text = "Повторить",
+                    color = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.clickable(onClick = onRetry)
+                )
+                Text(
+                    text = "Отмена",
+                    color = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.clickable(onClick = onCancel)
+                )
             }
         }
     }
