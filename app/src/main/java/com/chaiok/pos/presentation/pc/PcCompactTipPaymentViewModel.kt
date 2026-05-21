@@ -97,8 +97,11 @@ class PcCompactTipPaymentViewModel(
     private var internalRestartInProgress = false
     private var userCancelInProgress = false
     private var cancelEventSent = false
+    private var ignoreNextCancelledFromRestart = false
 
     private var waiterId: String = ""
+    private var activePaymentTipIndex: Int = 0
+    private var activePaymentServiceFeeEnabled: Boolean = false
     private var terminalId: String = ""
 
     init {
@@ -127,7 +130,11 @@ class PcCompactTipPaymentViewModel(
         releasePcUsbBeforePayment()
 
         generation += 1
-        startPaymentCurrentAmount("initial", generation)
+        val started = startPaymentCurrentAmount("initial", generation)
+        if (started) {
+            activePaymentTipIndex = _uiState.value.selectedPercentIndex
+            activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+        }
     }
 
     private suspend fun releasePcUsbBeforePayment() {
@@ -176,7 +183,11 @@ class PcCompactTipPaymentViewModel(
         viewModelScope.launch {
             operationMutex.withLock {
                 generation += 1
-                startPaymentCurrentAmount("retry", generation)
+                val started = startPaymentCurrentAmount("retry", generation)
+                if (started) {
+                    activePaymentTipIndex = _uiState.value.selectedPercentIndex
+                    activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+                }
             }
         }
     }
@@ -201,8 +212,11 @@ class PcCompactTipPaymentViewModel(
 
         viewModelScope.launch {
             val result = runCatching { cancelPosPaymentUseCase() }
-            result.onFailure {
+            result.onSuccess {
+                sendCancelledByUserOnce()
+            }.onFailure {
                 userCancelInProgress = false
+                cancelEventSent = false
                 Log.e(TAG, "User cancel failed", it)
                 _uiState.update { curr ->
                     curr.copy(
@@ -221,6 +235,7 @@ class PcCompactTipPaymentViewModel(
             if (!before.canChangeTips || userCancelInProgress) return
 
             internalRestartInProgress = true
+            ignoreNextCancelledFromRestart = true
             _uiState.update { it.copy(isRestartingPayment = true, errorMessage = null) }
 
             Log.i(TAG, "Restart payment reason=$reason old=${before.totalAmount} new=${_uiState.value.totalAmount}")
@@ -228,8 +243,16 @@ class PcCompactTipPaymentViewModel(
             val cancelResult = runCatching { cancelPosPaymentUseCase() }
             if (cancelResult.isFailure) {
                 internalRestartInProgress = false
+                ignoreNextCancelledFromRestart = false
                 Log.e(TAG, "Cancel before restart failed", cancelResult.exceptionOrNull())
-                _uiState.update { it.copy(isRestartingPayment = false, errorMessage = "Не удалось обновить сумму") }
+                _uiState.update {
+                    it.copy(
+                        selectedPercentIndex = safePresetIndex(activePaymentTipIndex, it.availablePercents),
+                        isServiceFeeEnabled = activePaymentServiceFeeEnabled,
+                        isRestartingPayment = false,
+                        errorMessage = "Не удалось обновить сумму"
+                    )
+                }
                 return
             }
 
@@ -237,6 +260,10 @@ class PcCompactTipPaymentViewModel(
             generation += 1
             val newGeneration = generation
             val started = startPaymentCurrentAmount("restart:$reason", newGeneration)
+            if (started) {
+                activePaymentTipIndex = _uiState.value.selectedPercentIndex
+                activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+            }
 
             internalRestartInProgress = false
             _uiState.update { curr ->
@@ -248,7 +275,14 @@ class PcCompactTipPaymentViewModel(
     private suspend fun startPaymentCurrentAmount(reason: String, expectedGeneration: Long = generation): Boolean {
         val request = buildRequest(_uiState.value)
         if (request == null) {
-            _uiState.update { it.copy(isRestartingPayment = false, errorMessage = "Отсутствуют данные терминала/официанта") }
+            _uiState.update {
+                it.copy(
+                    paymentStage = CardPresentingStage.Error,
+                    isRestartingPayment = false,
+                    canCancel = true,
+                    errorMessage = "Отсутствуют данные терминала/официанта"
+                )
+            }
             return false
         }
 
@@ -304,15 +338,17 @@ class PcCompactTipPaymentViewModel(
                 }
             }
             PosPaymentEvent.Cancelled -> {
+                if (ignoreNextCancelledFromRestart) {
+                    ignoreNextCancelledFromRestart = false
+                    Log.i(TAG, "Ignore cancelled event from restart")
+                    return
+                }
                 if (internalRestartInProgress) {
                     Log.i(TAG, "Ignore cancelled event during internal restart")
                     return
                 }
                 if (userCancelInProgress) {
-                    if (!cancelEventSent) {
-                        cancelEventSent = true
-                        _events.send(PcCompactTipPaymentEvent.CancelledByUser)
-                    }
+                    sendCancelledByUserOnce()
                     return
                 }
                 _uiState.update {
@@ -325,6 +361,17 @@ class PcCompactTipPaymentViewModel(
                 }
             }
         }
+    }
+
+
+    private suspend fun sendCancelledByUserOnce() {
+        if (cancelEventSent) return
+        cancelEventSent = true
+        _events.send(PcCompactTipPaymentEvent.CancelledByUser)
+    }
+
+    private fun safePresetIndex(index: Int, percents: List<Double>): Int {
+        return if (index in percents.indices) index else 0
     }
 
     private fun buildRequest(state: PcCompactTipPaymentUiState): PosPaymentRequest? {
