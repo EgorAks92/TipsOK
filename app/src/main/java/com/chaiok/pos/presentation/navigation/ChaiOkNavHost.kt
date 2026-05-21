@@ -46,6 +46,9 @@ import com.chaiok.pos.presentation.login.LoginViewModel
 import com.chaiok.pos.presentation.pc.PcCommandIdleEvent
 import com.chaiok.pos.presentation.pc.PcCommandIdleScreen
 import com.chaiok.pos.presentation.pc.PcCommandIdleViewModel
+import com.chaiok.pos.presentation.pc.PcCompactTipPaymentEvent
+import com.chaiok.pos.presentation.pc.PcCompactTipPaymentScreen
+import com.chaiok.pos.presentation.pc.PcCompactTipPaymentViewModel
 import com.chaiok.pos.presentation.pc.PcIdleImagesRoute
 import com.chaiok.pos.presentation.pc.PcIdleImagesViewModel
 import com.chaiok.pos.presentation.settings.SettingsRoute
@@ -589,6 +592,7 @@ fun ChaiOkNavHost(container: AppContainer) {
 
             val lifecycleOwner = LocalLifecycleOwner.current
             val scope = rememberCoroutineScope()
+            val deviceClass = rememberChaiOkDeviceClass()
 
             DisposableEffect(lifecycleOwner) {
                 val observer = object : LifecycleEventObserver {
@@ -646,13 +650,23 @@ fun ChaiOkNavHost(container: AppContainer) {
                                 }
 
                                 is PcCommandIdleEvent.OpenTipSelection -> {
-                                    navController.navigateSingleTopTo(
-                                        Routes.tipSelectionFromPc(
-                                            value.amount,
-                                            value.commandId,
-                                            value.orderId
+                                    if (deviceClass == ChaiOkDeviceClass.SquareCompact) {
+                                        navController.navigateSingleTopTo(
+                                            Routes.pcCompactTipPaymentFromPc(
+                                                value.amount,
+                                                value.commandId,
+                                                value.orderId
+                                            )
                                         )
-                                    )
+                                    } else {
+                                        navController.navigateSingleTopTo(
+                                            Routes.tipSelectionFromPc(
+                                                value.amount,
+                                                value.commandId,
+                                                value.orderId
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -667,6 +681,53 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onUnlockDigit = vm::onUnlockDigit,
                 onUnlockBackspace = vm::onUnlockBackspace,
                 onSubmitUnlockPin = vm::submitUnlockPin
+            )
+        }
+
+
+        composable(
+            route = Routes.PcCompactTipPayment,
+            arguments = listOf(
+                navArgument("billAmountKopecks") { type = NavType.LongType },
+                navArgument("commandId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("orderId") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStack ->
+            val billAmount = backStack.arguments?.getLong("billAmountKopecks")?.toDouble()?.div(100.0) ?: 0.0
+            val vm: PcCompactTipPaymentViewModel = viewModel(
+                factory = SimpleFactory {
+                    PcCompactTipPaymentViewModel(
+                        billAmount = billAmount,
+                        startPosPaymentUseCase = container.startPosPaymentUseCase,
+                        cancelPosPaymentUseCase = container.cancelPosPaymentUseCase,
+                        getTransactionRangeUseCase = container.getTransactionRangeUseCase,
+                        observeProfileUseCase = container.observeProfileUseCase,
+                        sessionRepository = container.sessionRepository
+                    )
+                }
+            )
+            val state by vm.uiState.collectAsStateWithLifecycle()
+            val events = vm.events
+
+            LaunchedEffect(events) {
+                events.collect { event ->
+                    when (event) {
+                        is PcCompactTipPaymentEvent.Finished -> {
+                            if (event.result is PaymentResult.Approved) {
+                                navController.navigateAfterTipPayment(true)
+                            }
+                        }
+                        PcCompactTipPaymentEvent.CancelledByUser -> navController.navigateAfterTipPayment(true)
+                    }
+                }
+            }
+
+            PcCompactTipPaymentScreen(
+                state = state,
+                onSelectTip = vm::selectTipPreset,
+                onToggleServiceFee = vm::toggleServiceFee,
+                onCancel = vm::cancelPayment,
+                onRetry = vm::retryPayment
             )
         }
 
