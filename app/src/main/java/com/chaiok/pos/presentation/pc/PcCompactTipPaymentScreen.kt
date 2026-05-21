@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import kotlin.math.roundToInt
 
 private val PcCompactTipsSectionTopPadding = 28.dp
@@ -70,6 +71,25 @@ fun PcCompactTipPaymentScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(color = Color(0xFF00D4FF), modifier = Modifier.padding(top = 8.dp))
                 Text("  Обновляем сумму...", color = Color.White)
+            }
+        } else {
+            val stageHint = when (state.paymentStage) {
+                CardPresentingStage.WaitingForCard -> "Можно изменить чаевые до предъявления карты"
+                CardPresentingStage.CardDetected,
+                CardPresentingStage.Processing,
+                CardPresentingStage.PinRequired -> "Оплата выполняется"
+                CardPresentingStage.Approved -> "Оплата одобрена"
+                else -> null
+            }
+
+            if (stageHint != null) {
+                Text(
+                    text = stageHint,
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 13.sp,
+                    fontFamily = MontserratFontFamily,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
         }
 
@@ -191,10 +211,3 @@ private fun TipPresetIndicator(selected: Boolean) {
     }
 }
 
-private fun formatRubles(amount: Double): String {
-    val kopecks = (amount * 100.0).roundToInt()
-    val rubles = kopecks / 100
-    val cents = kotlin.math.abs(kopecks % 100)
-    val groupedRubles = "%,d".format(rubles).replace(',', ' ')
-    return if (cents == 0) "$groupedRubles ₽" else "$groupedRubles,${cents.toString().padStart(2, '0')} ₽"
-}

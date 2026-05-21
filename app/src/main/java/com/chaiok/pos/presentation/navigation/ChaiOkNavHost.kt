@@ -702,7 +702,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         cancelPosPaymentUseCase = container.cancelPosPaymentUseCase,
                         getTransactionRangeUseCase = container.getTransactionRangeUseCase,
                         observeProfileUseCase = container.observeProfileUseCase,
-                        sessionRepository = container.sessionRepository
+                        sessionRepository = container.sessionRepository,
+                        pcPaymentCommandRepository = container.pcPaymentCommandRepository
                     )
                 }
             )
@@ -712,11 +713,7 @@ fun ChaiOkNavHost(container: AppContainer) {
             LaunchedEffect(events) {
                 events.collect { event ->
                     when (event) {
-                        is PcCompactTipPaymentEvent.Finished -> {
-                            if (event.result is PaymentResult.Approved) {
-                                navController.navigateAfterTipPayment(true)
-                            }
-                        }
+                        PcCompactTipPaymentEvent.Approved -> navController.navigateAfterTipPayment(true)
                         PcCompactTipPaymentEvent.CancelledByUser -> navController.navigateAfterTipPayment(true)
                     }
                 }

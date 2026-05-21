@@ -3,10 +3,9 @@ package com.chaiok.pos.presentation.pc
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.domain.model.PosPaymentEvent
 import com.chaiok.pos.domain.model.PosPaymentRequest
-import com.chaiok.pos.domain.model.toPaymentResultOrNull
+import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.CancelPosPaymentUseCase
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
@@ -15,7 +14,11 @@ import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import java.math.BigDecimal
 import java.math.RoundingMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +30,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 data class PcCompactTipPaymentUiState(
@@ -50,7 +54,7 @@ data class PcCompactTipPaymentUiState(
         get() = billAmount + selectedTipAmount + serviceFeeAmount
 
     val amountText: String
-        get() = "%.2f ₽".format(totalAmount)
+        get() = formatRubles(totalAmount)
 
     val canChangeTips: Boolean
         get() = !isRestartingPayment && paymentStage in setOf(
@@ -63,7 +67,7 @@ data class PcCompactTipPaymentUiState(
 }
 
 sealed interface PcCompactTipPaymentEvent {
-    data class Finished(val result: PaymentResult) : PcCompactTipPaymentEvent
+    data object Approved : PcCompactTipPaymentEvent
     data object CancelledByUser : PcCompactTipPaymentEvent
 }
 
@@ -73,7 +77,8 @@ class PcCompactTipPaymentViewModel(
     private val cancelPosPaymentUseCase: CancelPosPaymentUseCase,
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
     private val observeProfileUseCase: ObserveProfileUseCase,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val pcPaymentCommandRepository: PcPaymentCommandRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PcCompactTipPaymentUiState(billAmount = billAmount))
     val uiState = _uiState.asStateFlow()
@@ -81,11 +86,17 @@ class PcCompactTipPaymentViewModel(
     private val _events = Channel<PcCompactTipPaymentEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
 
-    private val restartMutex = Mutex()
+    private val operationMutex = Mutex()
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private var paymentJob: Job? = null
-    private var generation = 0L
-    private var restartCancellingGeneration: Long? = null
+    private var tipSelectionDebounceJob: Job? = null
     private var pendingSelectedIndex: Int? = null
+
+    private var generation = 0L
+    private var internalRestartInProgress = false
+    private var userCancelInProgress = false
+    private var cancelEventSent = false
 
     private var waiterId: String = ""
     private var terminalId: String = ""
@@ -113,16 +124,35 @@ class PcCompactTipPaymentViewModel(
             )
         }
 
-        startPaymentCurrentAmount("initial")
+        releasePcUsbBeforePayment()
+
+        generation += 1
+        startPaymentCurrentAmount("initial", generation)
+    }
+
+    private suspend fun releasePcUsbBeforePayment() {
+        Log.i(TAG, "Release ECR before SSP start")
+        runCatching { pcPaymentCommandRepository.stop() }
+            .onSuccess { Log.i(TAG, "Release ECR before SSP done") }
+            .onFailure { Log.e(TAG, "Release ECR before SSP failed", it) }
+        delay(PC_USB_SAFETY_SETTLE_DELAY_MS)
     }
 
     fun selectTipPreset(index: Int) {
-        if (index == _uiState.value.selectedPercentIndex || !_uiState.value.canChangeTips) return
+        val state = _uiState.value
+        if (index !in state.availablePercents.indices) return
+        if (index == state.selectedPercentIndex) return
+        if (!state.canChangeTips) return
+
         pendingSelectedIndex = index
-        viewModelScope.launch {
-            delay(300)
+        _uiState.update { it.copy(selectedPercentIndex = index, errorMessage = null) }
+
+        tipSelectionDebounceJob?.cancel()
+        tipSelectionDebounceJob = viewModelScope.launch {
+            delay(TIP_SELECTION_DEBOUNCE_MS)
             val latest = pendingSelectedIndex ?: return@launch
             pendingSelectedIndex = null
+            if (!_uiState.value.canChangeTips) return@launch
             _uiState.update { it.copy(selectedPercentIndex = latest) }
             restartPaymentWithCurrentAmount("tip change")
         }
@@ -130,85 +160,169 @@ class PcCompactTipPaymentViewModel(
 
     fun toggleServiceFee(enabled: Boolean) {
         if (_uiState.value.isServiceFeeEnabled == enabled || !_uiState.value.canChangeTips) return
-        _uiState.update { it.copy(isServiceFeeEnabled = enabled) }
+        _uiState.update { it.copy(isServiceFeeEnabled = enabled, errorMessage = null) }
         viewModelScope.launch { restartPaymentWithCurrentAmount("service fee toggle") }
     }
 
     fun retryPayment() {
-        viewModelScope.launch { startPaymentCurrentAmount("retry") }
+        val state = _uiState.value
+        val canRetry = state.paymentStage in setOf(
+            CardPresentingStage.Declined,
+            CardPresentingStage.Error,
+            CardPresentingStage.Cancelled
+        )
+        if (!canRetry || state.isRestartingPayment || userCancelInProgress) return
+
+        viewModelScope.launch {
+            operationMutex.withLock {
+                generation += 1
+                startPaymentCurrentAmount("retry", generation)
+            }
+        }
     }
 
     fun cancelPayment() {
-        if (!_uiState.value.canCancel) return
-        _uiState.update { it.copy(paymentStage = CardPresentingStage.Cancelling, canCancel = false) }
+        val state = _uiState.value
+        if (!state.canCancel || userCancelInProgress) return
+
+        userCancelInProgress = true
+        cancelEventSent = false
+        tipSelectionDebounceJob?.cancel()
+        pendingSelectedIndex = null
+
+        _uiState.update {
+            it.copy(
+                paymentStage = CardPresentingStage.Cancelling,
+                canCancel = false,
+                isRestartingPayment = false,
+                errorMessage = null
+            )
+        }
+
         viewModelScope.launch {
-            cancelPosPaymentUseCase()
-            _events.send(PcCompactTipPaymentEvent.CancelledByUser)
+            val result = runCatching { cancelPosPaymentUseCase() }
+            result.onFailure {
+                userCancelInProgress = false
+                Log.e(TAG, "User cancel failed", it)
+                _uiState.update { curr ->
+                    curr.copy(
+                        paymentStage = CardPresentingStage.WaitingForCard,
+                        canCancel = true,
+                        errorMessage = "Не удалось отменить оплату"
+                    )
+                }
+            }
         }
     }
 
     private suspend fun restartPaymentWithCurrentAmount(reason: String) {
-        restartMutex.withLock {
-            if (!_uiState.value.canChangeTips) return
-            _uiState.update { it.copy(isRestartingPayment = true, errorMessage = null) }
-            val oldAmount = _uiState.value.totalAmount
-            generation += 1
-            val currentGeneration = generation
-            restartCancellingGeneration = currentGeneration
+        operationMutex.withLock {
+            val before = _uiState.value
+            if (!before.canChangeTips || userCancelInProgress) return
 
-            Log.i("PcCompactTipPayment", "Restart payment due to $reason old=$oldAmount new=${_uiState.value.totalAmount}")
+            internalRestartInProgress = true
+            _uiState.update { it.copy(isRestartingPayment = true, errorMessage = null) }
+
+            Log.i(TAG, "Restart payment reason=$reason old=${before.totalAmount} new=${_uiState.value.totalAmount}")
 
             val cancelResult = runCatching { cancelPosPaymentUseCase() }
             if (cancelResult.isFailure) {
-                Log.e("PcCompactTipPayment", "Cancel before restart failure", cancelResult.exceptionOrNull())
+                internalRestartInProgress = false
+                Log.e(TAG, "Cancel before restart failed", cancelResult.exceptionOrNull())
                 _uiState.update { it.copy(isRestartingPayment = false, errorMessage = "Не удалось обновить сумму") }
                 return
             }
 
-            Log.i("PcCompactTipPayment", "Cancel before restart success")
-            startPaymentCurrentAmount("restart", currentGeneration)
-            _uiState.update { it.copy(isRestartingPayment = false) }
+            Log.i(TAG, "Cancel before restart success")
+            generation += 1
+            val newGeneration = generation
+            val started = startPaymentCurrentAmount("restart:$reason", newGeneration)
+
+            internalRestartInProgress = false
+            _uiState.update { curr ->
+                curr.copy(isRestartingPayment = false, errorMessage = if (started) null else curr.errorMessage)
+            }
         }
     }
 
-    private suspend fun startPaymentCurrentAmount(reason: String, expectedGeneration: Long = generation) {
+    private suspend fun startPaymentCurrentAmount(reason: String, expectedGeneration: Long = generation): Boolean {
         val request = buildRequest(_uiState.value)
         if (request == null) {
-            _uiState.update { it.copy(errorMessage = "Отсутствуют данные терминала/официанта") }
-            return
+            _uiState.update { it.copy(isRestartingPayment = false, errorMessage = "Отсутствуют данные терминала/официанта") }
+            return false
         }
 
-        Log.i("PcCompactTipPayment", "PcCompactTipPayment start amount=${request.amount} reason=$reason")
+        Log.i(TAG, "Start SSP payment amount=${request.amount} reason=$reason generation=$expectedGeneration")
 
-        _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true, errorMessage = null) }
         paymentJob?.cancel()
+        _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true, errorMessage = null) }
+
         paymentJob = viewModelScope.launch {
             startPosPaymentUseCase(request).collect { event ->
-                if (expectedGeneration != generation) return@collect
-                onPaymentEvent(event, expectedGeneration)
+                if (expectedGeneration != generation) {
+                    Log.i(TAG, "Ignore stale payment event generation=$expectedGeneration current=$generation")
+                    return@collect
+                }
+                onPaymentEvent(event)
             }
         }
+
+        return true
     }
 
-    private suspend fun onPaymentEvent(event: PosPaymentEvent, eventGeneration: Long) {
+    private suspend fun onPaymentEvent(event: PosPaymentEvent) {
         when (event) {
-            PosPaymentEvent.Preparing -> _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing) }
-            PosPaymentEvent.WaitingForCard -> _uiState.update { it.copy(paymentStage = CardPresentingStage.WaitingForCard) }
-            PosPaymentEvent.CardDetected -> _uiState.update { it.copy(paymentStage = CardPresentingStage.CardDetected) }
-            PosPaymentEvent.Processing -> _uiState.update { it.copy(paymentStage = CardPresentingStage.Processing, canCancel = false) }
-            PosPaymentEvent.PinRequired -> _uiState.update { it.copy(paymentStage = CardPresentingStage.PinRequired, canCancel = false) }
-            is PosPaymentEvent.Approved,
-            is PosPaymentEvent.Declined,
+            PosPaymentEvent.Preparing -> _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true) }
+            PosPaymentEvent.WaitingForCard -> _uiState.update { it.copy(paymentStage = CardPresentingStage.WaitingForCard, canCancel = true, isRestartingPayment = false) }
+            PosPaymentEvent.CardDetected -> _uiState.update { it.copy(paymentStage = CardPresentingStage.CardDetected, canCancel = false, isRestartingPayment = false) }
+            PosPaymentEvent.Processing -> _uiState.update { it.copy(paymentStage = CardPresentingStage.Processing, canCancel = false, isRestartingPayment = false) }
+            PosPaymentEvent.PinRequired -> _uiState.update { it.copy(paymentStage = CardPresentingStage.PinRequired, canCancel = false, isRestartingPayment = false) }
+            is PosPaymentEvent.Approved -> {
+                _uiState.update { it.copy(paymentStage = CardPresentingStage.Approved, canCancel = false, isRestartingPayment = false, errorMessage = null) }
+                _events.send(PcCompactTipPaymentEvent.Approved)
+            }
+            is PosPaymentEvent.Declined -> {
+                Log.i(TAG, "Payment declined")
+                _uiState.update {
+                    it.copy(
+                        paymentStage = CardPresentingStage.Declined,
+                        canCancel = true,
+                        isRestartingPayment = false,
+                        errorMessage = event.reason ?: "Оплата отклонена"
+                    )
+                }
+            }
             is PosPaymentEvent.Error -> {
-                val result = event.toPaymentResultOrNull() ?: return
-                _events.send(PcCompactTipPaymentEvent.Finished(result))
+                Log.i(TAG, "Payment error")
+                _uiState.update {
+                    it.copy(
+                        paymentStage = CardPresentingStage.Error,
+                        canCancel = true,
+                        isRestartingPayment = false,
+                        errorMessage = event.message.ifBlank { "Ошибка оплаты" }
+                    )
+                }
             }
             PosPaymentEvent.Cancelled -> {
-                if (restartCancellingGeneration == eventGeneration) {
-                    restartCancellingGeneration = null
+                if (internalRestartInProgress) {
+                    Log.i(TAG, "Ignore cancelled event during internal restart")
                     return
                 }
-                _events.send(PcCompactTipPaymentEvent.CancelledByUser)
+                if (userCancelInProgress) {
+                    if (!cancelEventSent) {
+                        cancelEventSent = true
+                        _events.send(PcCompactTipPaymentEvent.CancelledByUser)
+                    }
+                    return
+                }
+                _uiState.update {
+                    it.copy(
+                        paymentStage = CardPresentingStage.Cancelled,
+                        canCancel = true,
+                        isRestartingPayment = false,
+                        errorMessage = "Оплата отменена"
+                    )
+                }
             }
         }
     }
@@ -232,5 +346,56 @@ class PcCompactTipPaymentViewModel(
         if (tenIndex >= 0) return tenIndex
         val nonZero = percents.indexOfFirst { it > 0.0 }
         return if (nonZero >= 0) nonZero else 0
+    }
+
+    override fun onCleared() {
+        tipSelectionDebounceJob?.cancel()
+        paymentJob?.cancel()
+
+        val stage = _uiState.value.paymentStage
+        val active = stage in setOf(
+            CardPresentingStage.Preparing,
+            CardPresentingStage.WaitingForCard,
+            CardPresentingStage.CardDetected,
+            CardPresentingStage.Processing,
+            CardPresentingStage.PinRequired
+        )
+
+        if (active && !userCancelInProgress) {
+            cleanupScope.launch {
+                runCatching { cancelPosPaymentUseCase() }
+                    .onFailure { Log.e(TAG, "Cancel onCleared failed", it) }
+                cleanupScope.cancel()
+            }
+        } else {
+            cleanupScope.cancel()
+        }
+
+        super.onCleared()
+    }
+
+    companion object {
+        private const val TAG = "PcCompactTipPayment"
+        private const val PC_USB_SAFETY_SETTLE_DELAY_MS = 150L
+        private const val TIP_SELECTION_DEBOUNCE_MS = 300L
+    }
+}
+
+internal fun formatRubles(amount: Double): String =
+    formatKopecks(amountToKopecks(amount))
+
+private fun amountToKopecks(amount: Double): Int =
+    (amount * 100.0).roundToInt()
+
+private fun formatKopecks(kopecks: Int): String {
+    val absKopecks = abs(kopecks)
+    val rubles = absKopecks / 100
+    val cents = absKopecks % 100
+    val groupedRubles = "%,d".format(rubles).replace(',', ' ')
+    val prefix = if (kopecks < 0) "-" else ""
+    return if (cents == 0) {
+        "$prefix$groupedRubles ₽"
+    } else {
+        "$prefix$groupedRubles,${cents.toString().padStart(2, '0')} ₽"
     }
 }
