@@ -16,6 +16,7 @@ object Routes {
     const val TipSelection = "tip_selection"
     const val TipSelectionWithArg = "tip_selection/{billAmountKopecks}?source={source}&commandId={commandId}&orderId={orderId}"
     const val CardPresenting = "card_presenting"
+    const val PcCompactTipPayment = "pc_compact_tip_payment/{billAmountKopecks}?commandId={commandId}&orderId={orderId}"
     const val PcCommandIdle = "pc_command_idle"
     const val PcIdleImages = "pc_idle_images"
 
@@ -30,6 +31,11 @@ object Routes {
     fun tipSelectionFromPc(amount: BigDecimal, commandId: String?, orderId: String?): String {
         val kopecks = amount.setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
         return "tip_selection/$kopecks?source=pc_usb&commandId=${enc(commandId)}&orderId=${enc(orderId)}"
+    }
+
+    fun pcCompactTipPaymentFromPc(amount: BigDecimal, commandId: String?, orderId: String?): String {
+        val kopecks = amount.setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
+        return "pc_compact_tip_payment/$kopecks?commandId=${enc(commandId)}&orderId=${enc(orderId)}"
     }
 
     private fun enc(value: String?): String = URLEncoder.encode(value.orEmpty(), Charsets.UTF_8.name())
