@@ -313,6 +313,7 @@ class PcCompactTipPaymentViewModel(
             PosPaymentEvent.PinRequired -> _uiState.update { it.copy(paymentStage = CardPresentingStage.PinRequired, canCancel = false, isRestartingPayment = false) }
             is PosPaymentEvent.Approved -> {
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.Approved, canCancel = false, isRestartingPayment = false, errorMessage = null) }
+                delay(APPROVED_VISIBLE_MS)
                 _events.send(PcCompactTipPaymentEvent.Approved)
             }
             is PosPaymentEvent.Declined -> {
@@ -425,6 +426,7 @@ class PcCompactTipPaymentViewModel(
         private const val TAG = "PcCompactTipPayment"
         private const val PC_USB_SAFETY_SETTLE_DELAY_MS = 150L
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
+        private const val APPROVED_VISIBLE_MS = 1200L
     }
 }
 

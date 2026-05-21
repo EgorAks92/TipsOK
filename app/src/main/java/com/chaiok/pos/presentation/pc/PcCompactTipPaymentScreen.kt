@@ -1,31 +1,38 @@
 package com.chaiok.pos.presentation.pc
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -33,17 +40,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
+import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlin.math.roundToInt
-
-private val PcCompactTipsSectionTopPadding = 28.dp
 
 @Composable
 fun PcCompactTipPaymentScreen(
@@ -53,61 +62,78 @@ fun PcCompactTipPaymentScreen(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF071A3A), Color(0xFF0A274F))))
-            .padding(16.dp)
+    when (state.paymentStage) {
+        CardPresentingStage.Approved -> PcCompactApprovedStateScreen(state.amountText)
+        CardPresentingStage.Declined,
+        CardPresentingStage.Error,
+        CardPresentingStage.Cancelled -> PcCompactDeclinedStateScreen(state.amountText, state.errorMessage, onRetry, onCancel)
+        CardPresentingStage.CardDetected,
+        CardPresentingStage.Processing,
+        CardPresentingStage.PinRequired,
+        CardPresentingStage.Cancelling -> PcCompactProcessingStateScreen(state.amountText)
+        else -> PcCompactTipSelectionStateScreen(state, onSelectTip, onToggleServiceFee, onCancel, onRetry)
+    }
+}
+
+@Composable
+private fun PcCompactPaymentBackground(error: Boolean = false, content: @Composable BoxScope.() -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(
+            Brush.linearGradient(
+                if (error) listOf(Color(0xFF121923), Color(0xFF2A1B26), Color(0xFF161D27))
+                else listOf(Color(0xFF151D25), Color(0xFF0E5C91), Color(0xFF1B222A))
+            )
+        )
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column {
-                Text("к оплате", color = Color(0xFFAED4FF), fontFamily = MontserratFontFamily)
-                Text(state.amountText, color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
-            }
-            Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.clickable(onClick = onCancel))
+        Box(modifier = Modifier.fillMaxSize().background(Brush.radialGradient(
+            colors = if (error) listOf(Color(0xFFC8323A).copy(alpha = 0.55f), Color.Transparent)
+            else listOf(Color(0xFF126CA4).copy(alpha = 0.55f), Color.Transparent),
+            center = Offset(110f, 420f),
+            radius = 520f
+        )))
+        content()
+    }
+}
+
+@Composable
+private fun PcCompactTipSelectionStateScreen(
+    state: PcCompactTipPaymentUiState,
+    onSelectTip: (Int) -> Unit,
+    onToggleServiceFee: (Boolean) -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit
+) {
+    PcCompactPaymentBackground {
+        PcCompactTopRings()
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(18.dp).clickable(onClick = onCancel))
+            Icon(Icons.Default.Close, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(18.dp).clickable(onClick = onCancel))
         }
 
-        if (state.isRestartingPayment) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(color = Color(0xFF00D4FF), modifier = Modifier.padding(top = 8.dp))
-                Text("  Обновляем сумму...", color = Color.White)
-            }
-        } else {
-            val stageHint = when (state.paymentStage) {
-                CardPresentingStage.WaitingForCard -> "Можно изменить чаевые до предъявления карты"
-                CardPresentingStage.CardDetected,
-                CardPresentingStage.Processing,
-                CardPresentingStage.PinRequired -> "Оплата выполняется"
-                CardPresentingStage.Approved -> "Оплата одобрена"
-                else -> null
-            }
-
-            if (stageHint != null) {
-                Text(
-                    text = stageHint,
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 13.sp,
-                    fontFamily = MontserratFontFamily,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+        Column(modifier = Modifier.padding(start = 32.dp, top = 136.dp)) {
+            Text("к оплате", color = Color.White.copy(alpha = 0.78f), fontSize = 16.sp, fontWeight = FontWeight.Medium, fontFamily = MontserratFontFamily)
+            Text(state.amountText, color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
+            if (state.isRestartingPayment) {
+                Text("Обновляем сумму...", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp, fontFamily = MontserratFontFamily)
             }
         }
 
-        Spacer(modifier = Modifier.height(PcCompactTipsSectionTopPadding))
+        PcCompactDecorativeBankCard(Modifier.align(Alignment.TopEnd).padding(top = 78.dp).offset(x = 26.dp))
 
-        Text("чаевые", color = Color.White, modifier = Modifier.padding(bottom = 10.dp), fontFamily = MontserratFontFamily)
+        Text("чаевые", color = Color.White.copy(alpha = 0.86f), fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = MontserratFontFamily, modifier = Modifier.align(Alignment.TopCenter).padding(top = 232.dp))
+
         val tipsEnabled = state.canChangeTips && !state.isRestartingPayment
         LazyRow(
+            modifier = Modifier.align(Alignment.TopStart).padding(top = 260.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             itemsIndexed(state.availablePercents) { index, percent ->
-                val selected = index == state.selectedPercentIndex
                 PcCompactTipPresetCard(
                     percentText = "${percent.roundToInt()}%",
                     amountText = formatRubles(state.billAmount * percent / 100.0),
-                    selected = selected,
+                    selected = index == state.selectedPercentIndex,
                     enabled = tipsEnabled,
                     onClick = { onSelectTip(index) }
                 )
@@ -115,99 +141,111 @@ fun PcCompactTipPaymentScreen(
         }
 
         if (state.serviceFeePercent > 0.0) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Возмещение комиссии (${formatRubles(state.serviceFeeAmount)})", color = Color.White)
-                Switch(checked = state.isServiceFeeEnabled, onCheckedChange = onToggleServiceFee, enabled = state.canChangeTips)
-            }
+            PcCompactServiceFeeGlassRow(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                text = "Возмещение комиссии (${formatRubles(state.serviceFeeAmount)})",
+                checked = state.isServiceFeeEnabled,
+                enabled = tipsEnabled,
+                onToggle = onToggleServiceFee
+            )
         }
 
         if (state.errorMessage != null) {
-            Text(state.errorMessage, color = Color(0xFFFF8A8A), modifier = Modifier.padding(top = 12.dp))
-            Text("Повторить", color = Color(0xFF7CDFFF), modifier = Modifier.padding(top = 8.dp).clickable(onClick = onRetry))
+            Text("Повторить", color = Color.White.copy(alpha = 0.9f), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp).clickable(onClick = onRetry))
+        }
+    }
+}
+
+@Composable private fun PcCompactProcessingStateScreen(amountText: String) = PcCompactPaymentBackground {
+    PcCompactCenteredAmountHeader(amountText)
+    PcCompactProcessingSpinner(Modifier.align(Alignment.Center).offset(y = 48.dp))
+}
+
+@Composable private fun PcCompactApprovedStateScreen(amountText: String) = PcCompactPaymentBackground {
+    PcCompactCenteredAmountHeader(amountText)
+    PcCompactResultCheck(Modifier.align(Alignment.Center).offset(y = 50.dp))
+    Text("Одобрено", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp))
+}
+
+@Composable private fun PcCompactDeclinedStateScreen(amountText: String, errorMessage: String?, onRetry: () -> Unit, onCancel: () -> Unit) = PcCompactPaymentBackground(error = true) {
+    PcCompactCenteredAmountHeader(amountText)
+    PcCompactResultCross(Modifier.align(Alignment.Center).offset(y = 50.dp))
+    Text("Отказано", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp))
+    Row(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        Text("Повторить", color = Color.White.copy(alpha = 0.9f), modifier = Modifier.clickable(onClick = onRetry))
+        Text("Отмена", color = Color.White.copy(alpha = 0.8f), modifier = Modifier.clickable(onClick = onCancel))
+    }
+}
+
+@Composable
+private fun PcCompactCenteredAmountHeader(amountText: String) {
+    Column(modifier = Modifier.align(Alignment.TopCenter).padding(top = 145.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("оплата", color = Color.White.copy(alpha = 0.82f), fontSize = 30.sp, fontFamily = MontserratFontFamily)
+        Text(amountText, color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
+    }
+}
+
+@Composable
+private fun PcCompactProcessingSpinner(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "spinner")
+    val rotation = transition.animateFloat(0f, 360f, infiniteRepeatable(tween(1300, easing = LinearEasing), RepeatMode.Restart), label = "rot")
+    Canvas(modifier = modifier.size(120.dp).graphicsLayer { rotationZ = rotation.value }) {
+        drawArc(Color(0x3320D6D2), -90f, 300f, false, style = Stroke(width = 26.dp.toPx(), cap = StrokeCap.Round))
+        drawArc(Color(0xFF89E3EA).copy(alpha = 0.85f), -90f, 285f, false, style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+@Composable private fun PcCompactResultCheck(modifier: Modifier = Modifier) { Canvas(modifier.size(140.dp)) {
+    drawLine(Color(0x4420D6D2), Offset(size.width*0.22f, size.height*0.54f), Offset(size.width*0.44f, size.height*0.74f), strokeWidth = 24.dp.toPx(), cap = StrokeCap.Round)
+    drawLine(Color(0x4420D6D2), Offset(size.width*0.44f, size.height*0.74f), Offset(size.width*0.8f, size.height*0.3f), strokeWidth = 24.dp.toPx(), cap = StrokeCap.Round)
+    drawLine(Color(0xFF89E3EA), Offset(size.width*0.22f, size.height*0.54f), Offset(size.width*0.44f, size.height*0.74f), strokeWidth = 18.dp.toPx(), cap = StrokeCap.Round)
+    drawLine(Color(0xFF89E3EA), Offset(size.width*0.44f, size.height*0.74f), Offset(size.width*0.8f, size.height*0.3f), strokeWidth = 18.dp.toPx(), cap = StrokeCap.Round)
+} }
+
+@Composable private fun PcCompactResultCross(modifier: Modifier = Modifier) { Canvas(modifier.size(140.dp)) {
+    drawLine(Color(0x44FF5454), Offset(size.width*0.2f, size.height*0.2f), Offset(size.width*0.8f, size.height*0.8f), strokeWidth = 24.dp.toPx(), cap = StrokeCap.Round)
+    drawLine(Color(0x44FF5454), Offset(size.width*0.8f, size.height*0.2f), Offset(size.width*0.2f, size.height*0.8f), strokeWidth = 24.dp.toPx(), cap = StrokeCap.Round)
+    drawLine(Color(0xFFFF9999), Offset(size.width*0.2f, size.height*0.2f), Offset(size.width*0.8f, size.height*0.8f), strokeWidth = 18.dp.toPx(), cap = StrokeCap.Round)
+    drawLine(Color(0xFFFF9999), Offset(size.width*0.8f, size.height*0.2f), Offset(size.width*0.2f, size.height*0.8f), strokeWidth = 18.dp.toPx(), cap = StrokeCap.Round)
+} }
+
+@Composable private fun PcCompactTopRings() { Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
+    val c = Color(0xFF2D8FD4).copy(alpha = 0.18f)
+    drawCircle(c, radius = 58.dp.toPx(), center = Offset(size.width/2f, -42.dp.toPx()), style = Stroke(2.dp.toPx()))
+    drawCircle(c, radius = 92.dp.toPx(), center = Offset(size.width/2f, -42.dp.toPx()), style = Stroke(2.dp.toPx()))
+    drawCircle(c, radius = 132.dp.toPx(), center = Offset(size.width/2f, -42.dp.toPx()), style = Stroke(2.dp.toPx()))
+} }
+
+@Composable private fun PcCompactDecorativeBankCard(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(180.dp, 110.dp).graphicsLayer { rotationZ = 15f }.shadow(8.dp, RoundedCornerShape(12.dp)).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(Color(0xFF747A80), Color(0xFF4B5158)))).alpha(0.85f)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            for (i in 1..4) drawCircle(Color.White.copy(alpha = 0.08f), radius = (20*i).dp.toPx(), center = Offset(size.width*0.18f, size.height*0.45f), style = Stroke(1.dp.toPx()))
+        }
+        Text("•••• 8724", color = Color.White.copy(alpha = 0.55f), fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp))
+    }
+}
+
+@Composable
+private fun PcCompactServiceFeeGlassRow(modifier: Modifier, text: String, checked: Boolean, enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(modifier = modifier.height(48.dp).clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.2f)).border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(24.dp)).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(text, color = Color.White.copy(alpha = 0.92f), fontSize = 14.sp, fontFamily = MontserratFontFamily)
+        Box(modifier = Modifier.size(54.dp, 30.dp).clip(RoundedCornerShape(15.dp)).background(if (checked) Brush.horizontalGradient(listOf(Color(0xFF20D6D2), Color(0xFF126CA4))) else Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.18f)))).clickable(enabled = enabled) { onToggle(!checked) }) {
+            Box(modifier = Modifier.padding(2.dp).offset(x = if (checked) 24.dp else 0.dp).size(26.dp).clip(CircleShape).background(Color.White))
         }
     }
 }
 
 @Composable
-private fun PcCompactTipPresetCard(
-    percentText: String,
-    amountText: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(if (selected) 24.dp else 22.dp)
-    val backgroundBrush = if (selected) {
-        Brush.verticalGradient(listOf(Color(0xFF62E1DC), Color(0xFF1EAFC5)))
-    } else {
-        Brush.verticalGradient(listOf(Color(0x665A85A8), Color(0x55436586)))
-    }
-
-    Box(
-        modifier = Modifier
-            .size(width = 90.dp, height = if (selected) 140.dp else 124.dp)
-            .alpha(if (enabled) 1f else 0.45f)
-            .shadow(
-                elevation = if (selected) 10.dp else 3.dp,
-                shape = shape,
-                ambientColor = if (selected) Color(0xFF22D3EE).copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.08f),
-                spotColor = if (selected) Color(0xFF22D3EE).copy(alpha = 0.28f) else Color.Black.copy(alpha = 0.12f)
-            )
-            .clip(shape)
-            .background(backgroundBrush)
-            .border(1.dp, Color.White.copy(alpha = if (selected) 0.46f else 0.28f), shape)
-            .clickable(
-                enabled = enabled,
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onClick
-            )
-            .padding(horizontal = 10.dp, vertical = 14.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = percentText,
-                color = Color.White,
-                fontSize = if (selected) 24.sp else 22.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = MontserratFontFamily
-            )
-            Text(
-                text = amountText,
-                color = Color.White.copy(alpha = if (selected) 0.95f else 0.9f),
-                fontSize = 15.sp,
-                fontFamily = MontserratFontFamily
-            )
-            TipPresetIndicator(selected = selected)
+private fun PcCompactTipPresetCard(percentText: String, amountText: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(24.dp)
+    val backgroundBrush = if (selected) Brush.verticalGradient(listOf(Color(0xFF67E0DC), Color(0xFF20AFC2))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.11f)))
+    Box(modifier = Modifier.size(width = 90.dp, height = if (selected) 140.dp else 124.dp).alpha(if (enabled) 1f else 0.5f).shadow(if (selected) 10.dp else 3.dp, shape).clip(shape).background(backgroundBrush).border(1.dp, Color.White.copy(alpha = if (selected) 0.45f else 0.35f), shape).clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick).padding(horizontal = 10.dp, vertical = 14.dp)) {
+        Column(modifier = Modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
+            Text(percentText, color = Color.White, fontSize = if (selected) 24.sp else 22.sp, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
+            Text(amountText, color = Color.White.copy(alpha = 0.92f), fontSize = if (selected) 16.sp else 15.sp, fontFamily = MontserratFontFamily)
+            Box(modifier = Modifier.size(24.dp).clip(CircleShape).border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape), contentAlignment = Alignment.Center) {
+                if (selected) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+            }
         }
     }
 }
-
-@Composable
-private fun TipPresetIndicator(selected: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(25.dp)
-            .clip(CircleShape)
-            .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        if (selected) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(14.dp)
-            )
-        }
-    }
-}
-
