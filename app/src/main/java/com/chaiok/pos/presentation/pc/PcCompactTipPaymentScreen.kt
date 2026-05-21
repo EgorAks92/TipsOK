@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,8 +63,10 @@ import com.chaiok.pos.R
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.min
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -72,6 +76,13 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.delay
 
+
+private enum class PcCompactPaymentResultVisual {
+    None,
+    Approved,
+    Declined
+}
+
 @Composable
 fun PcCompactTipPaymentScreen(
     state: PcCompactTipPaymentUiState,
@@ -80,58 +91,87 @@ fun PcCompactTipPaymentScreen(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val showProcessingScreen = remember { mutableStateOf(false) }
+    val showStatusScreen = remember { mutableStateOf(false) }
+    val visibleResultVisual = remember { mutableStateOf(PcCompactPaymentResultVisual.None) }
+    val pendingResultVisual = remember { mutableStateOf<PcCompactPaymentResultVisual?>(null) }
 
-    val isApproved = state.paymentStage == CardPresentingStage.Approved
+    val processingRequested = !state.canChangeTips &&
+        !state.isRestartingPayment &&
+        (
+            state.paymentStage == CardPresentingStage.CardDetected ||
+                state.paymentStage == CardPresentingStage.Processing ||
+                state.paymentStage == CardPresentingStage.PinRequired ||
+                state.paymentStage == CardPresentingStage.Cancelling
+            )
 
-    val isFailure = !state.canChangeTips &&
+    val realResultVisual = when {
+        state.paymentStage == CardPresentingStage.Approved -> PcCompactPaymentResultVisual.Approved
+        !state.canChangeTips &&
             !state.isRestartingPayment &&
             (
-                    state.paymentStage == CardPresentingStage.Declined ||
-                            state.paymentStage == CardPresentingStage.Error ||
-                            state.paymentStage == CardPresentingStage.Cancelled
-                    )
+                state.paymentStage == CardPresentingStage.Declined ||
+                    state.paymentStage == CardPresentingStage.Error ||
+                    state.paymentStage == CardPresentingStage.Cancelled
+                ) -> PcCompactPaymentResultVisual.Declined
 
-    val processingStageRequested = !state.canChangeTips &&
-            !state.isRestartingPayment &&
-            (
-                    state.paymentStage == CardPresentingStage.CardDetected ||
-                            state.paymentStage == CardPresentingStage.Processing ||
-                            state.paymentStage == CardPresentingStage.PinRequired ||
-                            state.paymentStage == CardPresentingStage.Cancelling
-                    )
+        else -> PcCompactPaymentResultVisual.None
+    }
 
-    LaunchedEffect(
-        isApproved,
-        isFailure,
-        processingStageRequested
-    ) {
-        if (isApproved || isFailure) {
-            showProcessingScreen.value = false
+    val showTipSelection = state.canChangeTips || state.isRestartingPayment
+
+    LaunchedEffect(showTipSelection, processingRequested, realResultVisual) {
+        if (showTipSelection && realResultVisual == PcCompactPaymentResultVisual.None) {
+            showStatusScreen.value = false
+            visibleResultVisual.value = PcCompactPaymentResultVisual.None
+            pendingResultVisual.value = null
             return@LaunchedEffect
         }
 
-        if (processingStageRequested) {
-            // Защита от коротких внутренних SSP-состояний при смене чаевых.
-            // Если это просто cancel/restart, экран выбора не успеет скрыться.
-            delay(450)
-            showProcessingScreen.value = true
-        } else {
-            showProcessingScreen.value = false
+        if (realResultVisual != PcCompactPaymentResultVisual.None) {
+            if (!showStatusScreen.value) {
+                showStatusScreen.value = true
+                visibleResultVisual.value = PcCompactPaymentResultVisual.None
+                pendingResultVisual.value = realResultVisual
+                delay(420)
+                if (pendingResultVisual.value == realResultVisual) {
+                    visibleResultVisual.value = realResultVisual
+                    pendingResultVisual.value = null
+                }
+            } else {
+                visibleResultVisual.value = realResultVisual
+                pendingResultVisual.value = null
+            }
+            return@LaunchedEffect
+        }
+
+        if (processingRequested) {
+            delay(400)
+            if (processingRequested && realResultVisual == PcCompactPaymentResultVisual.None) {
+                showStatusScreen.value = true
+                visibleResultVisual.value = PcCompactPaymentResultVisual.None
+            }
+        } else if (!showTipSelection) {
+            showStatusScreen.value = false
+            visibleResultVisual.value = PcCompactPaymentResultVisual.None
         }
     }
 
     when {
-        isApproved -> PcCompactApprovedStateScreen(state.amountText)
-
-        isFailure -> PcCompactDeclinedStateScreen(
+        showStatusScreen.value -> PcCompactPaymentStatusStateScreen(
             amountText = state.amountText,
+            result = visibleResultVisual.value,
             errorMessage = state.errorMessage,
             onRetry = onRetry,
             onCancel = onCancel
         )
 
-        showProcessingScreen.value -> PcCompactProcessingStateScreen(state.amountText)
+        showTipSelection -> PcCompactTipSelectionStateScreen(
+            state = state,
+            onSelectTip = onSelectTip,
+            onToggleServiceFee = onToggleServiceFee,
+            onCancel = onCancel,
+            onRetry = onRetry
+        )
 
         else -> PcCompactTipSelectionStateScreen(
             state = state,
@@ -148,24 +188,34 @@ private fun PcCompactPaymentBackground(
     error: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val backgroundEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+    val bgStart by animateColorAsState(
+        targetValue = if (error) Color(0xFF121923) else Color(0xFF151D25),
+        animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
+        label = "pc_bg_start"
+    )
+    val bgMid by animateColorAsState(
+        targetValue = if (error) Color(0xFF2A1B26) else Color(0xFF0E5C91),
+        animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
+        label = "pc_bg_mid"
+    )
+    val bgEnd by animateColorAsState(
+        targetValue = if (error) Color(0xFF161D27) else Color(0xFF1B222A),
+        animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
+        label = "pc_bg_end"
+    )
+    val glowColor by animateColorAsState(
+        targetValue = if (error) Color(0xFFC8323A).copy(alpha = 0.55f) else Color(0xFF126CA4).copy(alpha = 0.55f),
+        animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
+        label = "pc_bg_glow"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.linearGradient(
-                    colors = if (error) {
-                        listOf(
-                            Color(0xFF121923),
-                            Color(0xFF2A1B26),
-                            Color(0xFF161D27)
-                        )
-                    } else {
-                        listOf(
-                            Color(0xFF151D25),
-                            Color(0xFF0E5C91),
-                            Color(0xFF1B222A)
-                        )
-                    }
+                    colors = listOf(bgStart, bgMid, bgEnd)
                 )
             )
     ) {
@@ -174,17 +224,7 @@ private fun PcCompactPaymentBackground(
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = if (error) {
-                            listOf(
-                                Color(0xFFC8323A).copy(alpha = 0.55f),
-                                Color.Transparent
-                            )
-                        } else {
-                            listOf(
-                                Color(0xFF126CA4).copy(alpha = 0.55f),
-                                Color.Transparent
-                            )
-                        },
+                        colors = listOf(glowColor, Color.Transparent),
                         center = Offset(110f, 420f),
                         radius = 520f
                     )
@@ -311,104 +351,6 @@ private fun PcCompactTipSelectionStateScreen(
     }
 }
 
-@Composable
-private fun PcCompactProcessingStateScreen(
-    amountText: String
-) = PcCompactPaymentBackground {
-    PcCompactCenteredAmountHeader(amountText)
-
-    PcCompactProcessingSpinner(
-        modifier = Modifier
-            .align(Alignment.Center)
-            .offset(y = 48.dp)
-    )
-}
-
-@Composable
-private fun PcCompactApprovedStateScreen(
-    amountText: String
-) = PcCompactPaymentBackground {
-    PcCompactCenteredAmountHeader(amountText)
-
-    PcCompactResultCheck(
-        modifier = Modifier
-            .align(Alignment.Center)
-            .offset(y = 50.dp)
-    )
-
-    Text(
-        text = "Одобрено",
-        color = Color.White,
-        fontSize = 40.sp,
-        fontWeight = FontWeight.Bold,
-        fontFamily = MontserratFontFamily,
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 110.dp)
-    )
-}
-
-@Composable
-private fun PcCompactDeclinedStateScreen(
-    amountText: String,
-    errorMessage: String?,
-    onRetry: () -> Unit,
-    onCancel: () -> Unit
-) = PcCompactPaymentBackground(error = true) {
-    PcCompactCenteredAmountHeader(amountText)
-
-    PcCompactResultCross(
-        modifier = Modifier
-            .align(Alignment.Center)
-            .offset(y = 50.dp)
-    )
-
-    Text(
-        text = "Отказано",
-        color = Color.White,
-        fontSize = 40.sp,
-        fontWeight = FontWeight.Bold,
-        fontFamily = MontserratFontFamily,
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 110.dp)
-    )
-
-    if (!errorMessage.isNullOrBlank()) {
-        Text(
-            text = errorMessage,
-            color = Color.White.copy(alpha = 0.78f),
-            fontSize = 12.sp,
-            fontFamily = MontserratFontFamily,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(
-                    start = 24.dp,
-                    end = 24.dp,
-                    bottom = 78.dp
-                )
-        )
-    }
-
-    Row(
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 34.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        Text(
-            text = "Повторить",
-            color = Color.White.copy(alpha = 0.9f),
-            modifier = Modifier.clickable(onClick = onRetry)
-        )
-
-        Text(
-            text = "Отмена",
-            color = Color.White.copy(alpha = 0.8f),
-            modifier = Modifier.clickable(onClick = onCancel)
-        )
-    }
-}
 
 @Composable
 private fun BoxScope.PcCompactCenteredAmountHeader(
@@ -427,146 +369,237 @@ private fun BoxScope.PcCompactCenteredAmountHeader(
             fontFamily = MontserratFontFamily
         )
 
-        Text(
+        PcCompactAnimatedAmountText(
             text = amountText,
             color = Color.White,
             fontSize = 64.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = MontserratFontFamily
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
 @Composable
-private fun PcCompactProcessingSpinner(
+private fun PcCompactPaymentStatusStateScreen(
+    amountText: String,
+    result: PcCompactPaymentResultVisual,
+    errorMessage: String?,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit
+) = PcCompactPaymentBackground(error = result == PcCompactPaymentResultVisual.Declined) {
+    PcCompactCenteredAmountHeader(amountText)
+
+    PcCompactMorphingPaymentIndicator(
+        result = result,
+        modifier = Modifier
+            .align(Alignment.Center)
+            .offset(y = 50.dp)
+    )
+
+    AnimatedVisibility(
+        visible = result != PcCompactPaymentResultVisual.None,
+        enter = fadeIn(animationSpec = tween(280)) + slideInVertically(
+            initialOffsetY = { it / 10 },
+            animationSpec = tween(280)
+        ),
+        exit = fadeOut(animationSpec = tween(180))
+    ) {
+        when (result) {
+            PcCompactPaymentResultVisual.Approved -> {
+                Text(
+                    text = "Одобрено",
+                    color = Color.White,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = MontserratFontFamily,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 110.dp)
+                )
+            }
+
+            PcCompactPaymentResultVisual.Declined -> {
+                Text(
+                    text = "Отказано",
+                    color = Color.White,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = MontserratFontFamily,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 110.dp)
+                )
+            }
+
+            PcCompactPaymentResultVisual.None -> Unit
+        }
+    }
+
+    AnimatedVisibility(
+        visible = result == PcCompactPaymentResultVisual.Declined,
+        enter = fadeIn(animationSpec = tween(durationMillis = 280, delayMillis = 170)) +
+            slideInVertically(
+                initialOffsetY = { it / 8 },
+                animationSpec = tween(durationMillis = 280, delayMillis = 170)
+            ),
+        exit = fadeOut(animationSpec = tween(120))
+    ) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 34.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (!errorMessage.isNullOrBlank()) {
+                Text(
+                    text = errorMessage,
+                    color = Color.White.copy(alpha = 0.78f),
+                    fontSize = 12.sp,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Text(
+                    text = "Повторить",
+                    color = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.clickable(onClick = onRetry)
+                )
+                Text(
+                    text = "Отмена",
+                    color = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.clickable(onClick = onCancel)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PcCompactMorphingPaymentIndicator(
+    result: PcCompactPaymentResultVisual,
     modifier: Modifier = Modifier
 ) {
-    val transition = rememberInfiniteTransition(label = "spinner")
-
+    val transition = rememberInfiniteTransition(label = "morph_spinner")
     val rotation = transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = 1300,
-                easing = LinearEasing
-            ),
+            animation = tween(durationMillis = 1300, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "rot"
+        label = "morph_rot"
     )
+    val morphProgress = remember { Animatable(0f) }
 
-    Canvas(
-        modifier = modifier
-            .size(120.dp)
-            .graphicsLayer {
-                rotationZ = rotation.value
+    LaunchedEffect(result) {
+        if (result == PcCompactPaymentResultVisual.None) {
+            morphProgress.snapTo(0f)
+        } else {
+            morphProgress.animateTo(targetValue = 1f, animationSpec = tween(780, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)))
+        }
+    }
+
+    val lineColor = if (result == PcCompactPaymentResultVisual.Declined) Color(0xFFFF9999) else Color(0xFF89E3EA)
+    val glowColor = if (result == PcCompactPaymentResultVisual.Declined) Color(0xFFFF5454) else Color(0xFF20D6D2)
+
+    Canvas(modifier = modifier.size(140.dp)) {
+        val easedMorph = CubicBezierEasing(0.16f, 1f, 0.3f, 1f).transform(morphProgress.value)
+        val spinnerAlpha = 1f - easedMorph
+        val spinnerSweep = 285f - 245f * easedMorph
+        val slowedRotation = rotation.value * (1f - easedMorph * 0.35f)
+        val resultDrawProgress = ((easedMorph - 0.18f) / 0.82f).coerceIn(0f, 1f)
+        val settleFactor = 1f + (1f - resultDrawProgress) * 0.16f
+
+        if (spinnerAlpha > 0f) {
+            rotate(slowedRotation) {
+                drawArc(
+                    color = glowColor.copy(alpha = 0.2f * spinnerAlpha),
+                    startAngle = -90f,
+                    sweepAngle = 300f,
+                    useCenter = false,
+                    style = Stroke(width = 26.dp.toPx(), cap = StrokeCap.Round)
+                )
+                drawArc(
+                    color = Color(0xFF89E3EA).copy(alpha = 0.85f * spinnerAlpha),
+                    startAngle = -90f,
+                    sweepAngle = spinnerSweep,
+                    useCenter = false,
+                    style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Round)
+                )
             }
-    ) {
-        drawArc(
-            color = Color(0x3320D6D2),
-            startAngle = -90f,
-            sweepAngle = 300f,
-            useCenter = false,
-            style = Stroke(
-                width = 26.dp.toPx(),
-                cap = StrokeCap.Round
-            )
-        )
+        }
 
-        drawArc(
-            color = Color(0xFF89E3EA).copy(alpha = 0.85f),
-            startAngle = -90f,
-            sweepAngle = 285f,
-            useCenter = false,
-            style = Stroke(
-                width = 20.dp.toPx(),
-                cap = StrokeCap.Round
+        if (result != PcCompactPaymentResultVisual.None && resultDrawProgress > 0f) {
+            drawCircle(
+                color = glowColor.copy(alpha = 0.12f * (1f - resultDrawProgress * 0.5f)),
+                radius = 62.dp.toPx() + 10.dp.toPx() * resultDrawProgress
             )
-        )
+        }
+
+        when (result) {
+            PcCompactPaymentResultVisual.Approved -> drawProgressiveCheck(resultDrawProgress, lineColor, glowColor, settleFactor)
+            PcCompactPaymentResultVisual.Declined -> drawProgressiveCross(resultDrawProgress, lineColor, glowColor, settleFactor)
+            PcCompactPaymentResultVisual.None -> Unit
+        }
     }
 }
 
-@Composable
-private fun PcCompactResultCheck(
-    modifier: Modifier = Modifier
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProgressiveCheck(
+    progress: Float,
+    lineColor: Color,
+    glowColor: Color,
+    settleFactor: Float
 ) {
-    Canvas(
-        modifier = modifier.size(140.dp)
-    ) {
-        drawLine(
-            color = Color(0x4420D6D2),
-            start = Offset(size.width * 0.22f, size.height * 0.54f),
-            end = Offset(size.width * 0.44f, size.height * 0.74f),
-            strokeWidth = 24.dp.toPx(),
-            cap = StrokeCap.Round
-        )
-
-        drawLine(
-            color = Color(0x4420D6D2),
-            start = Offset(size.width * 0.44f, size.height * 0.74f),
-            end = Offset(size.width * 0.8f, size.height * 0.3f),
-            strokeWidth = 24.dp.toPx(),
-            cap = StrokeCap.Round
-        )
-
-        drawLine(
-            color = Color(0xFF89E3EA),
-            start = Offset(size.width * 0.22f, size.height * 0.54f),
-            end = Offset(size.width * 0.44f, size.height * 0.74f),
-            strokeWidth = 18.dp.toPx(),
-            cap = StrokeCap.Round
-        )
-
-        drawLine(
-            color = Color(0xFF89E3EA),
-            start = Offset(size.width * 0.44f, size.height * 0.74f),
-            end = Offset(size.width * 0.8f, size.height * 0.3f),
-            strokeWidth = 18.dp.toPx(),
-            cap = StrokeCap.Round
-        )
-    }
+    val p1 = Offset(size.width * 0.22f, size.height * 0.54f)
+    val p2 = Offset(size.width * 0.44f, size.height * 0.74f)
+    val p3 = Offset(size.width * 0.8f, size.height * 0.3f)
+    val first = intervalProgress(progress, 0f, 0.42f)
+    val second = intervalProgress(progress, 0.25f, 1f)
+    drawPartialLine(p1, p2, first, glowColor.copy(alpha = 0.28f), 24.dp.toPx() * settleFactor)
+    drawPartialLine(p2, p3, second, glowColor.copy(alpha = 0.28f), 24.dp.toPx() * settleFactor)
+    drawPartialLine(p1, p2, first, lineColor, 18.dp.toPx() * settleFactor)
+    drawPartialLine(p2, p3, second, lineColor, 18.dp.toPx() * settleFactor)
 }
 
-@Composable
-private fun PcCompactResultCross(
-    modifier: Modifier = Modifier
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProgressiveCross(
+    progress: Float,
+    lineColor: Color,
+    glowColor: Color,
+    settleFactor: Float
 ) {
-    Canvas(
-        modifier = modifier.size(140.dp)
-    ) {
-        drawLine(
-            color = Color(0x44FF5454),
-            start = Offset(size.width * 0.2f, size.height * 0.2f),
-            end = Offset(size.width * 0.8f, size.height * 0.8f),
-            strokeWidth = 24.dp.toPx(),
-            cap = StrokeCap.Round
-        )
+    val p1 = Offset(size.width * 0.2f, size.height * 0.2f)
+    val p2 = Offset(size.width * 0.8f, size.height * 0.8f)
+    val p3 = Offset(size.width * 0.8f, size.height * 0.2f)
+    val p4 = Offset(size.width * 0.2f, size.height * 0.8f)
+    val first = intervalProgress(progress, 0f, 0.58f)
+    val second = intervalProgress(progress, 0.24f, 1f)
+    drawPartialLine(p1, p2, first, glowColor.copy(alpha = 0.3f), 24.dp.toPx() * settleFactor)
+    drawPartialLine(p3, p4, second, glowColor.copy(alpha = 0.3f), 24.dp.toPx() * settleFactor)
+    drawPartialLine(p1, p2, first, lineColor, 18.dp.toPx() * settleFactor)
+    drawPartialLine(p3, p4, second, lineColor, 18.dp.toPx() * settleFactor)
+}
 
-        drawLine(
-            color = Color(0x44FF5454),
-            start = Offset(size.width * 0.8f, size.height * 0.2f),
-            end = Offset(size.width * 0.2f, size.height * 0.8f),
-            strokeWidth = 24.dp.toPx(),
-            cap = StrokeCap.Round
-        )
+private fun intervalProgress(
+    progress: Float,
+    start: Float,
+    end: Float
+): Float = ((progress - start) / (end - start)).coerceIn(0f, 1f)
 
-        drawLine(
-            color = Color(0xFFFF9999),
-            start = Offset(size.width * 0.2f, size.height * 0.2f),
-            end = Offset(size.width * 0.8f, size.height * 0.8f),
-            strokeWidth = 18.dp.toPx(),
-            cap = StrokeCap.Round
-        )
-
-        drawLine(
-            color = Color(0xFFFF9999),
-            start = Offset(size.width * 0.8f, size.height * 0.2f),
-            end = Offset(size.width * 0.2f, size.height * 0.8f),
-            strokeWidth = 18.dp.toPx(),
-            cap = StrokeCap.Round
-        )
-    }
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPartialLine(
+    start: Offset,
+    end: Offset,
+    progress: Float,
+    color: Color,
+    strokeWidth: Float
+) {
+    if (progress <= 0f) return
+    val p = progress.coerceIn(0f, 1f)
+    val partialEnd = Offset(
+        x = start.x + (end.x - start.x) * p,
+        y = start.y + (end.y - start.y) * p
+    )
+    drawLine(color = color, start = start, end = partialEnd, strokeWidth = strokeWidth, cap = StrokeCap.Round)
 }
 
 @Composable
