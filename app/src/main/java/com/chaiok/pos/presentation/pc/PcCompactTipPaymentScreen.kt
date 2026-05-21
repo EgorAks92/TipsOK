@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -126,9 +127,16 @@ fun PcCompactTipPaymentScreen(
     }
 
     val showTipSelection = state.canChangeTips || state.isRestartingPayment
-    val showStatusScreen = resultVisual != PcCompactPaymentResultVisual.None || showDelayedProcessing.value
 
     when {
+        resultVisual != PcCompactPaymentResultVisual.None -> PcCompactPaymentStatusStateScreen(
+            amountText = state.amountText,
+            result = resultVisual,
+            errorMessage = state.errorMessage,
+            onRetry = onRetry,
+            onCancel = onCancel
+        )
+
         showTipSelection -> PcCompactTipSelectionStateScreen(
             state = state,
             onSelectTip = onSelectTip,
@@ -137,9 +145,9 @@ fun PcCompactTipPaymentScreen(
             onRetry = onRetry
         )
 
-        showStatusScreen -> PcCompactPaymentStatusStateScreen(
+        showDelayedProcessing.value -> PcCompactPaymentStatusStateScreen(
             amountText = state.amountText,
-            result = resultVisual,
+            result = PcCompactPaymentResultVisual.None,
             errorMessage = state.errorMessage,
             onRetry = onRetry,
             onCancel = onCancel
@@ -320,6 +328,33 @@ private fun PcCompactTipSelectionStateScreen(
                     .clickable(onClick = onRetry)
             )
         }
+    }
+}
+
+
+@Composable
+private fun BoxScope.PcCompactCenteredAmountHeader(
+    amountText: String
+) {
+    Column(
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .padding(top = 145.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "оплата",
+            color = Color.White.copy(alpha = 0.82f),
+            fontSize = 30.sp,
+            fontFamily = MontserratFontFamily
+        )
+
+        PcCompactAnimatedAmountText(
+            text = amountText,
+            color = Color.White,
+            fontSize = 64.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
