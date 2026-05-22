@@ -1454,6 +1454,7 @@ private fun PcCompactTipPresetCard(
     selected: Boolean,
     enabled: Boolean,
     visuallyEnabled: Boolean = enabled,
+    amountFontSize: androidx.compose.ui.unit.TextUnit? = null,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
@@ -1520,7 +1521,7 @@ private fun PcCompactTipPresetCard(
             Text(
                 text = amountText,
                 color = Color.White.copy(alpha = 0.92f * visualAlpha),
-                fontSize = if (selected) 16.sp else 15.sp,
+                fontSize = amountFontSize ?: if (selected) 16.sp else 15.sp,
                 fontFamily = MontserratFontFamily,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
