@@ -51,6 +51,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +67,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -353,16 +355,6 @@ private fun PcCompactTipSelectionStateScreen(
         val middleIndex = tipCards.size / 2
         val listState = rememberLazyListState()
         var didInitialCenter by rememberSaveable { mutableStateOf(false) }
-        LaunchedEffect(tipCards.map { it.key }, state.availablePercents.size) {
-            if (
-                !didInitialCenter &&
-                state.availablePercents.isNotEmpty() &&
-                tipCards.isNotEmpty()
-            ) {
-                listState.scrollToItem(middleIndex)
-                didInitialCenter = true
-            }
-        }
 
         BoxWithConstraints(
             modifier = Modifier
@@ -370,26 +362,41 @@ private fun PcCompactTipSelectionStateScreen(
                 .fillMaxWidth()
                 .padding(top = tipsRowTop)
         ) {
-            val middleCardWidth = tipCards.getOrNull(middleIndex)
-                ?.resolveWidth(state)
-                ?: 90.dp
-            val sidePadding = ((maxWidth - middleCardWidth) / 2).coerceAtLeast(16.dp)
+            val commonCardWidth = tipCards.maxOfOrNull { it.resolveWidth(state) } ?: 90.dp
+            val normalizedCardWidth = commonCardWidth.coerceInDp(90.dp, 144.dp)
+            val density = LocalDensity.current
+            val viewportWidthPx = with(density) { maxWidth.toPx() }
+            val cardWidthPx = with(density) { normalizedCardWidth.toPx() }
+            val centerOffsetPx = -((viewportWidthPx - cardWidthPx) / 2f).roundToInt()
+
+            LaunchedEffect(tipCards.map { it.key }, state.availablePercents.size, normalizedCardWidth) {
+                if (
+                    !didInitialCenter &&
+                    state.availablePercents.isNotEmpty() &&
+                    tipCards.isNotEmpty()
+                ) {
+                    listState.scrollToItem(
+                        index = middleIndex,
+                        scrollOffset = centerOffsetPx
+                    )
+                    didInitialCenter = true
+                }
+            }
 
             LazyRow(
                 state = listState,
-                contentPadding = PaddingValues(horizontal = sidePadding),
+                contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 itemsIndexed(items = tipCards, key = { _, card -> card.key }) { _, card ->
                     val titleText = card.resolveTitle()
                     val amountText = card.resolveAmountText(state)
-                    val cardWidth = compactTipCardWidth(amountText = amountText, titleText = titleText)
                 when (card) {
                     PcCompactTipCardUiModel.CustomAmount -> PcCompactTipPresetCard(
                         percentText = titleText,
                         amountText = amountText,
-                        cardWidth = cardWidth,
+                        cardWidth = normalizedCardWidth,
                         selected = state.isCustomTipSelected,
                         enabled = tipsClickable,
                         visuallyEnabled = tipsVisuallyEnabled,
@@ -399,7 +406,7 @@ private fun PcCompactTipSelectionStateScreen(
                     is PcCompactTipCardUiModel.Percent -> PcCompactTipPresetCard(
                         percentText = titleText,
                         amountText = amountText,
-                        cardWidth = cardWidth,
+                        cardWidth = normalizedCardWidth,
                         selected = !state.isCustomTipSelected && !state.isNoTipsSelected && card.percentIndex == state.selectedPercentIndex,
                         enabled = tipsClickable,
                         visuallyEnabled = tipsVisuallyEnabled,
@@ -410,7 +417,7 @@ private fun PcCompactTipSelectionStateScreen(
                         percentText = titleText,
                         amountText = amountText,
                         amountFontSize = 13.sp,
-                        cardWidth = cardWidth.coerceAtLeast(104.dp),
+                        cardWidth = normalizedCardWidth,
                         selected = state.isNoTipsSelected,
                         enabled = tipsClickable,
                         visuallyEnabled = tipsVisuallyEnabled,
@@ -499,7 +506,16 @@ private fun compactTipCardWidth(amountText: String, titleText: String): Dp {
         maxLength <= 9 -> 102.dp
         maxLength <= 11 -> 114.dp
         maxLength <= 13 -> 126.dp
-        else -> 138.dp
+        maxLength <= 15 -> 138.dp
+        else -> 144.dp
+    }
+}
+
+private fun Dp.coerceInDp(min: Dp, max: Dp): Dp {
+    return when {
+        this < min -> min
+        this > max -> max
+        else -> this
     }
 }
 
