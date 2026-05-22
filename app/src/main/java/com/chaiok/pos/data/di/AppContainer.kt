@@ -41,6 +41,7 @@ import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcIdleImagesUseCase
+import com.chaiok.pos.domain.usecase.UpdatePcCompactServiceFeeEnabledUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateStatusUseCase
 import com.chaiok.pos.domain.usecase.UpdateTileBackgroundUseCase
@@ -96,6 +97,7 @@ class AppContainer(context: Context) {
     val updateTileBackgroundUseCase by lazy { UpdateTileBackgroundUseCase(settingsRepository) }
     val updatePcUsbModeUseCase by lazy { UpdatePcUsbModeUseCase(settingsRepository) }
     val updatePcIdleImagesUseCase by lazy { UpdatePcIdleImagesUseCase(settingsRepository) }
+    val updatePcCompactServiceFeeEnabledUseCase by lazy { UpdatePcCompactServiceFeeEnabledUseCase(settingsRepository) }
     val addReviewUseCase by lazy { AddReviewUseCase(reviewRepository) }
     val startPosPaymentUseCase by lazy { StartPosPaymentUseCase(posPaymentRepository) }
     val cancelPosPaymentUseCase by lazy { CancelPosPaymentUseCase(posPaymentRepository) }

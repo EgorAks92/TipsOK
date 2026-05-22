@@ -227,7 +227,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                     SettingsViewModel(
                         observeProfileUseCase = container.observeProfileUseCase,
                         observeSettingsUseCase = container.observeSettingsUseCase,
-                        updatePcUsbModeUseCase = container.updatePcUsbModeUseCase
+                        updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
+                        updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase
                     )
                 }
             )
@@ -263,7 +264,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                     SettingsViewModel(
                         observeProfileUseCase = container.observeProfileUseCase,
                         observeSettingsUseCase = container.observeSettingsUseCase,
-                        updatePcUsbModeUseCase = container.updatePcUsbModeUseCase
+                        updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
+                        updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase
                     )
                 }
             )
@@ -388,10 +390,10 @@ fun ChaiOkNavHost(container: AppContainer) {
                     TipSelectionViewModel(
                         billAmount = billAmount,
                         getTransactionRangeUseCase = container.getTransactionRangeUseCase,
+                        observeSettingsUseCase = container.observeSettingsUseCase,
                         observeProfileUseCase = container.observeProfileUseCase,
                         addReviewUseCase = container.addReviewUseCase,
-                        sessionRepository = container.sessionRepository,
-                        observeSettingsUseCase = container.observeSettingsUseCase
+                        sessionRepository = container.sessionRepository
                     )
                 }
             )
@@ -701,6 +703,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                         startPosPaymentUseCase = container.startPosPaymentUseCase,
                         cancelPosPaymentUseCase = container.cancelPosPaymentUseCase,
                         getTransactionRangeUseCase = container.getTransactionRangeUseCase,
+                        observeSettingsUseCase = container.observeSettingsUseCase,
                         observeProfileUseCase = container.observeProfileUseCase,
                         sessionRepository = container.sessionRepository,
                         pcPaymentCommandRepository = container.pcPaymentCommandRepository

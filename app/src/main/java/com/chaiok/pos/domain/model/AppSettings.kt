@@ -5,5 +5,6 @@ data class AppSettings(
     val tableModeEnabled: Boolean,
     val tileBackground: String = "default",
     val pcUsbModeEnabled: Boolean = false,
-    val pcIdleImages: List<String> = emptyList()
+    val pcIdleImages: List<String> = emptyList(),
+    val pcCompactServiceFeeEnabled: Boolean = true
 )

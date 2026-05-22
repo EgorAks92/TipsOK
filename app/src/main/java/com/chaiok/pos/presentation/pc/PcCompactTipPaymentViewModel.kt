@@ -10,6 +10,7 @@ import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.CancelPosPaymentUseCase
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
+import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import java.math.BigDecimal
@@ -41,6 +42,7 @@ data class PcCompactTipPaymentUiState(
     val isCustomTipSelected: Boolean = false,
     val isNoTipsSelected: Boolean = false,
     val serviceFeePercent: Double = 0.0,
+    val showServiceFeeToggle: Boolean = true,
     val isServiceFeeEnabled: Boolean = false,
     val paymentStage: CardPresentingStage = CardPresentingStage.Idle,
     val isRestartingPayment: Boolean = false,
@@ -61,7 +63,7 @@ data class PcCompactTipPaymentUiState(
         }
 
     val serviceFeeAmount: Double
-        get() = if (isServiceFeeEnabled && serviceFeePercent > 0.0) roundMoney(selectedTipAmount * serviceFeePercent / 100.0) else 0.0
+        get() = if (showServiceFeeToggle && isServiceFeeEnabled && serviceFeePercent > 0.0) roundMoney(selectedTipAmount * serviceFeePercent / 100.0) else 0.0
 
     val totalAmount: Double
         get() = billAmount + selectedTipAmount + serviceFeeAmount
@@ -89,6 +91,7 @@ class PcCompactTipPaymentViewModel(
     private val startPosPaymentUseCase: StartPosPaymentUseCase,
     private val cancelPosPaymentUseCase: CancelPosPaymentUseCase,
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
+    private val observeSettingsUseCase: ObserveSettingsUseCase,
     private val observeProfileUseCase: ObserveProfileUseCase,
     private val sessionRepository: SessionRepository,
     private val pcPaymentCommandRepository: PcPaymentCommandRepository
@@ -127,6 +130,7 @@ class PcCompactTipPaymentViewModel(
         waiterId = profile.id
 
         val range = getTransactionRangeUseCase.observe().first()
+        val settings = observeSettingsUseCase().first()
         val percents = range?.percents?.takeIf { it.isNotEmpty() } ?: listOf(5.0, 10.0, 15.0)
         val selected = resolveDefaultIndex(percents, range?.defaultIndex)
 
@@ -135,6 +139,7 @@ class PcCompactTipPaymentViewModel(
                 availablePercents = percents,
                 selectedPercentIndex = selected,
                 serviceFeePercent = profile.serviceFeePercent.coerceAtLeast(0.0),
+                showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                 isServiceFeeEnabled = false,
                 paymentStage = CardPresentingStage.Preparing
             )
@@ -222,6 +227,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun toggleServiceFee(enabled: Boolean) {
+        if (!_uiState.value.showServiceFeeToggle) return
         if (_uiState.value.isServiceFeeEnabled == enabled || !_uiState.value.canChangeTips) return
         _uiState.update { it.copy(isServiceFeeEnabled = enabled, errorMessage = null) }
         viewModelScope.launch { restartPaymentWithCurrentAmount("service fee toggle") }
@@ -435,7 +441,7 @@ class PcCompactTipPaymentViewModel(
             terminalId = terminalId,
             tipAmount = state.selectedTipAmount,
             serviceFee = state.serviceFeeAmount,
-            feesCovered = state.isServiceFeeEnabled
+            feesCovered = state.showServiceFeeToggle && state.isServiceFeeEnabled
         )
     }
 

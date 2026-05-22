@@ -26,6 +26,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -49,6 +51,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,11 +67,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
@@ -319,6 +326,10 @@ private fun PcCompactTipSelectionStateScreen(
                 .offset(x = 26.dp)
         )
 
+        val showServiceFeeRow = state.showServiceFeeToggle && state.serviceFeePercent > 0.0
+        val tipsTitleTop = if (showServiceFeeRow) 228.dp else 246.dp
+        val tipsRowTop = if (showServiceFeeRow) 260.dp else 286.dp
+
         Text(
             text = "чаевые",
             color = Color.White.copy(alpha = 0.86f),
@@ -327,7 +338,7 @@ private fun PcCompactTipSelectionStateScreen(
             fontFamily = MontserratFontFamily,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 228.dp)
+                .padding(top = tipsTitleTop)
         )
 
         val tipsClickable = state.canChangeTips && !state.isRestartingPayment
@@ -341,23 +352,51 @@ private fun PcCompactTipSelectionStateScreen(
             add(PcCompactTipCardUiModel.NoTips)
         }
 
-        LazyRow(
+        val middleIndex = tipCards.size / 2
+        val listState = rememberLazyListState()
+        var didInitialCenter by rememberSaveable { mutableStateOf(false) }
+
+        BoxWithConstraints(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 260.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxWidth()
+                .padding(top = tipsRowTop)
         ) {
-            itemsIndexed(items = tipCards, key = { _, card -> card.key }) { _, card ->
+            val commonCardWidth = tipCards.maxOfOrNull { it.resolveWidth(state) } ?: 90.dp
+            val normalizedCardWidth = commonCardWidth.coerceInDp(90.dp, 144.dp)
+            val density = LocalDensity.current
+            val viewportWidthPx = with(density) { maxWidth.toPx() }
+            val cardWidthPx = with(density) { normalizedCardWidth.toPx() }
+            val centerOffsetPx = -((viewportWidthPx - cardWidthPx) / 2f).roundToInt()
+
+            LaunchedEffect(tipCards.map { it.key }, state.availablePercents.size, normalizedCardWidth) {
+                if (
+                    !didInitialCenter &&
+                    state.availablePercents.isNotEmpty() &&
+                    tipCards.isNotEmpty()
+                ) {
+                    listState.scrollToItem(
+                        index = middleIndex,
+                        scrollOffset = centerOffsetPx
+                    )
+                    didInitialCenter = true
+                }
+            }
+
+            LazyRow(
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                itemsIndexed(items = tipCards, key = { _, card -> card.key }) { _, card ->
+                    val titleText = card.resolveTitle()
+                    val amountText = card.resolveAmountText(state)
                 when (card) {
                     PcCompactTipCardUiModel.CustomAmount -> PcCompactTipPresetCard(
-                        percentText = "Своя",
-                        amountText = if (state.isCustomTipSelected && state.customTipAmount != null) {
-                            formatRubles(state.customTipAmount)
-                        } else {
-                            "сумма"
-                        },
+                        percentText = titleText,
+                        amountText = amountText,
+                        cardWidth = normalizedCardWidth,
                         selected = state.isCustomTipSelected,
                         enabled = tipsClickable,
                         visuallyEnabled = tipsVisuallyEnabled,
@@ -365,8 +404,9 @@ private fun PcCompactTipSelectionStateScreen(
                     )
 
                     is PcCompactTipCardUiModel.Percent -> PcCompactTipPresetCard(
-                        percentText = "${card.percent.roundToInt()}%",
-                        amountText = formatRubles(state.calculateTipByPercent(card.percent)),
+                        percentText = titleText,
+                        amountText = amountText,
+                        cardWidth = normalizedCardWidth,
                         selected = !state.isCustomTipSelected && !state.isNoTipsSelected && card.percentIndex == state.selectedPercentIndex,
                         enabled = tipsClickable,
                         visuallyEnabled = tipsVisuallyEnabled,
@@ -374,8 +414,10 @@ private fun PcCompactTipSelectionStateScreen(
                     )
 
                     PcCompactTipCardUiModel.NoTips -> PcCompactTipPresetCard(
-                        percentText = "0%",
-                        amountText = "Без чаевых",
+                        percentText = titleText,
+                        amountText = amountText,
+                        amountFontSize = 13.sp,
+                        cardWidth = normalizedCardWidth,
                         selected = state.isNoTipsSelected,
                         enabled = tipsClickable,
                         visuallyEnabled = tipsVisuallyEnabled,
@@ -383,6 +425,7 @@ private fun PcCompactTipSelectionStateScreen(
                     )
                 }
             }
+        }
         }
         if (showCustomTipDialog.value) {
             PcCompactCustomTipDialog(
@@ -395,7 +438,7 @@ private fun PcCompactTipSelectionStateScreen(
             )
         }
 
-        if (state.serviceFeePercent > 0.0) {
+        if (showServiceFeeRow) {
             PcCompactServiceFeeGlassRow(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -434,6 +477,48 @@ private sealed class PcCompactTipCardUiModel {
         }
 }
 
+private fun PcCompactTipCardUiModel.resolveTitle(): String = when (this) {
+    PcCompactTipCardUiModel.CustomAmount -> "Своя"
+    is PcCompactTipCardUiModel.Percent -> "${percent.roundToInt()}%"
+    PcCompactTipCardUiModel.NoTips -> "0%"
+}
+
+private fun PcCompactTipCardUiModel.resolveAmountText(state: PcCompactTipPaymentUiState): String = when (this) {
+    PcCompactTipCardUiModel.CustomAmount -> if (state.isCustomTipSelected && state.customTipAmount != null) {
+        formatRubles(state.customTipAmount)
+    } else {
+        "сумма"
+    }
+    is PcCompactTipCardUiModel.Percent -> formatRubles(state.calculateTipByPercent(percent))
+    PcCompactTipCardUiModel.NoTips -> "без чаевых"
+}
+
+private fun PcCompactTipCardUiModel.resolveWidth(state: PcCompactTipPaymentUiState): Dp =
+    compactTipCardWidth(
+        amountText = resolveAmountText(state),
+        titleText = resolveTitle()
+    )
+
+private fun compactTipCardWidth(amountText: String, titleText: String): Dp {
+    val maxLength = maxOf(amountText.length, titleText.length)
+    return when {
+        maxLength <= 7 -> 90.dp
+        maxLength <= 9 -> 102.dp
+        maxLength <= 11 -> 114.dp
+        maxLength <= 13 -> 126.dp
+        maxLength <= 15 -> 138.dp
+        else -> 144.dp
+    }
+}
+
+private fun Dp.coerceInDp(min: Dp, max: Dp): Dp {
+    return when {
+        this < min -> min
+        this > max -> max
+        else -> this
+    }
+}
+
 @Composable
 private fun PcCompactCustomTipDialog(
     initialValue: String,
@@ -445,46 +530,49 @@ private fun PcCompactCustomTipDialog(
     val rubles = normalized.toIntOrNull() ?: 0
     val amount = rubles.toDouble()
     val confirmEnabled = rubles > 0
+
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(28.dp))
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF152534), Color(0xFF101B26))
+                        colors = listOf(Color(0xFF182B3D), Color(0xFF0F1D2A))
                     )
                 )
                 .border(
                     width = 1.dp,
                     color = Color.White.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(26.dp)
+                    shape = RoundedCornerShape(28.dp)
                 )
-                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Text(
                 text = "Своя сумма",
                 color = Color.White,
                 fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 19.sp,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Text(
                 text = formatRubles(amount),
                 color = Color(0xFF20D6D2),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 34.sp,
+                fontSize = 32.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 6.dp)
+                    .padding(top = 6.dp, bottom = 4.dp)
             )
             TiplyNumericKeypad(
                 digitColor = Color.White,
-                touchSize = 48.dp,
-                digitFontSize = 22.sp,
-                iconSize = 24.dp,
+                touchSize = 44.dp,
+                digitFontSize = 20.sp,
+                iconSize = 22.dp,
                 onDigit = { digit ->
                     if (value.value.length < 6) {
                         val next = (value.value + digit).filter(Char::isDigit)
@@ -503,7 +591,7 @@ private fun PcCompactCustomTipDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 PcCompactDialogAction(
@@ -1450,6 +1538,8 @@ private fun PcCompactTipPresetCard(
     selected: Boolean,
     enabled: Boolean,
     visuallyEnabled: Boolean = enabled,
+    amountFontSize: TextUnit? = null,
+    cardWidth: Dp = 90.dp,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
@@ -1473,10 +1563,7 @@ private fun PcCompactTipPresetCard(
 
     Box(
         modifier = Modifier
-            .size(
-                width = 90.dp,
-                height = if (selected) 140.dp else 124.dp
-            )
+            .size(width = cardWidth, height = if (selected) 140.dp else 124.dp)
             .clip(shape)
             .background(backgroundBrush)
             .border(
@@ -1516,9 +1603,11 @@ private fun PcCompactTipPresetCard(
             Text(
                 text = amountText,
                 color = Color.White.copy(alpha = 0.92f * visualAlpha),
-                fontSize = if (selected) 16.sp else 15.sp,
+                fontSize = amountFontSize ?: if (selected) 16.sp else 15.sp,
                 fontFamily = MontserratFontFamily,
                 textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
                 modifier = Modifier.fillMaxWidth()
             )
 
