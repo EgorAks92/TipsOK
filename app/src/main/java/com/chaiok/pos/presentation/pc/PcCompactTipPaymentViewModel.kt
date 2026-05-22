@@ -37,6 +37,9 @@ data class PcCompactTipPaymentUiState(
     val billAmount: Double,
     val availablePercents: List<Double> = emptyList(),
     val selectedPercentIndex: Int = 0,
+    val customTipAmount: Double? = null,
+    val isCustomTipSelected: Boolean = false,
+    val isNoTipsSelected: Boolean = false,
     val serviceFeePercent: Double = 0.0,
     val isServiceFeeEnabled: Boolean = false,
     val paymentStage: CardPresentingStage = CardPresentingStage.Idle,
@@ -44,8 +47,18 @@ data class PcCompactTipPaymentUiState(
     val errorMessage: String? = null,
     val canCancel: Boolean = true
 ) {
+    fun calculateTipByPercent(percent: Double): Double =
+        roundMoney(billAmount * percent / 100.0)
+
     val selectedTipAmount: Double
-        get() = roundMoney(billAmount * (availablePercents.getOrNull(selectedPercentIndex) ?: 0.0) / 100.0)
+        get() = when {
+            isNoTipsSelected -> 0.0
+            isCustomTipSelected -> roundMoney(customTipAmount ?: 0.0)
+            else -> availablePercents
+                .getOrNull(selectedPercentIndex)
+                ?.let(::calculateTipByPercent)
+                ?: 0.0
+        }
 
     val serviceFeeAmount: Double
         get() = if (isServiceFeeEnabled && serviceFeePercent > 0.0) roundMoney(selectedTipAmount * serviceFeePercent / 100.0) else 0.0
@@ -92,6 +105,7 @@ class PcCompactTipPaymentViewModel(
     private var paymentJob: Job? = null
     private var tipSelectionDebounceJob: Job? = null
     private var pendingSelectedIndex: Int? = null
+    private var activeSelectedTip: PcCompactSelectedTip = PcCompactSelectedTip.Percent(0)
 
     private var generation = 0L
     private var internalRestartInProgress = false
@@ -134,6 +148,7 @@ class PcCompactTipPaymentViewModel(
         if (started) {
             activePaymentTipIndex = _uiState.value.selectedPercentIndex
             activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+            activeSelectedTip = _uiState.value.currentSelectedTip()
         }
     }
 
@@ -148,11 +163,19 @@ class PcCompactTipPaymentViewModel(
     fun selectTipPreset(index: Int) {
         val state = _uiState.value
         if (index !in state.availablePercents.indices) return
-        if (index == state.selectedPercentIndex) return
+        if (!state.isCustomTipSelected && !state.isNoTipsSelected && index == state.selectedPercentIndex) return
         if (!state.canChangeTips) return
 
         pendingSelectedIndex = index
-        _uiState.update { it.copy(selectedPercentIndex = index, errorMessage = null) }
+        _uiState.update {
+            it.copy(
+                selectedPercentIndex = index,
+                isCustomTipSelected = false,
+                isNoTipsSelected = false,
+                customTipAmount = null,
+                errorMessage = null
+            )
+        }
 
         tipSelectionDebounceJob?.cancel()
         tipSelectionDebounceJob = viewModelScope.launch {
@@ -163,6 +186,38 @@ class PcCompactTipPaymentViewModel(
             _uiState.update { it.copy(selectedPercentIndex = latest) }
             restartPaymentWithCurrentAmount("tip change")
         }
+    }
+
+    fun selectNoTips() {
+        val state = _uiState.value
+        if (state.isNoTipsSelected || !state.canChangeTips) return
+        tipSelectionDebounceJob?.cancel()
+        pendingSelectedIndex = null
+        _uiState.update {
+            it.copy(
+                isNoTipsSelected = true,
+                isCustomTipSelected = false,
+                customTipAmount = null,
+                errorMessage = null
+            )
+        }
+        viewModelScope.launch { restartPaymentWithCurrentAmount("no tips") }
+    }
+
+    fun applyCustomTipAmount(amount: Double) {
+        val normalized = amount.coerceAtLeast(0.0)
+        if (!_uiState.value.canChangeTips) return
+        tipSelectionDebounceJob?.cancel()
+        pendingSelectedIndex = null
+        _uiState.update {
+            it.copy(
+                customTipAmount = normalized,
+                isCustomTipSelected = true,
+                isNoTipsSelected = false,
+                errorMessage = null
+            )
+        }
+        viewModelScope.launch { restartPaymentWithCurrentAmount("custom tip") }
     }
 
     fun toggleServiceFee(enabled: Boolean) {
@@ -187,6 +242,7 @@ class PcCompactTipPaymentViewModel(
                 if (started) {
                     activePaymentTipIndex = _uiState.value.selectedPercentIndex
                     activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+                    activeSelectedTip = _uiState.value.currentSelectedTip()
                 }
             }
         }
@@ -248,6 +304,11 @@ class PcCompactTipPaymentViewModel(
                 _uiState.update {
                     it.copy(
                         selectedPercentIndex = safePresetIndex(activePaymentTipIndex, it.availablePercents),
+                        customTipAmount = if (activeSelectedTip is PcCompactSelectedTip.CustomAmount) {
+                            (activeSelectedTip as PcCompactSelectedTip.CustomAmount).amount
+                        } else null,
+                        isCustomTipSelected = activeSelectedTip is PcCompactSelectedTip.CustomAmount,
+                        isNoTipsSelected = activeSelectedTip is PcCompactSelectedTip.NoTips,
                         isServiceFeeEnabled = activePaymentServiceFeeEnabled,
                         isRestartingPayment = false,
                         errorMessage = "Не удалось обновить сумму"
@@ -263,6 +324,7 @@ class PcCompactTipPaymentViewModel(
             if (started) {
                 activePaymentTipIndex = _uiState.value.selectedPercentIndex
                 activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+                activeSelectedTip = _uiState.value.currentSelectedTip()
             }
 
             internalRestartInProgress = false
@@ -428,6 +490,18 @@ class PcCompactTipPaymentViewModel(
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
         private const val APPROVED_VISIBLE_MS = 1200L
     }
+}
+
+private sealed interface PcCompactSelectedTip {
+    data class Percent(val index: Int) : PcCompactSelectedTip
+    data class CustomAmount(val amount: Double) : PcCompactSelectedTip
+    data object NoTips : PcCompactSelectedTip
+}
+
+private fun PcCompactTipPaymentUiState.currentSelectedTip(): PcCompactSelectedTip = when {
+    isNoTipsSelected -> PcCompactSelectedTip.NoTips
+    isCustomTipSelected -> PcCompactSelectedTip.CustomAmount(customTipAmount ?: 0.0)
+    else -> PcCompactSelectedTip.Percent(selectedPercentIndex)
 }
 
 internal fun formatRubles(amount: Double): String =

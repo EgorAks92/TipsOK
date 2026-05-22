@@ -722,6 +722,8 @@ fun ChaiOkNavHost(container: AppContainer) {
             PcCompactTipPaymentScreen(
                 state = state,
                 onSelectTip = vm::selectTipPreset,
+                onSelectNoTips = vm::selectNoTips,
+                onConfirmCustomTip = vm::applyCustomTipAmount,
                 onToggleServiceFee = vm::toggleServiceFee,
                 onCancel = vm::cancelPayment,
                 onRetry = vm::retryPayment
