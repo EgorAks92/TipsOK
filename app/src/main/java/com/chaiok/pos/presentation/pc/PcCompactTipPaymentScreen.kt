@@ -68,8 +68,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
+import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlin.math.PI
 import kotlin.math.cos
@@ -89,6 +91,8 @@ private enum class PcCompactPaymentResultVisual {
 fun PcCompactTipPaymentScreen(
     state: PcCompactTipPaymentUiState,
     onSelectTip: (Int) -> Unit,
+    onSelectNoTips: () -> Unit,
+    onConfirmCustomTip: (Double) -> Unit,
     onToggleServiceFee: (Boolean) -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit
@@ -179,6 +183,8 @@ fun PcCompactTipPaymentScreen(
         showTipSelection -> PcCompactTipSelectionStateScreen(
             state = state,
             onSelectTip = onSelectTip,
+            onSelectNoTips = onSelectNoTips,
+            onConfirmCustomTip = onConfirmCustomTip,
             onToggleServiceFee = onToggleServiceFee,
             onCancel = onCancel,
             onRetry = onRetry
@@ -187,6 +193,8 @@ fun PcCompactTipPaymentScreen(
         else -> PcCompactTipSelectionStateScreen(
             state = state,
             onSelectTip = onSelectTip,
+            onSelectNoTips = onSelectNoTips,
+            onConfirmCustomTip = onConfirmCustomTip,
             onToggleServiceFee = onToggleServiceFee,
             onCancel = onCancel,
             onRetry = onRetry
@@ -258,10 +266,14 @@ private fun PcCompactPaymentBackground(
 private fun PcCompactTipSelectionStateScreen(
     state: PcCompactTipPaymentUiState,
     onSelectTip: (Int) -> Unit,
+    onSelectNoTips: () -> Unit,
+    onConfirmCustomTip: (Double) -> Unit,
     onToggleServiceFee: (Boolean) -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
+    val showCustomTipDialog = remember { mutableStateOf(false) }
+
     PcCompactPaymentBackground {
         PcCompactTopRings()
 
@@ -321,6 +333,14 @@ private fun PcCompactTipSelectionStateScreen(
         val tipsClickable = state.canChangeTips && !state.isRestartingPayment
         val tipsVisuallyEnabled = true
 
+        val tipCards = buildList {
+            add(PcCompactTipCardUiModel.CustomAmount)
+            state.availablePercents.forEachIndexed { index, percent ->
+                add(PcCompactTipCardUiModel.Percent(percent = percent, percentIndex = index))
+            }
+            add(PcCompactTipCardUiModel.NoTips)
+        }
+
         LazyRow(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -329,19 +349,50 @@ private fun PcCompactTipSelectionStateScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            itemsIndexed(
-                items = state.availablePercents,
-                key = { _, percent -> percent.roundToInt() }
-            ) { index, percent ->
-                PcCompactTipPresetCard(
-                    percentText = "${percent.roundToInt()}%",
-                    amountText = formatRubles(state.billAmount * percent / 100.0),
-                    selected = index == state.selectedPercentIndex,
-                    enabled = tipsClickable,
-                    visuallyEnabled = tipsVisuallyEnabled,
-                    onClick = { onSelectTip(index) }
-                )
+            itemsIndexed(items = tipCards, key = { _, card -> card.key }) { _, card ->
+                when (card) {
+                    PcCompactTipCardUiModel.CustomAmount -> PcCompactTipPresetCard(
+                        percentText = "Своя",
+                        amountText = if (state.isCustomTipSelected && state.customTipAmount != null) {
+                            formatRubles(state.customTipAmount)
+                        } else {
+                            "сумма"
+                        },
+                        selected = state.isCustomTipSelected,
+                        enabled = tipsClickable,
+                        visuallyEnabled = tipsVisuallyEnabled,
+                        onClick = { showCustomTipDialog.value = true }
+                    )
+
+                    is PcCompactTipCardUiModel.Percent -> PcCompactTipPresetCard(
+                        percentText = "${card.percent.roundToInt()}%",
+                        amountText = formatRubles(state.calculateTipByPercent(card.percent)),
+                        selected = !state.isCustomTipSelected && !state.isNoTipsSelected && card.percentIndex == state.selectedPercentIndex,
+                        enabled = tipsClickable,
+                        visuallyEnabled = tipsVisuallyEnabled,
+                        onClick = { onSelectTip(card.percentIndex) }
+                    )
+
+                    PcCompactTipCardUiModel.NoTips -> PcCompactTipPresetCard(
+                        percentText = "0%",
+                        amountText = "Без чаевых",
+                        selected = state.isNoTipsSelected,
+                        enabled = tipsClickable,
+                        visuallyEnabled = tipsVisuallyEnabled,
+                        onClick = onSelectNoTips
+                    )
+                }
             }
+        }
+        if (showCustomTipDialog.value) {
+            PcCompactCustomTipDialog(
+                initialValue = customTipInputValue(state.customTipAmount),
+                onDismiss = { showCustomTipDialog.value = false },
+                onConfirm = { amount ->
+                    showCustomTipDialog.value = false
+                    onConfirmCustomTip(amount)
+                }
+            )
         }
 
         if (state.serviceFeePercent > 0.0) {
@@ -368,6 +419,150 @@ private fun PcCompactTipSelectionStateScreen(
             )
         }
     }
+}
+
+private sealed class PcCompactTipCardUiModel {
+    object CustomAmount : PcCompactTipCardUiModel()
+    data class Percent(val percent: Double, val percentIndex: Int) : PcCompactTipCardUiModel()
+    object NoTips : PcCompactTipCardUiModel()
+
+    val key: String
+        get() = when (this) {
+            CustomAmount -> "custom"
+            is Percent -> "percent_$percentIndex"
+            NoTips -> "no_tips"
+        }
+}
+
+@Composable
+private fun PcCompactCustomTipDialog(
+    initialValue: String,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    val value = remember(initialValue) { mutableStateOf(initialValue) }
+    val normalized = value.value.filter(Char::isDigit).trimStart('0')
+    val rubles = normalized.toIntOrNull() ?: 0
+    val amount = rubles.toDouble()
+    val confirmEnabled = rubles > 0
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(26.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF152534), Color(0xFF101B26))
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(26.dp)
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Text(
+                text = "Своя сумма",
+                color = Color.White,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            Text(
+                text = formatRubles(amount),
+                color = Color(0xFF20D6D2),
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 34.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 6.dp)
+            )
+            TiplyNumericKeypad(
+                digitColor = Color.White,
+                touchSize = 48.dp,
+                digitFontSize = 22.sp,
+                iconSize = 24.dp,
+                onDigit = { digit ->
+                    if (value.value.length < 6) {
+                        val next = (value.value + digit).filter(Char::isDigit)
+                        val nextRubles = next.trimStart('0').toIntOrNull() ?: 0
+                        if (nextRubles <= CUSTOM_TIP_MAX_RUBLES) {
+                            value.value = next
+                        }
+                    }
+                },
+                onDelete = { value.value = value.value.dropLast(1) },
+                onConfirm = { if (confirmEnabled) onConfirm(amount) },
+                confirmEnabled = confirmEnabled,
+                isLoading = false,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                PcCompactDialogAction(
+                    title = "Отмена",
+                    primary = false,
+                    enabled = true,
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                )
+                PcCompactDialogAction(
+                    title = "Готово",
+                    primary = true,
+                    enabled = confirmEnabled,
+                    onClick = { onConfirm(amount) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PcCompactDialogAction(
+    title: String,
+    primary: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val background = if (primary) Color(0xFF1CC7BE) else Color.White.copy(alpha = 0.08f)
+    val textColor = if (primary) Color.White else Color.White.copy(alpha = 0.95f)
+    Box(
+        modifier = modifier
+            .height(42.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (enabled) background else background.copy(alpha = 0.35f))
+            .border(
+                width = 1.dp,
+                color = if (primary) Color(0xFF20D6D2) else Color.White.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = if (enabled) textColor else textColor.copy(alpha = 0.5f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = MontserratFontFamily
+        )
+    }
+}
+
+private const val CUSTOM_TIP_MAX_RUBLES = 100_000
+
+private fun customTipInputValue(amount: Double?): String {
+    val rubles = amount?.toInt() ?: return ""
+    return if (rubles > 0) rubles.toString() else ""
 }
 
 @Composable
