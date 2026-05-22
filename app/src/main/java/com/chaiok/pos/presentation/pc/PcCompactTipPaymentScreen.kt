@@ -375,7 +375,8 @@ private fun PcCompactTipSelectionStateScreen(
 
                     PcCompactTipCardUiModel.NoTips -> PcCompactTipPresetCard(
                         percentText = "0%",
-                        amountText = "Без чаевых",
+                        amountText = "без чаевых",
+                        amountFontSize = 13.sp,
                         selected = state.isNoTipsSelected,
                         enabled = tipsClickable,
                         visuallyEnabled = tipsVisuallyEnabled,
@@ -445,46 +446,49 @@ private fun PcCompactCustomTipDialog(
     val rubles = normalized.toIntOrNull() ?: 0
     val amount = rubles.toDouble()
     val confirmEnabled = rubles > 0
+
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(28.dp))
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF152534), Color(0xFF101B26))
+                        colors = listOf(Color(0xFF182B3D), Color(0xFF0F1D2A))
                     )
                 )
                 .border(
                     width = 1.dp,
                     color = Color.White.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(26.dp)
+                    shape = RoundedCornerShape(28.dp)
                 )
-                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Text(
                 text = "Своя сумма",
                 color = Color.White,
                 fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 19.sp,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Text(
                 text = formatRubles(amount),
                 color = Color(0xFF20D6D2),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 34.sp,
+                fontSize = 32.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 6.dp)
+                    .padding(top = 6.dp, bottom = 4.dp)
             )
             TiplyNumericKeypad(
                 digitColor = Color.White,
-                touchSize = 48.dp,
-                digitFontSize = 22.sp,
-                iconSize = 24.dp,
+                touchSize = 44.dp,
+                digitFontSize = 20.sp,
+                iconSize = 22.dp,
                 onDigit = { digit ->
                     if (value.value.length < 6) {
                         val next = (value.value + digit).filter(Char::isDigit)
@@ -503,7 +507,7 @@ private fun PcCompactCustomTipDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 PcCompactDialogAction(
@@ -1450,6 +1454,7 @@ private fun PcCompactTipPresetCard(
     selected: Boolean,
     enabled: Boolean,
     visuallyEnabled: Boolean = enabled,
+    amountFontSize: androidx.compose.ui.unit.TextUnit? = null,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
@@ -1516,7 +1521,7 @@ private fun PcCompactTipPresetCard(
             Text(
                 text = amountText,
                 color = Color.White.copy(alpha = 0.92f * visualAlpha),
-                fontSize = if (selected) 16.sp else 15.sp,
+                fontSize = amountFontSize ?: if (selected) 16.sp else 15.sp,
                 fontFamily = MontserratFontFamily,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
