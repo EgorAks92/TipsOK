@@ -135,7 +135,8 @@ fun SettingsRoute(
         onTips = onTips,
         onBackground = onBackground,
         onPcIdleImages = onPcIdleImages,
-        onTogglePcUsbMode = viewModel::togglePcUsbMode
+        onTogglePcUsbMode = viewModel::togglePcUsbMode,
+        onTogglePcCompactServiceFee = viewModel::togglePcCompactServiceFeeEnabled
     )
 }
 
@@ -147,7 +148,8 @@ fun SettingsScreen(
     onTips: () -> Unit,
     onBackground: () -> Unit,
     onPcIdleImages: () -> Unit,
-    onTogglePcUsbMode: (Boolean) -> Unit
+    onTogglePcUsbMode: (Boolean) -> Unit,
+    onTogglePcCompactServiceFee: (Boolean) -> Unit
 ) {
     when (rememberChaiOkDeviceClass()) {
         ChaiOkDeviceClass.SquareCompact -> {
@@ -157,8 +159,9 @@ fun SettingsScreen(
                 onStatus = onStatus,
                 onTips = onTips,
                 onBackground = onBackground,
-        onPcIdleImages = onPcIdleImages,
-                onTogglePcUsbMode = onTogglePcUsbMode
+                onPcIdleImages = onPcIdleImages,
+                onTogglePcUsbMode = onTogglePcUsbMode,
+                onTogglePcCompactServiceFee = onTogglePcCompactServiceFee
             )
         }
 
@@ -169,8 +172,9 @@ fun SettingsScreen(
                 onStatus = onStatus,
                 onTips = onTips,
                 onBackground = onBackground,
-        onPcIdleImages = onPcIdleImages,
-                onTogglePcUsbMode = onTogglePcUsbMode
+                onPcIdleImages = onPcIdleImages,
+                onTogglePcUsbMode = onTogglePcUsbMode,
+                onTogglePcCompactServiceFee = onTogglePcCompactServiceFee
             )
         }
     }
@@ -184,7 +188,8 @@ private fun SettingsRegularScreen(
     onTips: () -> Unit,
     onBackground: () -> Unit,
     onPcIdleImages: () -> Unit,
-    onTogglePcUsbMode: (Boolean) -> Unit
+    onTogglePcUsbMode: (Boolean) -> Unit,
+    onTogglePcCompactServiceFee: (Boolean) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -249,6 +254,14 @@ private fun SettingsRegularScreen(
                     checked = state.pcUsbModeEnabled,
                     onToggle = onTogglePcUsbMode
                 )
+
+                SettingsRegularToggleItem(
+                    title = "Возмещение комиссии на экране PC-оплаты",
+                    subtitle = if (state.pcCompactServiceFeeEnabled) "Включено" else "Выключено",
+                    iconRes = R.drawable.ic_settings_pc_idle,
+                    checked = state.pcCompactServiceFeeEnabled,
+                    onToggle = onTogglePcCompactServiceFee
+                )
             }
         }
     }
@@ -262,7 +275,8 @@ private fun SettingsSquarePremiumScreen(
     onTips: () -> Unit,
     onBackground: () -> Unit,
     onPcIdleImages: () -> Unit,
-    onTogglePcUsbMode: (Boolean) -> Unit
+    onTogglePcUsbMode: (Boolean) -> Unit,
+    onTogglePcCompactServiceFee: (Boolean) -> Unit
 ) {
     val metrics = squarePremiumSettingsMetrics()
     val scrollState = rememberScrollState()
@@ -336,6 +350,15 @@ private fun SettingsSquarePremiumScreen(
                         metrics = metrics,
                         checked = state.pcUsbModeEnabled,
                         onToggle = onTogglePcUsbMode
+                    )
+
+                    SettingsPremiumToggleItem(
+                        title = "Возмещение комиссии на экране PC-оплаты",
+                        subtitle = if (state.pcCompactServiceFeeEnabled) "Включено" else "Выключено",
+                        iconRes = R.drawable.ic_settings_pc_idle,
+                        metrics = metrics,
+                        checked = state.pcCompactServiceFeeEnabled,
+                        onToggle = onTogglePcCompactServiceFee
                     )
                 }
             }

@@ -15,14 +15,16 @@ class DataStoreSettingsRepository(
         dataStore.tableModeFlow,
         dataStore.tileBackgroundFlow,
         dataStore.pcUsbModeFlow,
-        dataStore.pcIdleImagesFlow
-    ) { integration, table, background, pcUsb, pcIdleImages ->
+        dataStore.pcIdleImagesFlow,
+        dataStore.pcCompactServiceFeeEnabledFlow
+    ) { integration, table, background, pcUsb, pcIdleImages, pcCompactServiceFeeEnabled ->
         AppSettings(
             integrationModeEnabled = integration,
             tableModeEnabled = table,
             tileBackground = background,
             pcUsbModeEnabled = pcUsb,
-            pcIdleImages = pcIdleImages
+            pcIdleImages = pcIdleImages,
+            pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled
         )
     }
 
@@ -53,6 +55,12 @@ class DataStoreSettingsRepository(
     override suspend fun setPcIdleImages(images: List<String>) {
         runCatching {
             dataStore.setPcIdleImages(images)
+        }
+    }
+
+    override suspend fun setPcCompactServiceFeeEnabled(enabled: Boolean) {
+        runCatching {
+            dataStore.setPcCompactServiceFeeEnabled(enabled)
         }
     }
 }

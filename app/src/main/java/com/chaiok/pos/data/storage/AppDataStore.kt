@@ -30,6 +30,7 @@ class AppDataStore(private val context: Context) {
         val serviceFeePercent = doublePreferencesKey("service_fee_percent")
         val pcUsbMode = booleanPreferencesKey("pc_usb_mode_enabled")
         val pcIdleImages = stringPreferencesKey("pc_idle_images")
+        val pcCompactServiceFeeEnabled = booleanPreferencesKey("pc_compact_service_fee_enabled")
     }
 
     val integrationModeFlow: Flow<Boolean> =
@@ -64,6 +65,9 @@ class AppDataStore(private val context: Context) {
                 ?.filter { it.isNotBlank() }
                 ?: emptyList()
         }
+
+    val pcCompactServiceFeeEnabledFlow: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.pcCompactServiceFeeEnabled] ?: true }
 
     val tipRangeFlow: Flow<TipRange?> = context.dataStore.data.map { prefs ->
         val percentsRaw = prefs[Keys.tipRangePercents]
@@ -122,6 +126,10 @@ class AppDataStore(private val context: Context) {
             .filter { it.isNotBlank() }
             .joinToString(PC_IDLE_IMAGES_SEPARATOR)
         it[Keys.pcIdleImages] = raw
+    }
+
+    suspend fun setPcCompactServiceFeeEnabled(value: Boolean) = context.dataStore.edit {
+        it[Keys.pcCompactServiceFeeEnabled] = value
     }
 
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {

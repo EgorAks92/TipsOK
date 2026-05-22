@@ -10,4 +10,5 @@ interface SettingsRepository {
     suspend fun setTileBackground(background: String)
     suspend fun setPcUsbMode(enabled: Boolean)
     suspend fun setPcIdleImages(images: List<String>)
+    suspend fun setPcCompactServiceFeeEnabled(enabled: Boolean)
 }
