@@ -1,5 +1,16 @@
 package com.chaiok.pos.presentation.pc
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -7,6 +18,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,49 +45,39 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
-import com.chaiok.pos.presentation.theme.MontserratFontFamily
-import kotlin.math.roundToInt
-import kotlin.math.PI
-import kotlin.math.cos
-import androidx.compose.animation.core.Animatable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import com.chaiok.pos.R
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.chaiok.pos.R
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
+import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.min
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.runtime.mutableStateOf
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
-
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
 
 private enum class PcCompactPaymentResultVisual {
     None,
@@ -96,23 +98,28 @@ fun PcCompactTipPaymentScreen(
     val pendingResultVisual = remember { mutableStateOf<PcCompactPaymentResultVisual?>(null) }
 
     val processingRequested = !state.canChangeTips &&
-        !state.isRestartingPayment &&
-        (
-            state.paymentStage == CardPresentingStage.CardDetected ||
-                state.paymentStage == CardPresentingStage.Processing ||
-                state.paymentStage == CardPresentingStage.PinRequired ||
-                state.paymentStage == CardPresentingStage.Cancelling
-            )
-
-    val realResultVisual = when {
-        state.paymentStage == CardPresentingStage.Approved -> PcCompactPaymentResultVisual.Approved
-        !state.canChangeTips &&
             !state.isRestartingPayment &&
             (
-                state.paymentStage == CardPresentingStage.Declined ||
-                    state.paymentStage == CardPresentingStage.Error ||
-                    state.paymentStage == CardPresentingStage.Cancelled
-                ) -> PcCompactPaymentResultVisual.Declined
+                    state.paymentStage == CardPresentingStage.CardDetected ||
+                            state.paymentStage == CardPresentingStage.Processing ||
+                            state.paymentStage == CardPresentingStage.PinRequired ||
+                            state.paymentStage == CardPresentingStage.Cancelling
+                    )
+
+    val realResultVisual = when {
+        state.paymentStage == CardPresentingStage.Approved -> {
+            PcCompactPaymentResultVisual.Approved
+        }
+
+        !state.canChangeTips &&
+                !state.isRestartingPayment &&
+                (
+                        state.paymentStage == CardPresentingStage.Declined ||
+                                state.paymentStage == CardPresentingStage.Error ||
+                                state.paymentStage == CardPresentingStage.Cancelled
+                        ) -> {
+            PcCompactPaymentResultVisual.Declined
+        }
 
         else -> PcCompactPaymentResultVisual.None
     }
@@ -132,7 +139,9 @@ fun PcCompactTipPaymentScreen(
                 showStatusScreen.value = true
                 visibleResultVisual.value = PcCompactPaymentResultVisual.None
                 pendingResultVisual.value = realResultVisual
+
                 delay(420)
+
                 if (pendingResultVisual.value == realResultVisual) {
                     visibleResultVisual.value = realResultVisual
                     pendingResultVisual.value = null
@@ -141,11 +150,13 @@ fun PcCompactTipPaymentScreen(
                 visibleResultVisual.value = realResultVisual
                 pendingResultVisual.value = null
             }
+
             return@LaunchedEffect
         }
 
         if (processingRequested) {
             delay(400)
+
             if (processingRequested && realResultVisual == PcCompactPaymentResultVisual.None) {
                 showStatusScreen.value = true
                 visibleResultVisual.value = PcCompactPaymentResultVisual.None
@@ -189,23 +200,31 @@ private fun PcCompactPaymentBackground(
     content: @Composable BoxScope.() -> Unit
 ) {
     val backgroundEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+
     val bgStart by animateColorAsState(
         targetValue = if (error) Color(0xFF121923) else Color(0xFF151D25),
         animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
         label = "pc_bg_start"
     )
+
     val bgMid by animateColorAsState(
         targetValue = if (error) Color(0xFF2A1B26) else Color(0xFF0E5C91),
         animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
         label = "pc_bg_mid"
     )
+
     val bgEnd by animateColorAsState(
         targetValue = if (error) Color(0xFF161D27) else Color(0xFF1B222A),
         animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
         label = "pc_bg_end"
     )
+
     val glowColor by animateColorAsState(
-        targetValue = if (error) Color(0xFFC8323A).copy(alpha = 0.55f) else Color(0xFF126CA4).copy(alpha = 0.55f),
+        targetValue = if (error) {
+            Color(0xFFC8323A).copy(alpha = 0.55f)
+        } else {
+            Color(0xFF126CA4).copy(alpha = 0.55f)
+        },
         animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
         label = "pc_bg_glow"
     )
@@ -351,7 +370,6 @@ private fun PcCompactTipSelectionStateScreen(
     }
 }
 
-
 @Composable
 private fun BoxScope.PcCompactCenteredAmountHeader(
     amountText: String
@@ -359,20 +377,20 @@ private fun BoxScope.PcCompactCenteredAmountHeader(
     Column(
         modifier = Modifier
             .align(Alignment.TopCenter)
-            .padding(top = 145.dp),
+            .padding(top = 64.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = "оплата",
             color = Color.White.copy(alpha = 0.82f),
-            fontSize = 30.sp,
+            fontSize = 16.sp,
             fontFamily = MontserratFontFamily
         )
 
         PcCompactAnimatedAmountText(
             text = amountText,
             color = Color.White,
-            fontSize = 64.sp,
+            fontSize = 40.sp,
             fontWeight = FontWeight.Bold
         )
     }
@@ -390,13 +408,14 @@ private fun PcCompactPaymentStatusStateScreen(
 
     PcCompactMorphingPaymentIndicator(
         result = result,
-        modifier = Modifier
-            .align(Alignment.Center)
-            .offset(y = 50.dp)
+        modifier = Modifier.align(Alignment.Center)
     )
 
     AnimatedVisibility(
         visible = result != PcCompactPaymentResultVisual.None,
+        modifier = Modifier
+            .align(Alignment.Center)
+            .offset(y = 96.dp),
         enter = fadeIn(animationSpec = tween(280)) + slideInVertically(
             initialOffsetY = { it / 10 },
             animationSpec = tween(280)
@@ -408,12 +427,10 @@ private fun PcCompactPaymentStatusStateScreen(
                 Text(
                     text = "Одобрено",
                     color = Color.White,
-                    fontSize = 40.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 110.dp)
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -421,12 +438,10 @@ private fun PcCompactPaymentStatusStateScreen(
                 Text(
                     text = "Отказано",
                     color = Color.White,
-                    fontSize = 40.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 110.dp)
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -436,17 +451,17 @@ private fun PcCompactPaymentStatusStateScreen(
 
     AnimatedVisibility(
         visible = result == PcCompactPaymentResultVisual.Declined,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 34.dp),
         enter = fadeIn(animationSpec = tween(durationMillis = 280, delayMillis = 170)) +
-            slideInVertically(
-                initialOffsetY = { it / 8 },
-                animationSpec = tween(durationMillis = 280, delayMillis = 170)
-            ),
+                slideInVertically(
+                    initialOffsetY = { it / 8 },
+                    animationSpec = tween(durationMillis = 280, delayMillis = 170)
+                ),
         exit = fadeOut(animationSpec = tween(120))
     ) {
         Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 34.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (!errorMessage.isNullOrBlank()) {
@@ -459,15 +474,21 @@ private fun PcCompactPaymentStatusStateScreen(
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
                 )
             }
+
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 Text(
                     text = "Повторить",
                     color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 14.sp,
+                    fontFamily = MontserratFontFamily,
                     modifier = Modifier.clickable(onClick = onRetry)
                 )
+
                 Text(
                     text = "Отмена",
                     color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    fontFamily = MontserratFontFamily,
                     modifier = Modifier.clickable(onClick = onCancel)
                 )
             }
@@ -480,126 +501,479 @@ private fun PcCompactMorphingPaymentIndicator(
     result: PcCompactPaymentResultVisual,
     modifier: Modifier = Modifier
 ) {
-    val transition = rememberInfiniteTransition(label = "morph_spinner")
+    val transition = rememberInfiniteTransition(label = "neon_payment_indicator")
+
     val rotation = transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1300, easing = LinearEasing),
+            animation = tween(
+                durationMillis = 1450,
+                easing = LinearEasing
+            ),
             repeatMode = RepeatMode.Restart
         ),
-        label = "morph_rot"
+        label = "neon_payment_indicator_rotation"
     )
+
     val morphProgress = remember { Animatable(0f) }
+    val easing = remember { CubicBezierEasing(0.16f, 1f, 0.3f, 1f) }
 
     LaunchedEffect(result) {
         if (result == PcCompactPaymentResultVisual.None) {
             morphProgress.snapTo(0f)
         } else {
-            morphProgress.animateTo(targetValue = 1f, animationSpec = tween(780, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)))
-        }
-    }
-
-    val lineColor = if (result == PcCompactPaymentResultVisual.Declined) Color(0xFFFF9999) else Color(0xFF89E3EA)
-    val glowColor = if (result == PcCompactPaymentResultVisual.Declined) Color(0xFFFF5454) else Color(0xFF20D6D2)
-
-    Canvas(modifier = modifier.size(140.dp)) {
-        val easedMorph = CubicBezierEasing(0.16f, 1f, 0.3f, 1f).transform(morphProgress.value)
-        val spinnerAlpha = 1f - easedMorph
-        val spinnerSweep = 285f - 245f * easedMorph
-        val slowedRotation = rotation.value * (1f - easedMorph * 0.35f)
-        val resultDrawProgress = ((easedMorph - 0.18f) / 0.82f).coerceIn(0f, 1f)
-        val settleFactor = 1f + (1f - resultDrawProgress) * 0.16f
-
-        if (spinnerAlpha > 0f) {
-            rotate(slowedRotation) {
-                drawArc(
-                    color = glowColor.copy(alpha = 0.2f * spinnerAlpha),
-                    startAngle = -90f,
-                    sweepAngle = 300f,
-                    useCenter = false,
-                    style = Stroke(width = 26.dp.toPx(), cap = StrokeCap.Round)
+            morphProgress.snapTo(0f)
+            morphProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 780,
+                    easing = easing
                 )
-                drawArc(
-                    color = Color(0xFF89E3EA).copy(alpha = 0.85f * spinnerAlpha),
-                    startAngle = -90f,
-                    sweepAngle = spinnerSweep,
-                    useCenter = false,
-                    style = Stroke(width = 20.dp.toPx(), cap = StrokeCap.Round)
-                )
-            }
-        }
-
-        if (result != PcCompactPaymentResultVisual.None && resultDrawProgress > 0f) {
-            drawCircle(
-                color = glowColor.copy(alpha = 0.12f * (1f - resultDrawProgress * 0.5f)),
-                radius = 62.dp.toPx() + 10.dp.toPx() * resultDrawProgress
             )
         }
+    }
+
+    Canvas(
+        modifier = modifier.size(144.dp)
+    ) {
+        val eased = easing.transform(morphProgress.value)
+
+        val spinnerAlpha = (1f - eased).coerceIn(0f, 1f)
+        val spinnerSweep = 292f - 230f * eased
+        val spinnerRotation = rotation.value * (1f - eased * 0.28f)
+
+        val resultProgress = ((eased - 0.14f) / 0.86f).coerceIn(0f, 1f)
+        val settle = 1f + (1f - resultProgress) * 0.035f
 
         when (result) {
-            PcCompactPaymentResultVisual.Approved -> drawProgressiveCheck(resultDrawProgress, lineColor, glowColor, settleFactor)
-            PcCompactPaymentResultVisual.Declined -> drawProgressiveCross(resultDrawProgress, lineColor, glowColor, settleFactor)
-            PcCompactPaymentResultVisual.None -> Unit
+            PcCompactPaymentResultVisual.None -> {
+                drawNeonSpinner(
+                    rotation = rotation.value,
+                    sweep = 292f,
+                    alpha = 1f
+                )
+            }
+
+            PcCompactPaymentResultVisual.Approved -> {
+                if (spinnerAlpha > 0.001f) {
+                    drawNeonSpinner(
+                        rotation = spinnerRotation,
+                        sweep = spinnerSweep,
+                        alpha = spinnerAlpha
+                    )
+                }
+
+                if (resultProgress > 0.001f) {
+                    drawNeonCheck(
+                        progress = resultProgress,
+                        settle = settle
+                    )
+                }
+            }
+
+            PcCompactPaymentResultVisual.Declined -> {
+                if (spinnerAlpha > 0.001f) {
+                    drawNeonSpinner(
+                        rotation = spinnerRotation,
+                        sweep = spinnerSweep,
+                        alpha = spinnerAlpha
+                    )
+                }
+
+                if (resultProgress > 0.001f) {
+                    drawNeonCross(
+                        progress = resultProgress,
+                        settle = settle
+                    )
+                }
+            }
         }
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProgressiveCheck(
-    progress: Float,
-    lineColor: Color,
-    glowColor: Color,
-    settleFactor: Float
+private fun DrawScope.drawNeonSpinner(
+    rotation: Float,
+    sweep: Float,
+    alpha: Float
 ) {
-    val p1 = Offset(size.width * 0.22f, size.height * 0.54f)
-    val p2 = Offset(size.width * 0.44f, size.height * 0.74f)
-    val p3 = Offset(size.width * 0.8f, size.height * 0.3f)
-    val first = intervalProgress(progress, 0f, 0.42f)
-    val second = intervalProgress(progress, 0.25f, 1f)
-    drawPartialLine(p1, p2, first, glowColor.copy(alpha = 0.28f), 24.dp.toPx() * settleFactor)
-    drawPartialLine(p2, p3, second, glowColor.copy(alpha = 0.28f), 24.dp.toPx() * settleFactor)
-    drawPartialLine(p1, p2, first, lineColor, 18.dp.toPx() * settleFactor)
-    drawPartialLine(p2, p3, second, lineColor, 18.dp.toPx() * settleFactor)
+    val center = Offset(size.width / 2f, size.height / 2f)
+
+    val inset = 27.dp.toPx()
+    val arcTopLeft = Offset(inset, inset)
+    val arcSize = Size(
+        width = size.width - inset * 2f,
+        height = size.height - inset * 2f
+    )
+
+    // Очень мягкое внутреннее cyan-свечение, без грубого blob-пятна.
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color(0xFF19F1D4).copy(alpha = 0.16f * alpha),
+                Color(0xFF0E8FD2).copy(alpha = 0.07f * alpha),
+                Color.Transparent
+            ),
+            center = center,
+            radius = size.minDimension * 0.42f
+        ),
+        radius = size.minDimension * 0.42f,
+        center = center
+    )
+
+    rotate(
+        degrees = rotation,
+        pivot = center
+    ) {
+        drawNeonArc(
+            topLeft = arcTopLeft,
+            size = arcSize,
+            startAngle = 34f,
+            sweepAngle = sweep,
+            alpha = alpha,
+            glowColor = Color(0xFF16E8D3),
+            edgeColor = Color(0xFF118BD7),
+            coreColor = Color(0xFFCFFFF8)
+        )
+    }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProgressiveCross(
+private fun DrawScope.drawNeonCheck(
     progress: Float,
-    lineColor: Color,
-    glowColor: Color,
-    settleFactor: Float
+    settle: Float
 ) {
-    val p1 = Offset(size.width * 0.2f, size.height * 0.2f)
-    val p2 = Offset(size.width * 0.8f, size.height * 0.8f)
-    val p3 = Offset(size.width * 0.8f, size.height * 0.2f)
-    val p4 = Offset(size.width * 0.2f, size.height * 0.8f)
-    val first = intervalProgress(progress, 0f, 0.58f)
-    val second = intervalProgress(progress, 0.24f, 1f)
-    drawPartialLine(p1, p2, first, glowColor.copy(alpha = 0.3f), 24.dp.toPx() * settleFactor)
-    drawPartialLine(p3, p4, second, glowColor.copy(alpha = 0.3f), 24.dp.toPx() * settleFactor)
-    drawPartialLine(p1, p2, first, lineColor, 18.dp.toPx() * settleFactor)
-    drawPartialLine(p3, p4, second, lineColor, 18.dp.toPx() * settleFactor)
+    val p = progress.coerceIn(0f, 1f)
+
+    val a = Offset(size.width * 0.30f, size.height * 0.55f)
+    val b = Offset(size.width * 0.43f, size.height * 0.67f)
+    val c = Offset(size.width * 0.72f, size.height * 0.38f)
+
+    val first = neonIntervalProgress(p, 0.00f, 0.42f)
+    val second = neonIntervalProgress(p, 0.24f, 1.00f)
+
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color(0xFF1EF3D7).copy(alpha = 0.12f * p),
+                Color(0xFF0E8FD2).copy(alpha = 0.04f * p),
+                Color.Transparent
+            ),
+            center = Offset(size.width * 0.52f, size.height * 0.52f),
+            radius = size.minDimension * 0.34f
+        ),
+        radius = size.minDimension * 0.34f,
+        center = Offset(size.width * 0.52f, size.height * 0.52f)
+    )
+
+    // Пока галочка рисуется — оставляем по сегментам.
+    drawNeonLine(
+        start = a,
+        end = b,
+        progress = first,
+        alpha = p,
+        settle = settle,
+        glowColor = Color(0xFF19F1D4),
+        edgeColor = Color(0xFF118BD7),
+        coreColor = Color(0xFFCFFFF8)
+    )
+
+    drawNeonLine(
+        start = b,
+        end = c,
+        progress = second,
+        alpha = p,
+        settle = settle,
+        glowColor = Color(0xFF19F1D4),
+        edgeColor = Color(0xFF118BD7),
+        coreColor = Color(0xFFCFFFF8)
+    )
+
+    // В конце поверх дорисовываем цельную галочку одним path,
+    // чтобы исчезал видимый стык между двумя линиями.
+    val unifiedAlpha = ((p - 0.78f) / 0.22f).coerceIn(0f, 1f)
+
+    if (unifiedAlpha > 0f) {
+        val checkPath = Path().apply {
+            moveTo(a.x, a.y)
+            lineTo(b.x, b.y)
+            lineTo(c.x, c.y)
+        }
+
+        // Дальнее свечение
+        drawPath(
+            path = checkPath,
+            color = Color(0xFF118BD7).copy(alpha = 0.040f * unifiedAlpha),
+            style = Stroke(
+                width = 52.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        // Glow
+        drawPath(
+            path = checkPath,
+            color = Color(0xFF19F1D4).copy(alpha = 0.070f * unifiedAlpha),
+            style = Stroke(
+                width = 42.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        drawPath(
+            path = checkPath,
+            color = Color(0xFF19F1D4).copy(alpha = 0.145f * unifiedAlpha),
+            style = Stroke(
+                width = 32.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        // Неоновое тело
+        drawPath(
+            path = checkPath,
+            color = Color(0xFF19F1D4).copy(alpha = 0.36f * unifiedAlpha),
+            style = Stroke(
+                width = 23.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        // Светлое ядро
+        drawPath(
+            path = checkPath,
+            color = Color(0xFFCFFFF8).copy(alpha = 0.94f * unifiedAlpha),
+            style = Stroke(
+                width = 12.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        // Тонкий highlight
+        drawPath(
+            path = checkPath,
+            color = Color.White.copy(alpha = 0.20f * unifiedAlpha),
+            style = Stroke(
+                width = 5.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
 }
 
-private fun intervalProgress(
+private fun DrawScope.drawNeonCross(
     progress: Float,
-    start: Float,
-    end: Float
-): Float = ((progress - start) / (end - start)).coerceIn(0f, 1f)
+    settle: Float
+) {
+    val p = progress.coerceIn(0f, 1f)
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPartialLine(
+    val a = Offset(size.width * 0.30f, size.height * 0.30f)
+    val b = Offset(size.width * 0.70f, size.height * 0.70f)
+
+    val c = Offset(size.width * 0.70f, size.height * 0.30f)
+    val d = Offset(size.width * 0.30f, size.height * 0.70f)
+
+    val first = neonIntervalProgress(p, 0.00f, 0.58f)
+    val second = neonIntervalProgress(p, 0.24f, 1.00f)
+
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color(0xFFFF2A2A).copy(alpha = 0.10f * p),
+                Color.Transparent
+            ),
+            center = Offset(size.width * 0.50f, size.height * 0.50f),
+            radius = size.minDimension * 0.34f
+        ),
+        radius = size.minDimension * 0.34f,
+        center = Offset(size.width * 0.50f, size.height * 0.50f)
+    )
+
+    drawNeonLine(
+        start = a,
+        end = b,
+        progress = first,
+        alpha = p,
+        settle = settle,
+        glowColor = Color(0xFFFF3030),
+        edgeColor = Color(0xFFFF1F1F),
+        coreColor = Color(0xFFFFA0A0)
+    )
+
+    drawNeonLine(
+        start = c,
+        end = d,
+        progress = second,
+        alpha = p,
+        settle = settle,
+        glowColor = Color(0xFFFF3030),
+        edgeColor = Color(0xFFFF1F1F),
+        coreColor = Color(0xFFFFA0A0)
+    )
+}
+
+private fun DrawScope.drawNeonArc(
+    topLeft: Offset,
+    size: Size,
+    startAngle: Float,
+    sweepAngle: Float,
+    alpha: Float,
+    glowColor: Color,
+    edgeColor: Color,
+    coreColor: Color
+) {
+    // Дальнее мягкое свечение.
+    drawArc(
+        color = edgeColor.copy(alpha = 0.045f * alpha),
+        startAngle = startAngle,
+        sweepAngle = sweepAngle,
+        useCenter = false,
+        topLeft = topLeft,
+        size = size,
+        style = Stroke(
+            width = 44.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+    )
+
+    drawArc(
+        color = glowColor.copy(alpha = 0.075f * alpha),
+        startAngle = startAngle,
+        sweepAngle = sweepAngle,
+        useCenter = false,
+        topLeft = topLeft,
+        size = size,
+        style = Stroke(
+            width = 36.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+    )
+
+    drawArc(
+        color = glowColor.copy(alpha = 0.16f * alpha),
+        startAngle = startAngle,
+        sweepAngle = sweepAngle,
+        useCenter = false,
+        topLeft = topLeft,
+        size = size,
+        style = Stroke(
+            width = 28.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+    )
+
+    // Насыщенное тело.
+    drawArc(
+        color = glowColor.copy(alpha = 0.34f * alpha),
+        startAngle = startAngle,
+        sweepAngle = sweepAngle,
+        useCenter = false,
+        topLeft = topLeft,
+        size = size,
+        style = Stroke(
+            width = 22.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+    )
+
+    // Светлое ядро.
+    drawArc(
+        color = coreColor.copy(alpha = 0.90f * alpha),
+        startAngle = startAngle,
+        sweepAngle = sweepAngle,
+        useCenter = false,
+        topLeft = topLeft,
+        size = size,
+        style = Stroke(
+            width = 13.dp.toPx(),
+            cap = StrokeCap.Round
+        )
+    )
+}
+
+private fun DrawScope.drawNeonLine(
     start: Offset,
     end: Offset,
     progress: Float,
-    color: Color,
-    strokeWidth: Float
+    alpha: Float,
+    settle: Float,
+    glowColor: Color,
+    edgeColor: Color,
+    coreColor: Color
 ) {
-    if (progress <= 0f) return
     val p = progress.coerceIn(0f, 1f)
-    val partialEnd = Offset(
+
+    if (p <= 0f) return
+
+    val currentEnd = Offset(
         x = start.x + (end.x - start.x) * p,
         y = start.y + (end.y - start.y) * p
     )
-    drawLine(color = color, start = start, end = partialEnd, strokeWidth = strokeWidth, cap = StrokeCap.Round)
+
+    // Дальнее синее/красное рассеивание.
+    drawLine(
+        color = edgeColor.copy(alpha = 0.040f * alpha),
+        start = start,
+        end = currentEnd,
+        strokeWidth = 52.dp.toPx() * settle,
+        cap = StrokeCap.Round
+    )
+
+    drawLine(
+        color = glowColor.copy(alpha = 0.070f * alpha),
+        start = start,
+        end = currentEnd,
+        strokeWidth = 42.dp.toPx() * settle,
+        cap = StrokeCap.Round
+    )
+
+    drawLine(
+        color = glowColor.copy(alpha = 0.145f * alpha),
+        start = start,
+        end = currentEnd,
+        strokeWidth = 32.dp.toPx() * settle,
+        cap = StrokeCap.Round
+    )
+
+    // Насыщенная неоновая труба.
+    drawLine(
+        color = glowColor.copy(alpha = 0.36f * alpha),
+        start = start,
+        end = currentEnd,
+        strokeWidth = 23.dp.toPx() * settle,
+        cap = StrokeCap.Round
+    )
+
+    // Светлое внутреннее ядро.
+    drawLine(
+        color = coreColor.copy(alpha = 0.94f * alpha),
+        start = start,
+        end = currentEnd,
+        strokeWidth = 12.dp.toPx() * settle,
+        cap = StrokeCap.Round
+    )
+
+    // Тонкий почти белый highlight — он и даёт ощущение неона.
+    drawLine(
+        color = Color.White.copy(alpha = 0.20f * alpha),
+        start = start,
+        end = currentEnd,
+        strokeWidth = 5.dp.toPx() * settle,
+        cap = StrokeCap.Round
+    )
+}
+
+private fun neonIntervalProgress(
+    progress: Float,
+    start: Float,
+    end: Float
+): Float {
+    return ((progress - start) / (end - start)).coerceIn(0f, 1f)
 }
 
 @Composable
@@ -669,7 +1043,6 @@ private fun PcCompactTopRings() {
                 val alpha = wave * maxAlphas[index]
                 val glowAlpha = wave * maxAlphas[index] * 0.34f
 
-                // Мягкое внешнее свечение кольца
                 drawCircle(
                     color = glowColor.copy(alpha = glowAlpha),
                     radius = radius,
@@ -680,7 +1053,6 @@ private fun PcCompactTopRings() {
                     )
                 )
 
-                // Основная тонкая линия кольца
                 drawCircle(
                     color = ringColor.copy(alpha = alpha),
                     radius = radius,
@@ -691,7 +1063,6 @@ private fun PcCompactTopRings() {
                     )
                 )
 
-                // Внутренний дорогой highlight, почти незаметный
                 drawCircle(
                     color = Color.White.copy(alpha = alpha * 0.32f),
                     radius = radius - 1.5.dp.toPx(),
@@ -704,7 +1075,6 @@ private fun PcCompactTopRings() {
             }
         }
 
-        // Общее слабое свечение в центре, чтобы верх не выглядел пустым между волнами
         val ambient = 0.5f - 0.5f * cos((phase.value * 2f * PI).toFloat())
 
         drawCircle(
@@ -860,8 +1230,6 @@ private fun PcCompactAnimatedAmountText(
                             ) { height -> -height / 2 } + fadeOut(
                                 animationSpec = tween(durationMillis = 140)
                             )
-                        ).using(
-                            SizeTransform(clip = false)
                         )
                 },
                 label = "amount_char_$index",
