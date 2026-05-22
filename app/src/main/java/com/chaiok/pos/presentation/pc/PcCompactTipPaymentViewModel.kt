@@ -114,7 +114,6 @@ class PcCompactTipPaymentViewModel(
     private var ignoreNextCancelledFromRestart = false
 
     private var waiterId: String = ""
-    private var activePaymentTipIndex: Int = 0
     private var activePaymentServiceFeeEnabled: Boolean = false
     private var terminalId: String = ""
 
@@ -146,7 +145,6 @@ class PcCompactTipPaymentViewModel(
         generation += 1
         val started = startPaymentCurrentAmount("initial", generation)
         if (started) {
-            activePaymentTipIndex = _uiState.value.selectedPercentIndex
             activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
             activeSelectedTip = _uiState.value.currentSelectedTip()
         }
@@ -206,7 +204,10 @@ class PcCompactTipPaymentViewModel(
 
     fun applyCustomTipAmount(amount: Double) {
         val normalized = amount.coerceAtLeast(0.0)
-        if (!_uiState.value.canChangeTips) return
+        val state = _uiState.value
+        if (!state.canChangeTips) return
+        if (normalized <= 0.0) return
+        if (state.isCustomTipSelected && abs((state.customTipAmount ?: 0.0) - normalized) < 0.01) return
         tipSelectionDebounceJob?.cancel()
         pendingSelectedIndex = null
         _uiState.update {
@@ -240,7 +241,6 @@ class PcCompactTipPaymentViewModel(
                 generation += 1
                 val started = startPaymentCurrentAmount("retry", generation)
                 if (started) {
-                    activePaymentTipIndex = _uiState.value.selectedPercentIndex
                     activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
                     activeSelectedTip = _uiState.value.currentSelectedTip()
                 }
@@ -302,17 +302,12 @@ class PcCompactTipPaymentViewModel(
                 ignoreNextCancelledFromRestart = false
                 Log.e(TAG, "Cancel before restart failed", cancelResult.exceptionOrNull())
                 _uiState.update {
-                    it.copy(
-                        selectedPercentIndex = safePresetIndex(activePaymentTipIndex, it.availablePercents),
-                        customTipAmount = if (activeSelectedTip is PcCompactSelectedTip.CustomAmount) {
-                            (activeSelectedTip as PcCompactSelectedTip.CustomAmount).amount
-                        } else null,
-                        isCustomTipSelected = activeSelectedTip is PcCompactSelectedTip.CustomAmount,
-                        isNoTipsSelected = activeSelectedTip is PcCompactSelectedTip.NoTips,
-                        isServiceFeeEnabled = activePaymentServiceFeeEnabled,
-                        isRestartingPayment = false,
-                        errorMessage = "Не удалось обновить сумму"
-                    )
+                    it.withSelectedTip(activeSelectedTip)
+                        .copy(
+                            isServiceFeeEnabled = activePaymentServiceFeeEnabled,
+                            isRestartingPayment = false,
+                            errorMessage = "Не удалось обновить сумму"
+                        )
                 }
                 return
             }
@@ -322,7 +317,6 @@ class PcCompactTipPaymentViewModel(
             val newGeneration = generation
             val started = startPaymentCurrentAmount("restart:$reason", newGeneration)
             if (started) {
-                activePaymentTipIndex = _uiState.value.selectedPercentIndex
                 activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
                 activeSelectedTip = _uiState.value.currentSelectedTip()
             }
@@ -433,10 +427,6 @@ class PcCompactTipPaymentViewModel(
         _events.send(PcCompactTipPaymentEvent.CancelledByUser)
     }
 
-    private fun safePresetIndex(index: Int, percents: List<Double>): Int {
-        return if (index in percents.indices) index else 0
-    }
-
     private fun buildRequest(state: PcCompactTipPaymentUiState): PosPaymentRequest? {
         if (waiterId.isBlank() || terminalId.isBlank()) return null
         return PosPaymentRequest(
@@ -495,13 +485,35 @@ class PcCompactTipPaymentViewModel(
 private sealed interface PcCompactSelectedTip {
     data class Percent(val index: Int) : PcCompactSelectedTip
     data class CustomAmount(val amount: Double) : PcCompactSelectedTip
-    data object NoTips : PcCompactSelectedTip
+    object NoTips : PcCompactSelectedTip
 }
 
 private fun PcCompactTipPaymentUiState.currentSelectedTip(): PcCompactSelectedTip = when {
     isNoTipsSelected -> PcCompactSelectedTip.NoTips
     isCustomTipSelected -> PcCompactSelectedTip.CustomAmount(customTipAmount ?: 0.0)
     else -> PcCompactSelectedTip.Percent(selectedPercentIndex)
+}
+
+private fun PcCompactTipPaymentUiState.withSelectedTip(tip: PcCompactSelectedTip): PcCompactTipPaymentUiState {
+    return when (tip) {
+        is PcCompactSelectedTip.Percent -> copy(
+            selectedPercentIndex = if (tip.index in availablePercents.indices) tip.index else 0,
+            customTipAmount = null,
+            isCustomTipSelected = false,
+            isNoTipsSelected = false
+        )
+        is PcCompactSelectedTip.CustomAmount -> copy(
+            selectedPercentIndex = selectedPercentIndex.coerceIn(0, availablePercents.lastIndex.coerceAtLeast(0)),
+            customTipAmount = tip.amount,
+            isCustomTipSelected = true,
+            isNoTipsSelected = false
+        )
+        PcCompactSelectedTip.NoTips -> copy(
+            customTipAmount = null,
+            isCustomTipSelected = false,
+            isNoTipsSelected = true
+        )
+    }
 }
 
 internal fun formatRubles(amount: Double): String =

@@ -39,10 +39,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -72,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
@@ -389,7 +386,7 @@ private fun PcCompactTipSelectionStateScreen(
         }
         if (showCustomTipDialog.value) {
             PcCompactCustomTipDialog(
-                initialValue = state.customTipAmount?.roundToInt()?.toString().orEmpty(),
+                initialValue = customTipInputValue(state.customTipAmount),
                 onDismiss = { showCustomTipDialog.value = false },
                 onConfirm = { amount ->
                     showCustomTipDialog.value = false
@@ -425,9 +422,9 @@ private fun PcCompactTipSelectionStateScreen(
 }
 
 private sealed class PcCompactTipCardUiModel {
-    data object CustomAmount : PcCompactTipCardUiModel()
+    object CustomAmount : PcCompactTipCardUiModel()
     data class Percent(val percent: Double, val percentIndex: Int) : PcCompactTipCardUiModel()
-    data object NoTips : PcCompactTipCardUiModel()
+    object NoTips : PcCompactTipCardUiModel()
 
     val key: String
         get() = when (this) {
@@ -444,42 +441,128 @@ private fun PcCompactCustomTipDialog(
     onConfirm: (Double) -> Unit
 ) {
     val value = remember(initialValue) { mutableStateOf(initialValue) }
-    val hasInput = value.value.isNotBlank()
     val normalized = value.value.filter(Char::isDigit).trimStart('0')
-    val numeric = normalized.toIntOrNull() ?: 0
-    val amount = numeric.toDouble().coerceAtLeast(0.0)
+    val rubles = normalized.toIntOrNull() ?: 0
+    val amount = rubles.toDouble()
+    val confirmEnabled = rubles > 0
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF17232F))
-                .padding(16.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF152534), Color(0xFF101B26))
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(26.dp)
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Text("Своя сумма", color = Color.White, fontFamily = MontserratFontFamily, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Text(formatRubles(amount), color = Color.White.copy(alpha = 0.9f), fontFamily = MontserratFontFamily, fontSize = 28.sp)
+            Text(
+                text = "Своя сумма",
+                color = Color.White,
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            Text(
+                text = formatRubles(amount),
+                color = Color(0xFF20D6D2),
+                fontFamily = MontserratFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 34.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 6.dp)
+            )
             TiplyNumericKeypad(
+                digitColor = Color.White,
+                touchSize = 48.dp,
+                digitFontSize = 22.sp,
+                iconSize = 24.dp,
                 onDigit = { digit ->
-                    if (value.value.length < 7) {
-                        value.value = ((value.value + digit).filter(Char::isDigit).trimStart('0')).ifBlank { "0" }
+                    if (value.value.length < 6) {
+                        val next = (value.value + digit).filter(Char::isDigit)
+                        val nextRubles = next.trimStart('0').toIntOrNull() ?: 0
+                        if (nextRubles <= CUSTOM_TIP_MAX_RUBLES) {
+                            value.value = next
+                        }
                     }
                 },
                 onDelete = { value.value = value.value.dropLast(1) },
-                onConfirm = { if (hasInput) onConfirm(amount) },
-                confirmEnabled = hasInput,
-                isLoading = false
+                onConfirm = { if (confirmEnabled) onConfirm(amount) },
+                confirmEnabled = confirmEnabled,
+                isLoading = false,
+                modifier = Modifier.fillMaxWidth()
             )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Отмена") }
-                Button(
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                PcCompactDialogAction(
+                    title = "Отмена",
+                    primary = false,
+                    enabled = true,
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                )
+                PcCompactDialogAction(
+                    title = "Готово",
+                    primary = true,
+                    enabled = confirmEnabled,
                     onClick = { onConfirm(amount) },
-                    enabled = hasInput,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1CC7BE))
-                ) { Text("Готово", color = Color.White) }
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
+}
+
+@Composable
+private fun PcCompactDialogAction(
+    title: String,
+    primary: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val background = if (primary) Color(0xFF1CC7BE) else Color.White.copy(alpha = 0.08f)
+    val textColor = if (primary) Color.White else Color.White.copy(alpha = 0.95f)
+    Box(
+        modifier = modifier
+            .height(42.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (enabled) background else background.copy(alpha = 0.35f))
+            .border(
+                width = 1.dp,
+                color = if (primary) Color(0xFF20D6D2) else Color.White.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = if (enabled) textColor else textColor.copy(alpha = 0.5f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = MontserratFontFamily
+        )
+    }
+}
+
+private const val CUSTOM_TIP_MAX_RUBLES = 100_000
+
+private fun customTipInputValue(amount: Double?): String {
+    val rubles = amount?.toInt() ?: return ""
+    return if (rubles > 0) rubles.toString() else ""
 }
 
 @Composable
