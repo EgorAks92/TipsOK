@@ -393,8 +393,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                         observeSettingsUseCase = container.observeSettingsUseCase,
                         observeProfileUseCase = container.observeProfileUseCase,
                         addReviewUseCase = container.addReviewUseCase,
-                        sessionRepository = container.sessionRepository,
-                        observeSettingsUseCase = container.observeSettingsUseCase
+                        sessionRepository = container.sessionRepository
                     )
                 }
             )

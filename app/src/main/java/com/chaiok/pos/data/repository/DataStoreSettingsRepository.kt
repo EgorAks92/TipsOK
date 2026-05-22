@@ -10,22 +10,36 @@ class DataStoreSettingsRepository(
     private val dataStore: AppDataStore
 ) : SettingsRepository {
 
-    override fun observeSettings(): Flow<AppSettings> = combine(
-        dataStore.integrationModeFlow,
-        dataStore.tableModeFlow,
-        dataStore.tileBackgroundFlow,
-        dataStore.pcUsbModeFlow,
-        dataStore.pcIdleImagesFlow,
-        dataStore.pcCompactServiceFeeEnabledFlow
-    ) { integration, table, background, pcUsb, pcIdleImages, pcCompactServiceFeeEnabled ->
-        AppSettings(
-            integrationModeEnabled = integration,
-            tableModeEnabled = table,
-            tileBackground = background,
-            pcUsbModeEnabled = pcUsb,
-            pcIdleImages = pcIdleImages,
-            pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled
-        )
+    override fun observeSettings(): Flow<AppSettings> {
+        val baseSettingsFlow = combine(
+            dataStore.integrationModeFlow,
+            dataStore.tableModeFlow,
+            dataStore.tileBackgroundFlow,
+            dataStore.pcUsbModeFlow,
+            dataStore.pcIdleImagesFlow
+        ) { integration, table, background, pcUsb, pcIdleImages ->
+            PartialSettings(
+                integration = integration,
+                table = table,
+                background = background,
+                pcUsb = pcUsb,
+                pcIdleImages = pcIdleImages
+            )
+        }
+
+        return combine(
+            baseSettingsFlow,
+            dataStore.pcCompactServiceFeeEnabledFlow
+        ) { base, pcCompactServiceFeeEnabled ->
+            AppSettings(
+                integrationModeEnabled = base.integration,
+                tableModeEnabled = base.table,
+                tileBackground = base.background,
+                pcUsbModeEnabled = base.pcUsb,
+                pcIdleImages = base.pcIdleImages,
+                pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled
+            )
+        }
     }
 
     override suspend fun setIntegrationMode(enabled: Boolean) {
@@ -63,4 +77,12 @@ class DataStoreSettingsRepository(
             dataStore.setPcCompactServiceFeeEnabled(enabled)
         }
     }
+
+    private data class PartialSettings(
+        val integration: Boolean,
+        val table: Boolean,
+        val background: String,
+        val pcUsb: Boolean,
+        val pcIdleImages: List<String>
+    )
 }

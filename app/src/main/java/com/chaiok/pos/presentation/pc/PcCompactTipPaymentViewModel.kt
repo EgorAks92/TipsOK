@@ -441,7 +441,7 @@ class PcCompactTipPaymentViewModel(
             terminalId = terminalId,
             tipAmount = state.selectedTipAmount,
             serviceFee = state.serviceFeeAmount,
-            feesCovered = state.isServiceFeeEnabled
+            feesCovered = state.showServiceFeeToggle && state.isServiceFeeEnabled
         )
     }
 

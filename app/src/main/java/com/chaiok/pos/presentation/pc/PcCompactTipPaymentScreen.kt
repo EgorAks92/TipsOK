@@ -353,8 +353,12 @@ private fun PcCompactTipSelectionStateScreen(
         val middleIndex = tipCards.size / 2
         val listState = rememberLazyListState()
         var didInitialCenter by rememberSaveable { mutableStateOf(false) }
-        LaunchedEffect(tipCards.map { it.key }) {
-            if (!didInitialCenter && tipCards.isNotEmpty()) {
+        LaunchedEffect(tipCards.map { it.key }, state.availablePercents.size) {
+            if (
+                !didInitialCenter &&
+                state.availablePercents.isNotEmpty() &&
+                tipCards.isNotEmpty()
+            ) {
                 listState.scrollToItem(middleIndex)
                 didInitialCenter = true
             }
@@ -363,6 +367,7 @@ private fun PcCompactTipSelectionStateScreen(
         BoxWithConstraints(
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .fillMaxWidth()
                 .padding(top = tipsRowTop)
         ) {
             val middleCardWidth = tipCards.getOrNull(middleIndex)
