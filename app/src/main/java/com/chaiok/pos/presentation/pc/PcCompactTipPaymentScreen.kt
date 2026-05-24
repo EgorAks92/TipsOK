@@ -45,7 +45,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -366,8 +365,7 @@ private fun BoxScope.PcCompactSharedPaymentHeader(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = MontserratFontFamily,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                textAlign = TextAlign.Center
             )
 
             PcCompactAnimatedAmountText(
@@ -928,8 +926,9 @@ private fun PcCompactMorphingPaymentIndicator(
         val p = easing.transform(morphProgress.value)
 
         val spinnerPhase = (1f - (p / 0.42f)).coerceIn(0f, 1f)
-        val bridgePhase = ((p - 0.18f) / 0.38f).coerceIn(0f, 1f)
-        val resultPhase = ((p - 0.34f) / 0.66f).coerceIn(0f, 1f)
+        val bridgeIn = ((p - 0.18f) / 0.28f).coerceIn(0f, 1f)
+        val bridgeOut = 1f - ((p - 0.52f) / 0.28f).coerceIn(0f, 1f)
+        val bridgePhase = bridgeIn * bridgeOut
 
         val spinnerAlpha = (1f - p * 1.35f).coerceIn(0f, 1f)
         val spinnerSweep = 292f - 250f * p
@@ -967,7 +966,7 @@ private fun PcCompactMorphingPaymentIndicator(
                     )
                 }
 
-                if (resultPhase > 0.001f) {
+                if (resultProgress > 0.001f) {
                     drawNeonCheck(
                         progress = resultProgress,
                         settle = settle
@@ -993,7 +992,7 @@ private fun PcCompactMorphingPaymentIndicator(
                     )
                 }
 
-                if (resultPhase > 0.001f) {
+                if (resultProgress > 0.001f) {
                     drawNeonCross(
                         progress = resultProgress,
                         settle = settle
@@ -1084,7 +1083,7 @@ private fun DrawScope.drawMorphBridgeStroke(
         start = start,
         end = end,
         progress = bridgeProgress,
-        alpha = bridgeProgress,
+        alpha = bridgeProgress * 0.82f,
         settle = settle,
         glowColor = glowColor,
         edgeColor = edgeColor,
