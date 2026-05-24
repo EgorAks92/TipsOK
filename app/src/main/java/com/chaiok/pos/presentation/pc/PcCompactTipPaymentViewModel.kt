@@ -516,15 +516,14 @@ class PcCompactTipPaymentViewModel(
             CardPresentingStage.PinRequired
         )
 
-        cleanupScope.launch { resumePcEcrAfterPayment("on_cleared") }
+        cleanupScope.launch {
+            resumePcEcrAfterPayment("on_cleared")
 
-        if (active && !userCancelInProgress) {
-            cleanupScope.launch {
+            if (active && !userCancelInProgress) {
                 runCatching { cancelPosPaymentUseCase() }
                     .onFailure { Log.e(TAG, "Cancel onCleared failed", it) }
-                cleanupScope.cancel()
             }
-        } else {
+
             cleanupScope.cancel()
         }
 

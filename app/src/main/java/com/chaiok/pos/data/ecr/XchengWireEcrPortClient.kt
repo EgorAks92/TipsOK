@@ -79,6 +79,16 @@ class XchengWireEcrPortClient(context: Context) {
         result
     }
 
+    suspend fun ensureTransportReady(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            ensureConnected().getOrThrow()
+            openAndConnect().getOrThrow()
+            Unit
+        }.onFailure { throwable ->
+            Log.e(TAG, "ensureTransportReady failed", throwable)
+        }
+    }
+
     suspend fun openAndConnect(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             Log.i(TAG, "openAndConnect start")
@@ -279,7 +289,7 @@ class XchengWireEcrPortClient(context: Context) {
     suspend fun resumeTransportAfterPayment(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             Log.i(TAG, "ECR resume transport after SSP payment")
-            ensureConnected().getOrThrow()
+            ensureTransportReady().getOrThrow()
             Unit
         }
     }
