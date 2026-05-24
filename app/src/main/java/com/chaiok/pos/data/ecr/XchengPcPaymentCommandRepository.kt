@@ -14,16 +14,19 @@ class XchengPcPaymentCommandRepository(
     private val client: XchengWireEcrPortClient
 ) : PcPaymentCommandRepository {
 
-    private val commands = MutableSharedFlow<PcPaymentCommand>(
-        extraBufferCapacity = 1
-    )
+    private enum class PcEcrLifecycleState {
+        Disconnected,
+        Listening,
+        PausedForPayment,
+        Stopped,
+        Error
+    }
 
-    private val status = MutableStateFlow<PcUsbConnectionStatus>(
-        PcUsbConnectionStatus.Idle
-    )
+    private val commands = MutableSharedFlow<PcPaymentCommand>(extraBufferCapacity = 1)
+    private val status = MutableStateFlow<PcUsbConnectionStatus>(PcUsbConnectionStatus.Idle)
 
     @Volatile
-    private var stopped = false
+    private var lifecycleState: PcEcrLifecycleState = PcEcrLifecycleState.Disconnected
 
     override fun observeCommands(): Flow<PcPaymentCommand> = commands
 
@@ -34,128 +37,97 @@ class XchengPcPaymentCommandRepository(
     }
 
     override suspend fun listenOnce() {
-        stopped = false
+        if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {
+            Log.i(TAG, "Ignore ECR command while payment is active")
+            delay(LISTEN_LOOP_DELAY_MS)
+            return
+        }
 
+        Log.i(TAG, "ECR session ensure connected")
         status.value = PcUsbConnectionStatus.BindingService
-
-        val bound = client.bindService()
-        if (bound.isFailure) {
-            val message = bound.exceptionOrNull()?.message ?: "bind error"
-            Log.e(TAG, "bind failed: $message", bound.exceptionOrNull())
-
+        val ensured = client.ensureConnected()
+        if (ensured.isFailure) {
+            val message = ensured.exceptionOrNull()?.message ?: "connect error"
+            Log.e(TAG, "ensure connected failed: $message", ensured.exceptionOrNull())
+            lifecycleState = PcEcrLifecycleState.Error
             status.value = PcUsbConnectionStatus.Error(message)
-            client.closeAll()
             delay(ERROR_VISIBLE_DELAY_MS)
             return
         }
 
-        if (stopped) {
-            client.closeAll()
-            status.value = PcUsbConnectionStatus.Idle
-            return
-        }
-
-        status.value = PcUsbConnectionStatus.ServiceBound
-        delay(STEP_VISIBLE_DELAY_MS)
-
-        status.value = PcUsbConnectionStatus.OpeningPort
-        delay(STEP_VISIBLE_DELAY_MS)
-
-        status.value = PcUsbConnectionStatus.ConnectingPort
-
-        val connected = client.openAndConnect()
-        if (connected.isFailure) {
-            val message = connected.exceptionOrNull()?.message ?: "connect error"
-            Log.e(TAG, "connect failed: $message", connected.exceptionOrNull())
-
-            status.value = PcUsbConnectionStatus.Error(message)
-            client.closeAll()
-            delay(ERROR_VISIBLE_DELAY_MS)
-            return
-        }
-
-        if (stopped) {
-            client.closeAll()
-            status.value = PcUsbConnectionStatus.Idle
-            return
-        }
-
-        status.value = PcUsbConnectionStatus.Connected
-        delay(STEP_VISIBLE_DELAY_MS)
-
+        lifecycleState = PcEcrLifecycleState.Listening
         status.value = PcUsbConnectionStatus.WaitingForData
+        Log.i(TAG, "ECR listening started")
 
         val received = client.receiveOnce()
         if (received.isFailure) {
             val message = received.exceptionOrNull()?.message ?: "receive error"
             Log.e(TAG, "receive failed: $message", received.exceptionOrNull())
-
+            lifecycleState = PcEcrLifecycleState.Error
             status.value = PcUsbConnectionStatus.Error(message)
-            client.closeAll()
             delay(ERROR_VISIBLE_DELAY_MS)
             return
         }
 
         val bytes = received.getOrNull()
-
-        Log.i(TAG, "recv bytes=${bytes?.size ?: 0}")
-
-        if (bytes != null && bytes.isNotEmpty()) {
-            Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
-
-            val command = PcPaymentCommandParser.parse(bytes)
-
-            if (command != null) {
-                Log.i(
-                    TAG,
-                    "parsed amount=${command.amount} " +
-                            "commandId=${command.commandId ?: "-"} " +
-                            "orderId=${command.orderId ?: "-"}"
-                )
-
-                /*
-                 * Важно:
-                 * Перед переходом в чаевые полностью освобождаем WireECR.
-                 * Это нужно, чтобы SmartSky/SSP POS service смог нормально подключиться.
-                 */
-                status.value = PcUsbConnectionStatus.Idle
-                client.closeAll()
-                delay(POS_SERVICE_RELEASE_DELAY_MS)
-
-                commands.emit(command)
-                return
-            } else {
-                Log.w(
-                    TAG,
-                    "payload received but parser returned null. hex=${bytes.toHexPreview()}"
-                )
-            }
+        if (bytes.isNullOrEmpty()) {
+            delay(LISTEN_LOOP_DELAY_MS)
+            return
         }
 
-        client.closePortOnly()
-        status.value = PcUsbConnectionStatus.Idle
-
-        delay(LISTEN_LOOP_DELAY_MS)
-    }
-
-    override suspend fun stop() {
-        stopped = true
-        client.closeAll()
-        status.value = PcUsbConnectionStatus.Idle
-    }
-
-    private fun ByteArray.toHexPreview(limit: Int = 96): String {
-        return take(limit).joinToString(" ") { byte ->
-            "%02X".format(byte)
+        Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
+        val command = PcPaymentCommandParser.parse(bytes)
+        if (command != null) {
+            Log.i(TAG, "ECR command received commandId=${command.commandId ?: "-"}")
+            commands.emit(command)
+        } else {
+            Log.w(TAG, "payload received but parser returned null. hex=${bytes.toHexPreview()}")
         }
     }
+
+    override suspend fun pauseForPayment(): Result<Unit> {
+        Log.i(TAG, "ECR pause for SSP payment")
+        if (lifecycleState == PcEcrLifecycleState.PausedForPayment) return Result.success(Unit)
+        val result = client.pauseTransportForPayment()
+        if (result.isSuccess) {
+            lifecycleState = PcEcrLifecycleState.PausedForPayment
+            status.value = PcUsbConnectionStatus.Idle
+            Log.i(TAG, "ECR paused for SSP payment")
+        }
+        return result
+    }
+
+    override suspend fun resumeAfterPayment(): Result<Unit> {
+        Log.i(TAG, "ECR resume after SSP payment")
+        if (lifecycleState == PcEcrLifecycleState.Listening) return Result.success(Unit)
+        val result = client.resumeTransportAfterPayment()
+        if (result.isSuccess) {
+            lifecycleState = PcEcrLifecycleState.Listening
+            status.value = PcUsbConnectionStatus.WaitingForData
+            Log.i(TAG, "ECR resumed and listening")
+        }
+        return result
+    }
+
+    override suspend fun stopCompletely(): Result<Unit> {
+        Log.i(TAG, "ECR stop completely")
+        if (lifecycleState == PcEcrLifecycleState.Stopped || lifecycleState == PcEcrLifecycleState.Disconnected) {
+            return Result.success(Unit)
+        }
+        val result = client.closeCompletely()
+        if (result.isSuccess) {
+            lifecycleState = PcEcrLifecycleState.Stopped
+            status.value = PcUsbConnectionStatus.Idle
+        }
+        return result
+    }
+
+    private fun ByteArray.toHexPreview(limit: Int = 96): String =
+        take(limit).joinToString(" ") { "%02X".format(it) }
 
     private companion object {
         private const val TAG = "PcUsbEcrFlow"
-
-        private const val STEP_VISIBLE_DELAY_MS = 100L
         private const val LISTEN_LOOP_DELAY_MS = 300L
         private const val ERROR_VISIBLE_DELAY_MS = 2_500L
-        private const val POS_SERVICE_RELEASE_DELAY_MS = 700L
     }
 }

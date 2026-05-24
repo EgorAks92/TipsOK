@@ -948,7 +948,7 @@ private suspend fun startPcUsbPaymentFlow(
     Log.i(PAYMENT_TAG, "PC USB payment flow release start")
 
     runCatching {
-        container.pcPaymentCommandRepository.stop()
+        container.pcPaymentCommandRepository.pauseForPayment()
     }.onSuccess {
         Log.i(
             PAYMENT_TAG,

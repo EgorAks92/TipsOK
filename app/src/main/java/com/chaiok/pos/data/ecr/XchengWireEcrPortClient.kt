@@ -26,7 +26,7 @@ class XchengWireEcrPortClient(context: Context) {
 
     private var currentUsbDevice: String? = null
 
-    suspend fun bindService(): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun ensureConnected(): Result<Unit> = withContext(Dispatchers.IO) {
         val result = runCatching {
             if (usb != null && (!USE_GS_BRIDGE || gs != null)) {
                 Log.i(
@@ -72,7 +72,7 @@ class XchengWireEcrPortClient(context: Context) {
         }
 
         if (result.isFailure) {
-            Log.e(TAG, "bindService failed", result.exceptionOrNull())
+            Log.e(TAG, "ensureConnected failed", result.exceptionOrNull())
             closeAll()
         }
 
@@ -268,8 +268,28 @@ class XchengWireEcrPortClient(context: Context) {
         }
     }
 
-    suspend fun stop() {
-        closeAll()
+    suspend fun pauseTransportForPayment(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            Log.i(TAG, "ECR pause transport for SSP payment")
+            closePortOnly()
+            Unit
+        }
+    }
+
+    suspend fun resumeTransportAfterPayment(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            Log.i(TAG, "ECR resume transport after SSP payment")
+            ensureConnected().getOrThrow()
+            Unit
+        }
+    }
+
+    suspend fun closeCompletely(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            Log.i(TAG, "ECR close transport completely")
+            closeAll()
+            Unit
+        }
     }
 
     suspend fun closePortOnly() = withContext(Dispatchers.IO) {

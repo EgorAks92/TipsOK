@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 private const val UNLOCK_PIN_MAX_LENGTH = 4
 
@@ -97,7 +96,7 @@ class PcCommandIdleViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            repository.stop()
+            repository.stopCompletely()
         }
     }
 
@@ -226,11 +225,6 @@ class PcCommandIdleViewModel(
 
         listeningEnabled.value = false
 
-        withContext(Dispatchers.IO) {
-            repository.stop()
-        }
-
-        delay(POS_SERVICE_RELEASE_DELAY_MS)
 
         _events.emit(
             PcCommandIdleEvent.OpenTipSelection(
@@ -277,7 +271,7 @@ class PcCommandIdleViewModel(
 
     override fun onCleared() {
         cleanupScope.launch {
-            repository.stop()
+            repository.stopCompletely()
             cleanupScope.cancel()
         }
 
@@ -287,7 +281,6 @@ class PcCommandIdleViewModel(
     private companion object {
         private const val LISTEN_LOOP_DELAY_MS = 300L
         private const val NO_ID_DEDUPE_WINDOW_MS = 5_000L
-        private const val POS_SERVICE_RELEASE_DELAY_MS = 500L
         private const val DEFAULT_IMAGE = "default"
     }
 }
