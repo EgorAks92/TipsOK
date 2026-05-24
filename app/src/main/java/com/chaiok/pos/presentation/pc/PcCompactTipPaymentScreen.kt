@@ -915,7 +915,7 @@ private fun PcCompactMorphingPaymentIndicator(
             morphProgress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(
-                    durationMillis = 780,
+                    durationMillis = 920,
                     easing = easing
                 )
             )
@@ -925,13 +925,18 @@ private fun PcCompactMorphingPaymentIndicator(
     Canvas(
         modifier = modifier.size(144.dp)
     ) {
-        val eased = easing.transform(morphProgress.value)
+        val p = easing.transform(morphProgress.value)
 
-        val spinnerAlpha = (1f - eased).coerceIn(0f, 1f)
-        val spinnerSweep = 292f - 230f * eased
-        val spinnerRotation = rotation.value * (1f - eased * 0.28f)
+        val spinnerPhase = (1f - (p / 0.42f)).coerceIn(0f, 1f)
+        val bridgePhase = ((p - 0.18f) / 0.38f).coerceIn(0f, 1f)
+        val resultPhase = ((p - 0.34f) / 0.66f).coerceIn(0f, 1f)
 
-        val resultProgress = ((eased - 0.14f) / 0.86f).coerceIn(0f, 1f)
+        val spinnerAlpha = (1f - p * 1.35f).coerceIn(0f, 1f)
+        val spinnerSweep = 292f - 250f * p
+        val spinnerRotation = rotation.value * (1f - p * 0.42f)
+        val spinnerScale = 1f - 0.045f * p
+
+        val resultProgress = ((p - 0.28f) / 0.72f).coerceIn(0f, 1f)
         val settle = 1f + (1f - resultProgress) * 0.035f
 
         when (result) {
@@ -939,20 +944,30 @@ private fun PcCompactMorphingPaymentIndicator(
                 drawNeonSpinner(
                     rotation = rotation.value,
                     sweep = 292f,
-                    alpha = 1f
+                    alpha = 1f,
+                    scale = 1f
                 )
             }
 
             PcCompactPaymentResultVisual.Approved -> {
-                if (spinnerAlpha > 0.001f) {
+                if (spinnerPhase > 0.001f && spinnerAlpha > 0.001f) {
                     drawNeonSpinner(
                         rotation = spinnerRotation,
                         sweep = spinnerSweep,
-                        alpha = spinnerAlpha
+                        alpha = spinnerAlpha * spinnerPhase,
+                        scale = spinnerScale
                     )
                 }
 
-                if (resultProgress > 0.001f) {
+                if (bridgePhase > 0.001f) {
+                    drawMorphBridgeStroke(
+                        progress = bridgePhase,
+                        approved = true,
+                        settle = settle
+                    )
+                }
+
+                if (resultPhase > 0.001f) {
                     drawNeonCheck(
                         progress = resultProgress,
                         settle = settle
@@ -961,15 +976,24 @@ private fun PcCompactMorphingPaymentIndicator(
             }
 
             PcCompactPaymentResultVisual.Declined -> {
-                if (spinnerAlpha > 0.001f) {
+                if (spinnerPhase > 0.001f && spinnerAlpha > 0.001f) {
                     drawNeonSpinner(
                         rotation = spinnerRotation,
                         sweep = spinnerSweep,
-                        alpha = spinnerAlpha
+                        alpha = spinnerAlpha * spinnerPhase,
+                        scale = spinnerScale
                     )
                 }
 
-                if (resultProgress > 0.001f) {
+                if (bridgePhase > 0.001f) {
+                    drawMorphBridgeStroke(
+                        progress = bridgePhase,
+                        approved = false,
+                        settle = settle
+                    )
+                }
+
+                if (resultPhase > 0.001f) {
                     drawNeonCross(
                         progress = resultProgress,
                         settle = settle
@@ -983,11 +1007,13 @@ private fun PcCompactMorphingPaymentIndicator(
 private fun DrawScope.drawNeonSpinner(
     rotation: Float,
     sweep: Float,
-    alpha: Float
+    alpha: Float,
+    scale: Float
 ) {
     val center = Offset(size.width / 2f, size.height / 2f)
+    val spinnerScale = scale.coerceIn(0.92f, 1f)
 
-    val inset = 27.dp.toPx()
+    val inset = 27.dp.toPx() + (1f - spinnerScale) * 16.dp.toPx()
     val arcTopLeft = Offset(inset, inset)
     val arcSize = Size(
         width = size.width - inset * 2f,
@@ -1026,6 +1052,46 @@ private fun DrawScope.drawNeonSpinner(
     }
 }
 
+private fun DrawScope.drawMorphBridgeStroke(
+    progress: Float,
+    approved: Boolean,
+    settle: Float
+) {
+    val bridgeProgress = progress.coerceIn(0f, 1f)
+    if (bridgeProgress <= 0f) return
+
+    val start: Offset
+    val end: Offset
+    val glowColor: Color
+    val edgeColor: Color
+    val coreColor: Color
+
+    if (approved) {
+        start = Offset(size.width * 0.30f, size.height * 0.55f)
+        end = Offset(size.width * 0.43f, size.height * 0.67f)
+        glowColor = Color(0xFF19F1D4)
+        edgeColor = Color(0xFF118BD7)
+        coreColor = Color(0xFFCFFFF8)
+    } else {
+        start = Offset(size.width * 0.32f, size.height * 0.32f)
+        end = Offset(size.width * 0.68f, size.height * 0.68f)
+        glowColor = Color(0xFFFF3030)
+        edgeColor = Color(0xFFFF1F1F)
+        coreColor = Color(0xFFFFA0A0)
+    } 
+
+    drawNeonLine(
+        start = start,
+        end = end,
+        progress = bridgeProgress,
+        alpha = bridgeProgress,
+        settle = settle,
+        glowColor = glowColor,
+        edgeColor = edgeColor,
+        coreColor = coreColor
+    )
+}
+
 private fun DrawScope.drawNeonCheck(
     progress: Float,
     settle: Float
@@ -1042,7 +1108,7 @@ private fun DrawScope.drawNeonCheck(
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFF1EF3D7).copy(alpha = 0.12f * p),
+                Color(0xFF1EF3D7).copy(alpha = 0.10f * p),
                 Color(0xFF0E8FD2).copy(alpha = 0.04f * p),
                 Color.Transparent
             ),
@@ -1204,7 +1270,7 @@ private fun DrawScope.drawNeonCross(
         coreColor = Color(0xFFFFA0A0)
     )
 
-    val unifiedAlpha = ((p - 0.72f) / 0.28f).coerceIn(0f, 1f)
+    val unifiedAlpha = ((p - 0.76f) / 0.24f).coerceIn(0f, 1f)
 
     if (unifiedAlpha > 0f) {
         val crossPath = Path().apply {
