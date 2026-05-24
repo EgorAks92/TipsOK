@@ -234,7 +234,6 @@ private fun PcCompactPaymentAnimatedRoot(
 ) {
     val phase = transition.targetState
     PcCompactPaymentBackground(error = phase == PcCompactPaymentScreenPhase.Declined) {
-        PcCompactTopRings()
         PcCompactTipSelectionLayer(
             state = state,
             transition = transition,
@@ -333,7 +332,13 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
     }
 
     val headerAlpha by transition.animateFloat(
-        transitionSpec = { tween(durationMillis = 260, easing = premiumEasing) },
+        transitionSpec = {
+            tween(
+                durationMillis = 260,
+                delayMillis = 70,
+                easing = premiumEasing
+            )
+        },
         label = "pc_status_header_alpha"
     ) { phase ->
         if (phase == PcCompactPaymentScreenPhase.TipSelection) 0f else 1f
@@ -440,6 +445,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 scaleY = tipsContentScale
             }
     ) {
+        PcCompactTopRings()
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -957,7 +964,8 @@ private fun PcCompactMorphingPaymentIndicator(
         val spinnerPhase = (1f - (p / 0.42f)).coerceIn(0f, 1f)
         val bridgeIn = ((p - 0.18f) / 0.28f).coerceIn(0f, 1f)
         val bridgeOut = 1f - ((p - 0.52f) / 0.28f).coerceIn(0f, 1f)
-        val bridgePhase = bridgeIn * bridgeOut
+        val bridgeProgress = bridgeIn
+        val bridgeAlpha = bridgeIn * bridgeOut
 
         val spinnerAlpha = (1f - p * 1.35f).coerceIn(0f, 1f)
         val spinnerSweep = 292f - 250f * p
@@ -987,9 +995,10 @@ private fun PcCompactMorphingPaymentIndicator(
                     )
                 }
 
-                if (bridgePhase > 0.001f) {
+                if (bridgeAlpha > 0.001f) {
                     drawMorphBridgeStroke(
-                        progress = bridgePhase,
+                        progress = bridgeProgress,
+                        alpha = bridgeAlpha,
                         approved = true,
                         settle = settle
                     )
@@ -1013,9 +1022,10 @@ private fun PcCompactMorphingPaymentIndicator(
                     )
                 }
 
-                if (bridgePhase > 0.001f) {
+                if (bridgeAlpha > 0.001f) {
                     drawMorphBridgeStroke(
-                        progress = bridgePhase,
+                        progress = bridgeProgress,
+                        alpha = bridgeAlpha,
                         approved = false,
                         settle = settle
                     )
@@ -1082,11 +1092,13 @@ private fun DrawScope.drawNeonSpinner(
 
 private fun DrawScope.drawMorphBridgeStroke(
     progress: Float,
+    alpha: Float,
     approved: Boolean,
     settle: Float
 ) {
     val bridgeProgress = progress.coerceIn(0f, 1f)
-    if (bridgeProgress <= 0f) return
+    val bridgeAlpha = alpha.coerceIn(0f, 1f)
+    if (bridgeProgress <= 0f || bridgeAlpha <= 0f) return
 
     val start: Offset
     val end: Offset
@@ -1112,7 +1124,7 @@ private fun DrawScope.drawMorphBridgeStroke(
         start = start,
         end = end,
         progress = bridgeProgress,
-        alpha = bridgeProgress * 0.82f,
+        alpha = bridgeAlpha * 0.82f,
         settle = settle,
         glowColor = glowColor,
         edgeColor = edgeColor,
