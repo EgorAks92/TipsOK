@@ -14,10 +14,12 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -67,6 +69,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +77,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
@@ -88,7 +92,6 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.core.updateTransition
 
 private enum class PcCompactPaymentResultVisual {
     None,
@@ -206,7 +209,6 @@ fun PcCompactTipPaymentScreen(
     PcCompactPaymentAnimatedRoot(
         state = state,
         transition = phaseTransition,
-        result = visibleResultVisual.value,
         onSelectTip = onSelectTip,
         onSelectNoTips = onSelectNoTips,
         onConfirmCustomTip = onConfirmCustomTip,
@@ -220,7 +222,6 @@ fun PcCompactTipPaymentScreen(
 private fun PcCompactPaymentAnimatedRoot(
     state: PcCompactTipPaymentUiState,
     transition: Transition<PcCompactPaymentScreenPhase>,
-    result: PcCompactPaymentResultVisual,
     onSelectTip: (Int) -> Unit,
     onSelectNoTips: () -> Unit,
     onConfirmCustomTip: (Double) -> Unit,
@@ -246,8 +247,7 @@ private fun PcCompactPaymentAnimatedRoot(
             onRetry = onRetry
         )
         PcCompactPaymentStatusOverlay(
-            transition = transition,
-            result = result
+            transition = transition
         )
     }
 }
@@ -318,43 +318,65 @@ private fun BoxScope.PcCompactSharedPaymentHeader(
     transition: Transition<PcCompactPaymentScreenPhase>
 ) {
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
-    val topPadding by transition.animateDp(
-        transitionSpec = { tween(durationMillis = 430, easing = premiumEasing) },
+    val density = LocalDensity.current
+    var headerSize by remember { mutableStateOf(IntSize.Zero) }
+
+    val centerProgress by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = 520, easing = premiumEasing) },
+        label = "pc_header_center_progress"
+    ) { phase ->
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 0f else 1f
+    }
+
+    val topOffset by transition.animateDp(
+        transitionSpec = { tween(durationMillis = 520, easing = premiumEasing) },
         label = "pc_header_top"
     ) { phase ->
-        if (phase == PcCompactPaymentScreenPhase.TipSelection) 112.dp else 78.dp
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 124.dp else 64.dp
     }
 
     val headerScale by transition.animateFloat(
-        transitionSpec = { tween(durationMillis = 430, easing = premiumEasing) },
+        transitionSpec = { tween(durationMillis = 520, easing = premiumEasing) },
         label = "pc_header_scale"
     ) { phase ->
         if (phase == PcCompactPaymentScreenPhase.TipSelection) 1f else 0.985f
     }
 
-    Column(
-        modifier = Modifier
-            .padding(start = 32.dp, top = topPadding)
-            .graphicsLayer {
-                scaleX = headerScale
-                scaleY = headerScale
-            },
-        horizontalAlignment = Alignment.Start
-    ) {
-        Text(
-            text = "оплата",
-            color = Color.White.copy(alpha = 0.78f),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = MontserratFontFamily
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val parentWidthPx = with(density) { maxWidth.toPx() }
+        val startXPx = with(density) { 32.dp.toPx() }
+        val centeredXPx = ((parentWidthPx - headerSize.width) / 2f).coerceAtLeast(0f)
+        val animatedXPx = startXPx + (centeredXPx - startXPx) * centerProgress
 
-        PcCompactAnimatedAmountText(
-            text = amountText,
-            color = Color.White,
-            fontSize = 40.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .onGloballyPositioned { coordinates -> headerSize = coordinates.size }
+                .graphicsLayer {
+                    translationX = animatedXPx
+                    translationY = topOffset.toPx()
+                    scaleX = headerScale
+                    scaleY = headerScale
+                },
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "оплата",
+                color = Color.White.copy(alpha = 0.78f),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = MontserratFontFamily,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            PcCompactAnimatedAmountText(
+                text = amountText,
+                color = Color.White,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -372,6 +394,11 @@ private fun BoxScope.PcCompactTipSelectionLayer(
     val phase = transition.targetState
     val showCustomTipDialog = remember { mutableStateOf(false) }
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+    LaunchedEffect(phase) {
+        if (phase != PcCompactPaymentScreenPhase.TipSelection) {
+            showCustomTipDialog.value = false
+        }
+    }
 
     val tipsContentAlpha by transition.animateFloat(
         transitionSpec = { tween(durationMillis = 420, easing = premiumEasing) },
@@ -564,7 +591,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         }
     }
 
-    if (showCustomTipDialog.value) {
+    if (showCustomTipDialog.value && phase == PcCompactPaymentScreenPhase.TipSelection) {
         PcCompactCustomTipDialog(
             initialValue = customTipInputValue(state.customTipAmount),
             onDismiss = { showCustomTipDialog.value = false },
@@ -775,8 +802,7 @@ private fun customTipInputValue(amount: Double?): String {
 
 @Composable
 private fun BoxScope.PcCompactPaymentStatusOverlay(
-    transition: Transition<PcCompactPaymentScreenPhase>,
-    result: PcCompactPaymentResultVisual
+    transition: Transition<PcCompactPaymentScreenPhase>
 ) {
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
     val overlayAlpha by transition.animateFloat(
@@ -820,9 +846,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
     )
 
     AnimatedVisibility(
-        visible = result != PcCompactPaymentResultVisual.None &&
-                (transition.targetState == PcCompactPaymentScreenPhase.Approved ||
-                        transition.targetState == PcCompactPaymentScreenPhase.Declined),
+        visible = resultVisual != PcCompactPaymentResultVisual.None,
         modifier = Modifier
             .align(Alignment.Center)
             .offset(y = 96.dp),
@@ -832,7 +856,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
         ),
         exit = fadeOut(animationSpec = tween(180))
     ) {
-        when (result) {
+        when (resultVisual) {
             PcCompactPaymentResultVisual.Approved -> {
                 Text(
                     text = "Одобрено",
