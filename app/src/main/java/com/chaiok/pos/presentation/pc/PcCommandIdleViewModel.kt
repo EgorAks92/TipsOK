@@ -96,6 +96,12 @@ class PcCommandIdleViewModel(
         if (!listeningEnabled.value) {
             listeningEnabled.value = true
         }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.i(TAG, "PC idle resume ECR listening")
+            repository.resumeAfterPayment()
+                .onFailure { Log.e(TAG, "PC idle resume ECR failed", it) }
+        }
     }
 
     fun pauseListening() {

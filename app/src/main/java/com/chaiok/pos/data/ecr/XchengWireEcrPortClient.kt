@@ -269,7 +269,7 @@ class XchengWireEcrPortClient(context: Context) {
     suspend fun receiveOnce(): Result<ByteArray?> = withContext(Dispatchers.IO) {
         runCatching {
             val usbComm = usb ?: error("USB service missing")
-            val device = currentUsbDevice ?: "unknown"
+            val device = currentUsbDevice ?: error("USB device missing")
 
             runCatching {
                 usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
