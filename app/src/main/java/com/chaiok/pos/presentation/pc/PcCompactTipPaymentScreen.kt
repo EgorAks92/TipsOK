@@ -86,6 +86,8 @@ import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.core.Transition
 
 private enum class PcCompactPaymentResultVisual {
     None,
@@ -558,7 +560,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                                 amountText = null,
                                 cardWidth = normalizedCardWidth,
                                 selected = state.isCustomTipSelected,
-                                enabled = tipsClickable,
+                                enabled = tipsInteractive,
                                 visuallyEnabled = tipsVisuallyEnabled,
                                 onClick = { showCustomTipDialog.value = true }
                             )
@@ -572,7 +574,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                                 selected = !state.isCustomTipSelected &&
                                         !state.isNoTipsSelected &&
                                         card.percentIndex == state.selectedPercentIndex,
-                                enabled = tipsClickable,
+                                enabled = tipsInteractive,
                                 visuallyEnabled = tipsVisuallyEnabled,
                                 onClick = { onSelectTip(card.percentIndex) }
                             )
@@ -584,7 +586,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                                 amountText = null,
                                 cardWidth = normalizedCardWidth,
                                 selected = state.isNoTipsSelected,
-                                enabled = tipsClickable,
+                                enabled = tipsInteractive,
                                 visuallyEnabled = tipsVisuallyEnabled,
                                 onClick = onSelectNoTips
                             )
