@@ -84,6 +84,7 @@ data class PcCompactTipPaymentUiState(
 sealed interface PcCompactTipPaymentEvent {
     data object Approved : PcCompactTipPaymentEvent
     data object CancelledByUser : PcCompactTipPaymentEvent
+    data object DeclinedTimeout : PcCompactTipPaymentEvent
 }
 
 class PcCompactTipPaymentViewModel(
@@ -107,6 +108,7 @@ class PcCompactTipPaymentViewModel(
 
     private var paymentJob: Job? = null
     private var tipSelectionDebounceJob: Job? = null
+    private var declinedTimeoutJob: Job? = null
     private var pendingSelectedIndex: Int? = null
     private var activeSelectedTip: PcCompactSelectedTip = PcCompactSelectedTip.Percent(0)
 
@@ -181,6 +183,7 @@ class PcCompactTipPaymentViewModel(
         }
 
         tipSelectionDebounceJob?.cancel()
+        cancelDeclinedAutoClose()
         tipSelectionDebounceJob = viewModelScope.launch {
             delay(TIP_SELECTION_DEBOUNCE_MS)
             val latest = pendingSelectedIndex ?: return@launch
@@ -195,6 +198,7 @@ class PcCompactTipPaymentViewModel(
         val state = _uiState.value
         if (state.isNoTipsSelected || !state.canChangeTips) return
         tipSelectionDebounceJob?.cancel()
+        cancelDeclinedAutoClose()
         pendingSelectedIndex = null
         _uiState.update {
             it.copy(
@@ -214,6 +218,7 @@ class PcCompactTipPaymentViewModel(
         if (normalized <= 0.0) return
         if (state.isCustomTipSelected && abs((state.customTipAmount ?: 0.0) - normalized) < 0.01) return
         tipSelectionDebounceJob?.cancel()
+        cancelDeclinedAutoClose()
         pendingSelectedIndex = null
         _uiState.update {
             it.copy(
@@ -229,6 +234,7 @@ class PcCompactTipPaymentViewModel(
     fun toggleServiceFee(enabled: Boolean) {
         if (!_uiState.value.showServiceFeeToggle) return
         if (_uiState.value.isServiceFeeEnabled == enabled || !_uiState.value.canChangeTips) return
+        cancelDeclinedAutoClose()
         _uiState.update { it.copy(isServiceFeeEnabled = enabled, errorMessage = null) }
         viewModelScope.launch { restartPaymentWithCurrentAmount("service fee toggle") }
     }
@@ -241,6 +247,7 @@ class PcCompactTipPaymentViewModel(
             CardPresentingStage.Cancelled
         )
         if (!canRetry || state.isRestartingPayment || userCancelInProgress) return
+        cancelDeclinedAutoClose()
 
         viewModelScope.launch {
             operationMutex.withLock {
@@ -260,6 +267,7 @@ class PcCompactTipPaymentViewModel(
 
         userCancelInProgress = true
         cancelEventSent = false
+        cancelDeclinedAutoClose()
         tipSelectionDebounceJob?.cancel()
         pendingSelectedIndex = null
 
@@ -295,6 +303,7 @@ class PcCompactTipPaymentViewModel(
         operationMutex.withLock {
             val before = _uiState.value
             if (!before.canChangeTips || userCancelInProgress) return
+            cancelDeclinedAutoClose()
 
             internalRestartInProgress = true
             ignoreNextCancelledFromRestart = true
@@ -351,6 +360,7 @@ class PcCompactTipPaymentViewModel(
         Log.i(TAG, "Start SSP payment amount=${request.amount} reason=$reason generation=$expectedGeneration")
 
         paymentJob?.cancel()
+        cancelDeclinedAutoClose()
         _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true, errorMessage = null) }
 
         paymentJob = viewModelScope.launch {
@@ -388,6 +398,7 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = event.reason ?: "Оплата отклонена"
                     )
                 }
+                scheduleDeclinedAutoClose()
             }
             is PosPaymentEvent.Error -> {
                 Log.i(TAG, "Payment error")
@@ -399,6 +410,7 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = event.message.ifBlank { "Ошибка оплаты" }
                     )
                 }
+                scheduleDeclinedAutoClose()
             }
             PosPaymentEvent.Cancelled -> {
                 if (ignoreNextCancelledFromRestart) {
@@ -422,13 +434,32 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = "Оплата отменена"
                     )
                 }
+                scheduleDeclinedAutoClose()
             }
         }
+    }
+
+    private fun scheduleDeclinedAutoClose() {
+        if (userCancelInProgress || cancelEventSent) return
+        if (declinedTimeoutJob?.isActive == true) return
+        declinedTimeoutJob?.cancel()
+        declinedTimeoutJob = viewModelScope.launch {
+            delay(DECLINED_AUTO_CLOSE_DELAY_MS)
+            if (!userCancelInProgress && !cancelEventSent) {
+                _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+            }
+        }
+    }
+
+    private fun cancelDeclinedAutoClose() {
+        declinedTimeoutJob?.cancel()
+        declinedTimeoutJob = null
     }
 
 
     private suspend fun sendCancelledByUserOnce() {
         if (cancelEventSent) return
+        cancelDeclinedAutoClose()
         cancelEventSent = true
         _events.send(PcCompactTipPaymentEvent.CancelledByUser)
     }
@@ -457,6 +488,7 @@ class PcCompactTipPaymentViewModel(
     override fun onCleared() {
         tipSelectionDebounceJob?.cancel()
         paymentJob?.cancel()
+        cancelDeclinedAutoClose()
 
         val stage = _uiState.value.paymentStage
         val active = stage in setOf(
@@ -485,6 +517,7 @@ class PcCompactTipPaymentViewModel(
         private const val PC_USB_SAFETY_SETTLE_DELAY_MS = 150L
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
         private const val APPROVED_VISIBLE_MS = 1200L
+        private const val DECLINED_AUTO_CLOSE_DELAY_MS = 10_000L
     }
 }
 
