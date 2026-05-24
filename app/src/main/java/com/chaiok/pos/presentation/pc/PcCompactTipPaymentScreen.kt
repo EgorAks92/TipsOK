@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Transition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -87,9 +88,17 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.updateTransition
 
 private enum class PcCompactPaymentResultVisual {
     None,
+    Approved,
+    Declined
+}
+
+private enum class PcCompactPaymentScreenPhase {
+    TipSelection,
+    Processing,
     Approved,
     Declined
 }
@@ -165,27 +174,70 @@ fun PcCompactTipPaymentScreen(
             return@LaunchedEffect
         }
 
-        if (processingRequested) {
-            delay(400)
+        if (!processingRequested) {
+            return@LaunchedEffect
+        }
 
-            if (processingRequested && realResultVisual == PcCompactPaymentResultVisual.None) {
-                showStatusScreen.value = true
-                visibleResultVisual.value = PcCompactPaymentResultVisual.None
-            }
-        } else if (!showTipSelection) {
-            showStatusScreen.value = false
+        delay(380)
+
+        val shouldShowProcessing = processingRequested &&
+                !showTipSelection &&
+                realResultVisual == PcCompactPaymentResultVisual.None
+
+        if (shouldShowProcessing) {
+            showStatusScreen.value = true
             visibleResultVisual.value = PcCompactPaymentResultVisual.None
         }
     }
 
-    when {
-        showStatusScreen.value -> PcCompactPaymentStatusStateScreen(
+    val targetPhase = when {
+        showTipSelection -> PcCompactPaymentScreenPhase.TipSelection
+        visibleResultVisual.value == PcCompactPaymentResultVisual.Approved -> PcCompactPaymentScreenPhase.Approved
+        visibleResultVisual.value == PcCompactPaymentResultVisual.Declined -> PcCompactPaymentScreenPhase.Declined
+        showStatusScreen.value -> PcCompactPaymentScreenPhase.Processing
+        else -> PcCompactPaymentScreenPhase.TipSelection
+    }
+
+    val phaseTransition = updateTransition(
+        targetState = targetPhase,
+        label = "pc_compact_payment_phase"
+    )
+
+    PcCompactPaymentAnimatedRoot(
+        state = state,
+        transition = phaseTransition,
+        result = visibleResultVisual.value,
+        onSelectTip = onSelectTip,
+        onSelectNoTips = onSelectNoTips,
+        onConfirmCustomTip = onConfirmCustomTip,
+        onToggleServiceFee = onToggleServiceFee,
+        onCancel = onCancel,
+        onRetry = onRetry
+    )
+}
+
+@Composable
+private fun PcCompactPaymentAnimatedRoot(
+    state: PcCompactTipPaymentUiState,
+    transition: Transition<PcCompactPaymentScreenPhase>,
+    result: PcCompactPaymentResultVisual,
+    onSelectTip: (Int) -> Unit,
+    onSelectNoTips: () -> Unit,
+    onConfirmCustomTip: (Double) -> Unit,
+    onToggleServiceFee: (Boolean) -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit
+) {
+    val phase = transition.targetState
+    PcCompactPaymentBackground(error = phase == PcCompactPaymentScreenPhase.Declined) {
+        PcCompactTopRings()
+        PcCompactSharedPaymentHeader(
             amountText = state.amountText,
-            result = visibleResultVisual.value
+            transition = transition
         )
-
-        showTipSelection -> PcCompactTipSelectionStateScreen(
+        PcCompactTipSelectionLayer(
             state = state,
+            transition = transition,
             onSelectTip = onSelectTip,
             onSelectNoTips = onSelectNoTips,
             onConfirmCustomTip = onConfirmCustomTip,
@@ -193,15 +245,9 @@ fun PcCompactTipPaymentScreen(
             onCancel = onCancel,
             onRetry = onRetry
         )
-
-        else -> PcCompactTipSelectionStateScreen(
-            state = state,
-            onSelectTip = onSelectTip,
-            onSelectNoTips = onSelectNoTips,
-            onConfirmCustomTip = onConfirmCustomTip,
-            onToggleServiceFee = onToggleServiceFee,
-            onCancel = onCancel,
-            onRetry = onRetry
+        PcCompactPaymentStatusOverlay(
+            transition = transition,
+            result = result
         )
     }
 }
@@ -267,8 +313,55 @@ private fun PcCompactPaymentBackground(
 }
 
 @Composable
-private fun PcCompactTipSelectionStateScreen(
+private fun BoxScope.PcCompactSharedPaymentHeader(
+    amountText: String,
+    transition: Transition<PcCompactPaymentScreenPhase>
+) {
+    val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+    val topPadding by transition.animateDp(
+        transitionSpec = { tween(durationMillis = 430, easing = premiumEasing) },
+        label = "pc_header_top"
+    ) { phase ->
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 112.dp else 78.dp
+    }
+
+    val headerScale by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = 430, easing = premiumEasing) },
+        label = "pc_header_scale"
+    ) { phase ->
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 1f else 0.985f
+    }
+
+    Column(
+        modifier = Modifier
+            .padding(start = 32.dp, top = topPadding)
+            .graphicsLayer {
+                scaleX = headerScale
+                scaleY = headerScale
+            },
+        horizontalAlignment = Alignment.Start
+    ) {
+        Text(
+            text = "оплата",
+            color = Color.White.copy(alpha = 0.78f),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = MontserratFontFamily
+        )
+
+        PcCompactAnimatedAmountText(
+            text = amountText,
+            color = Color.White,
+            fontSize = 40.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.PcCompactTipSelectionLayer(
     state: PcCompactTipPaymentUiState,
+    transition: Transition<PcCompactPaymentScreenPhase>,
     onSelectTip: (Int) -> Unit,
     onSelectNoTips: () -> Unit,
     onConfirmCustomTip: (Double) -> Unit,
@@ -276,11 +369,45 @@ private fun PcCompactTipSelectionStateScreen(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
+    val phase = transition.targetState
     val showCustomTipDialog = remember { mutableStateOf(false) }
+    val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
 
-    PcCompactPaymentBackground {
-        PcCompactTopRings()
+    val tipsContentAlpha by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = 420, easing = premiumEasing) },
+        label = "pc_tips_alpha"
+    ) { targetPhase ->
+        if (targetPhase == PcCompactPaymentScreenPhase.TipSelection) 1f else 0f
+    }
 
+    val tipsContentOffsetY by transition.animateDp(
+        transitionSpec = { tween(durationMillis = 420, easing = premiumEasing) },
+        label = "pc_tips_offset_y"
+    ) { targetPhase ->
+        if (targetPhase == PcCompactPaymentScreenPhase.TipSelection) 0.dp else 20.dp
+    }
+
+    val tipsContentScale by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = 420, easing = premiumEasing) },
+        label = "pc_tips_scale"
+    ) { targetPhase ->
+        if (targetPhase == PcCompactPaymentScreenPhase.TipSelection) 1f else 0.985f
+    }
+
+    val tipsInteractive = phase == PcCompactPaymentScreenPhase.TipSelection &&
+            state.canChangeTips &&
+            !state.isRestartingPayment
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                alpha = tipsContentAlpha
+                translationY = tipsContentOffsetY.toPx()
+                scaleX = tipsContentScale
+                scaleY = tipsContentScale
+            }
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -293,26 +420,7 @@ private fun PcCompactTipSelectionStateScreen(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .size(18.dp)
-                    .clickable(onClick = onCancel)
-            )
-        }
-
-        Column(
-            modifier = Modifier.padding(start = 32.dp, top = 112.dp)
-        ) {
-            Text(
-                text = "оплата",
-                color = Color.White.copy(alpha = 0.78f),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = MontserratFontFamily
-            )
-
-            PcCompactAnimatedAmountText(
-                text = state.amountText,
-                color = Color.White,
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold
+                    .clickable(enabled = tipsInteractive, onClick = onCancel)
             )
         }
 
@@ -340,7 +448,6 @@ private fun PcCompactTipSelectionStateScreen(
 
 
 
-        val tipsClickable = state.canChangeTips && !state.isRestartingPayment
         val tipsVisuallyEnabled = true
 
         val tipCards = buildList {
@@ -364,7 +471,8 @@ private fun PcCompactTipSelectionStateScreen(
             val commonCardWidth = tipCards.maxOfOrNull { it.resolveWidth(state) } ?: 90.dp
             val normalizedCardWidth = commonCardWidth.coerceInDp(130.dp, 150.dp)
             val density = LocalDensity.current
-            val viewportWidthPx = with(density) { maxWidth.toPx() }
+            val carouselViewportWidth = maxWidth
+            val viewportWidthPx = with(density) { carouselViewportWidth.toPx() }
             val cardWidthPx = with(density) { normalizedCardWidth.toPx() }
             val centerOffsetPx = -((viewportWidthPx - cardWidthPx) / 2f).roundToInt()
 
@@ -397,9 +505,13 @@ private fun PcCompactTipSelectionStateScreen(
                             amountText = null,
                             cardWidth = normalizedCardWidth,
                             selected = state.isCustomTipSelected,
-                            enabled = tipsClickable,
+                            enabled = tipsInteractive,
                             visuallyEnabled = tipsVisuallyEnabled,
-                            onClick = { showCustomTipDialog.value = true }
+                            onClick = {
+                                if (tipsInteractive) {
+                                    showCustomTipDialog.value = true
+                                }
+                            }
                         )
 
                         is PcCompactTipCardUiModel.Percent -> PcCompactTipPresetCard(
@@ -409,7 +521,7 @@ private fun PcCompactTipSelectionStateScreen(
                             selected = !state.isCustomTipSelected &&
                                     !state.isNoTipsSelected &&
                                     card.percentIndex == state.selectedPercentIndex,
-                            enabled = tipsClickable,
+                            enabled = tipsInteractive,
                             visuallyEnabled = tipsVisuallyEnabled,
                             onClick = { onSelectTip(card.percentIndex) }
                         )
@@ -419,7 +531,7 @@ private fun PcCompactTipSelectionStateScreen(
                             amountText = null,
                             cardWidth = normalizedCardWidth,
                             selected = state.isNoTipsSelected,
-                            enabled = tipsClickable,
+                            enabled = tipsInteractive,
                             visuallyEnabled = tipsVisuallyEnabled,
                             onClick = onSelectNoTips
                         )
@@ -427,17 +539,6 @@ private fun PcCompactTipSelectionStateScreen(
                 }
         }
         }
-        if (showCustomTipDialog.value) {
-            PcCompactCustomTipDialog(
-                initialValue = customTipInputValue(state.customTipAmount),
-                onDismiss = { showCustomTipDialog.value = false },
-                onConfirm = { amount ->
-                    showCustomTipDialog.value = false
-                    onConfirmCustomTip(amount)
-                }
-            )
-        }
-
         if (showServiceFeeRow) {
             PcCompactServiceFeeGlassRow(
                 modifier = Modifier
@@ -446,7 +547,7 @@ private fun PcCompactTipSelectionStateScreen(
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 text = "Возмещение комиссии (${formatRubles(state.serviceFeeAmount)})",
                 checked = state.isServiceFeeEnabled,
-                enabled = tipsClickable,
+                enabled = tipsInteractive,
                 onToggle = onToggleServiceFee
             )
         }
@@ -458,9 +559,20 @@ private fun PcCompactTipSelectionStateScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
-                    .clickable(onClick = onRetry)
+                    .clickable(enabled = tipsInteractive, onClick = onRetry)
             )
         }
+    }
+
+    if (showCustomTipDialog.value) {
+        PcCompactCustomTipDialog(
+            initialValue = customTipInputValue(state.customTipAmount),
+            onDismiss = { showCustomTipDialog.value = false },
+            onConfirm = { amount ->
+                showCustomTipDialog.value = false
+                onConfirmCustomTip(amount)
+            }
+        )
     }
 }
 
@@ -662,45 +774,55 @@ private fun customTipInputValue(amount: Double?): String {
 }
 
 @Composable
-private fun BoxScope.PcCompactCenteredAmountHeader(
-    amountText: String
-) {
-    Column(
-        modifier = Modifier
-            .align(Alignment.TopCenter)
-            .padding(top = 64.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "оплата",
-            color = Color.White.copy(alpha = 0.82f),
-            fontSize = 16.sp,
-            fontFamily = MontserratFontFamily
-        )
-
-        PcCompactAnimatedAmountText(
-            text = amountText,
-            color = Color.White,
-            fontSize = 40.sp,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-@Composable
-private fun PcCompactPaymentStatusStateScreen(
-    amountText: String,
+private fun BoxScope.PcCompactPaymentStatusOverlay(
+    transition: Transition<PcCompactPaymentScreenPhase>,
     result: PcCompactPaymentResultVisual
-) = PcCompactPaymentBackground(error = result == PcCompactPaymentResultVisual.Declined) {
-    PcCompactCenteredAmountHeader(amountText)
+) {
+    val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+    val overlayAlpha by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = 470, easing = premiumEasing) },
+        label = "pc_status_overlay_alpha"
+    ) { phase ->
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 0f else 1f
+    }
+
+    val overlayScale by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = 470, easing = premiumEasing) },
+        label = "pc_status_overlay_scale"
+    ) { phase ->
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 0.92f else 1f
+    }
+
+    val overlayOffsetY by transition.animateDp(
+        transitionSpec = { tween(durationMillis = 470, easing = premiumEasing) },
+        label = "pc_status_overlay_offset"
+    ) { phase ->
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 16.dp else 0.dp
+    }
+
+    val resultVisual = when (transition.targetState) {
+        PcCompactPaymentScreenPhase.Processing,
+        PcCompactPaymentScreenPhase.TipSelection -> PcCompactPaymentResultVisual.None
+        PcCompactPaymentScreenPhase.Approved -> PcCompactPaymentResultVisual.Approved
+        PcCompactPaymentScreenPhase.Declined -> PcCompactPaymentResultVisual.Declined
+    }
 
     PcCompactMorphingPaymentIndicator(
-        result = result,
-        modifier = Modifier.align(Alignment.Center)
+        result = resultVisual,
+        modifier = Modifier
+            .align(Alignment.Center)
+            .graphicsLayer {
+                alpha = overlayAlpha
+                scaleX = overlayScale
+                scaleY = overlayScale
+                translationY = overlayOffsetY.toPx()
+            }
     )
 
     AnimatedVisibility(
-        visible = result != PcCompactPaymentResultVisual.None,
+        visible = result != PcCompactPaymentResultVisual.None &&
+                (transition.targetState == PcCompactPaymentScreenPhase.Approved ||
+                        transition.targetState == PcCompactPaymentScreenPhase.Declined),
         modifier = Modifier
             .align(Alignment.Center)
             .offset(y = 96.dp),
@@ -736,8 +858,6 @@ private fun PcCompactPaymentStatusStateScreen(
             PcCompactPaymentResultVisual.None -> Unit
         }
     }
-
-
 }
 
 @Composable
