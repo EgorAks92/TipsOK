@@ -15,5 +15,12 @@ interface PcPaymentCommandRepository {
 
     suspend fun listenOnce()
 
-    suspend fun stop()
+    suspend fun pauseForPayment(): Result<Unit>
+
+    suspend fun resumeAfterPayment(): Result<Unit>
+
+    suspend fun stopCompletely(): Result<Unit>
+
+    @Deprecated("Use stopCompletely()")
+    suspend fun stop(): Result<Unit> = stopCompletely()
 }
