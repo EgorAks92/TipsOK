@@ -45,8 +45,8 @@ class XchengPcPaymentCommandRepository(
             }
 
             if (lifecycleState == PcEcrLifecycleState.Stopped) {
-                status.value = PcUsbConnectionStatus.Idle
-                return
+                Log.i(TAG, "ECR listen requested after stopped; restart session")
+                lifecycleState = PcEcrLifecycleState.Disconnected
             }
 
             Log.i(TAG, "ECR session ensure connected")
@@ -73,6 +73,15 @@ class XchengPcPaymentCommandRepository(
 
         val received = client.receiveOnce()
         if (received.isFailure) {
+            val wasPausedOrStopped = lifecycleMutex.withLock {
+                lifecycleState == PcEcrLifecycleState.PausedForPayment ||
+                        lifecycleState == PcEcrLifecycleState.Stopped
+            }
+            if (wasPausedOrStopped) {
+                Log.i(TAG, "Ignore receive failure because ECR is paused/stopped")
+                return
+            }
+
             val message = received.exceptionOrNull()?.message ?: "receive error"
             Log.e(TAG, "receive failed: $message", received.exceptionOrNull())
             lifecycleMutex.withLock {
@@ -122,12 +131,10 @@ class XchengPcPaymentCommandRepository(
         if (result.isSuccess) {
             Log.i(TAG, "ECR paused for SSP payment")
         } else {
-            val message = result.exceptionOrNull()?.message ?: "pause error"
-            lifecycleState = PcEcrLifecycleState.Error
-            status.value = PcUsbConnectionStatus.Error(message)
+            Log.w(TAG, "ECR pause transport failed but continue as paused", result.exceptionOrNull())
         }
 
-        result
+        Result.success(Unit)
     }
 
     override suspend fun resumeAfterPayment(): Result<Unit> = lifecycleMutex.withLock {

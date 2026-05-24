@@ -13,6 +13,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class XchengWireEcrPortClient(context: Context) {
 
@@ -25,6 +27,14 @@ class XchengWireEcrPortClient(context: Context) {
     private var gsConn: ServiceConnection? = null
 
     private var currentUsbDevice: String? = null
+
+    @Volatile
+    private var transportReady: Boolean = false
+
+    @Volatile
+    private var transportPausedForPayment: Boolean = false
+
+    private val transportMutex = Mutex()
 
     suspend fun ensureConnected(): Result<Unit> = withContext(Dispatchers.IO) {
         val result = runCatching {
@@ -80,12 +90,25 @@ class XchengWireEcrPortClient(context: Context) {
     }
 
     suspend fun ensureTransportReady(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            ensureConnected().getOrThrow()
-            openAndConnect().getOrThrow()
-            Unit
-        }.onFailure { throwable ->
-            Log.e(TAG, "ensureTransportReady failed", throwable)
+        transportMutex.withLock {
+            runCatching {
+                ensureConnected().getOrThrow()
+
+                if (transportReady && !transportPausedForPayment && currentUsbDevice != null) {
+                    Log.i(TAG, "ensureTransportReady skipped: transport already ready device=$currentUsbDevice")
+                    return@runCatching Unit
+                }
+
+                Log.i(TAG, "ensureTransportReady opening transport")
+                openAndConnect().getOrThrow()
+                transportReady = true
+                transportPausedForPayment = false
+                Unit
+            }.onFailure { throwable ->
+                transportReady = false
+                currentUsbDevice = null
+                Log.e(TAG, "ensureTransportReady failed", throwable)
+            }
         }
     }
 
@@ -145,6 +168,8 @@ class XchengWireEcrPortClient(context: Context) {
                         File(device).canWrite()
                     ) {
                         currentUsbDevice = device
+                        transportReady = true
+                        transportPausedForPayment = false
 
                         runCatching {
                             usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
@@ -163,6 +188,8 @@ class XchengWireEcrPortClient(context: Context) {
 
                     if (immediateStatus == CONNECTED_STATUS) {
                         currentUsbDevice = device
+                        transportReady = true
+                        transportPausedForPayment = false
 
                         runCatching {
                             usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
@@ -181,6 +208,8 @@ class XchengWireEcrPortClient(context: Context) {
 
                     if (connected) {
                         currentUsbDevice = device
+                        transportReady = true
+                        transportPausedForPayment = false
 
                         runCatching {
                             usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
@@ -224,6 +253,9 @@ class XchengWireEcrPortClient(context: Context) {
                         "candidates=${USB_DEVICE_CANDIDATES.joinToString()} " +
                         "lastError=${lastError?.message}\n$diagnostics"
             )
+
+            transportReady = false
+            currentUsbDevice = null
 
             error(
                 "USB ECR порт не найден. Проверьте режим USB/ECR или CDC на терминале, " +
@@ -279,10 +311,28 @@ class XchengWireEcrPortClient(context: Context) {
     }
 
     suspend fun pauseTransportForPayment(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            Log.i(TAG, "ECR pause transport for SSP payment")
-            closePortOnly()
-            Unit
+        transportMutex.withLock {
+            runCatching {
+                Log.i(TAG, "ECR pause transport for SSP payment")
+
+                if (transportPausedForPayment) {
+                    Log.i(TAG, "ECR pause skipped: already paused")
+                    return@runCatching Unit
+                }
+
+                transportPausedForPayment = true
+
+                if (transportReady || currentUsbDevice != null) {
+                    closePortOnly()
+                } else {
+                    Log.i(TAG, "ECR pause: transport already closed")
+                    transportReady = false
+                    currentUsbDevice = null
+                }
+                Unit
+            }.onFailure { throwable ->
+                Log.e(TAG, "pauseTransportForPayment failed", throwable)
+            }
         }
     }
 
@@ -290,6 +340,9 @@ class XchengWireEcrPortClient(context: Context) {
         runCatching {
             Log.i(TAG, "ECR resume transport after SSP payment")
             ensureTransportReady().getOrThrow()
+            transportReady = true
+            transportPausedForPayment = false
+            Log.i(TAG, "ECR resumed transport after SSP payment")
             Unit
         }
     }
@@ -298,6 +351,9 @@ class XchengWireEcrPortClient(context: Context) {
         runCatching {
             Log.i(TAG, "ECR close transport completely")
             closeAll()
+            transportReady = false
+            transportPausedForPayment = false
+            currentUsbDevice = null
             Unit
         }
     }
@@ -322,6 +378,7 @@ class XchengWireEcrPortClient(context: Context) {
         }
 
         currentUsbDevice = null
+        transportReady = false
 
         Log.i(TAG, "closePortOnly end")
         Unit
@@ -372,6 +429,8 @@ class XchengWireEcrPortClient(context: Context) {
         usbConn = null
         gsConn = null
         currentUsbDevice = null
+        transportReady = false
+        transportPausedForPayment = false
 
         delay(AFTER_CLOSE_ALL_DELAY_MS)
 

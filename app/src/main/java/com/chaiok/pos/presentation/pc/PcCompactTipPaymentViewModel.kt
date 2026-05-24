@@ -517,12 +517,16 @@ class PcCompactTipPaymentViewModel(
         )
 
         cleanupScope.launch {
-            resumePcEcrAfterPayment("on_cleared")
-
             if (active && !userCancelInProgress) {
                 runCatching { cancelPosPaymentUseCase() }
                     .onFailure { Log.e(TAG, "Cancel onCleared failed", it) }
             }
+
+            runCatching {
+                withTimeoutOrNull(1_200L) {
+                    pcPaymentCommandRepository.resumeAfterPayment()
+                }
+            }.onFailure { Log.e(TAG, "ECR resume onCleared failed", it) }
 
             cleanupScope.cancel()
         }

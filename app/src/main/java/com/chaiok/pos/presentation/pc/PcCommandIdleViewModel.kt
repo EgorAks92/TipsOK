@@ -1,5 +1,6 @@
 package com.chaiok.pos.presentation.pc
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PcPaymentCommand
@@ -26,6 +27,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private const val UNLOCK_PIN_MAX_LENGTH = 4
+private const val TAG = "PcCommandIdle"
 
 data class PcCommandIdleUiState(
     val connectionStatus: PcUsbConnectionStatus = PcUsbConnectionStatus.Idle,
@@ -84,6 +86,12 @@ class PcCommandIdleViewModel(
 
     fun resumeListening() {
         resetDuplicateGuard()
+
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.i(TAG, "PC idle resume ECR listening")
+            repository.resumeAfterPayment()
+                .onFailure { Log.e(TAG, "PC idle resume ECR failed", it) }
+        }
 
         if (!listeningEnabled.value) {
             listeningEnabled.value = true
