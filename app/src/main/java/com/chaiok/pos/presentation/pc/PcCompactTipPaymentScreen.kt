@@ -105,6 +105,10 @@ private enum class PcCompactPaymentScreenPhase {
     Declined
 }
 
+private val PC_COMPACT_TIP_HEADER_START = 32.dp
+private val PC_COMPACT_TIP_HEADER_TOP = 112.dp
+private val PC_COMPACT_STATUS_HEADER_TOP = 64.dp
+
 @Composable
 fun PcCompactTipPaymentScreen(
     state: PcCompactTipPaymentUiState,
@@ -231,10 +235,6 @@ private fun PcCompactPaymentAnimatedRoot(
     val phase = transition.targetState
     PcCompactPaymentBackground(error = phase == PcCompactPaymentScreenPhase.Declined) {
         PcCompactTopRings()
-        PcCompactSharedPaymentHeader(
-            amountText = state.amountText,
-            transition = transition
-        )
         PcCompactTipSelectionLayer(
             state = state,
             transition = transition,
@@ -244,6 +244,10 @@ private fun PcCompactPaymentAnimatedRoot(
             onToggleServiceFee = onToggleServiceFee,
             onCancel = onCancel,
             onRetry = onRetry
+        )
+        PcCompactAnimatedStatusHeader(
+            amountText = state.amountText,
+            transition = transition
         )
         PcCompactPaymentStatusOverlay(
             transition = transition
@@ -312,52 +316,50 @@ private fun PcCompactPaymentBackground(
 }
 
 @Composable
-private fun BoxScope.PcCompactSharedPaymentHeader(
+private fun BoxScope.PcCompactAnimatedStatusHeader(
     amountText: String,
     transition: Transition<PcCompactPaymentScreenPhase>
 ) {
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
     val density = LocalDensity.current
     var headerSize by remember { mutableStateOf(IntSize.Zero) }
+    var titleSize by remember { mutableStateOf(IntSize.Zero) }
 
-    val centerProgress by transition.animateFloat(
+    val phaseProgress by transition.animateFloat(
         transitionSpec = { tween(durationMillis = 520, easing = premiumEasing) },
-        label = "pc_header_center_progress"
+        label = "pc_status_header_progress"
     ) { phase ->
         if (phase == PcCompactPaymentScreenPhase.TipSelection) 0f else 1f
     }
 
-    val topOffset by transition.animateDp(
-        transitionSpec = { tween(durationMillis = 520, easing = premiumEasing) },
-        label = "pc_header_top"
+    val headerAlpha by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = 260, easing = premiumEasing) },
+        label = "pc_status_header_alpha"
     ) { phase ->
-        if (phase == PcCompactPaymentScreenPhase.TipSelection) 124.dp else 64.dp
-    }
-
-    val headerScale by transition.animateFloat(
-        transitionSpec = { tween(durationMillis = 520, easing = premiumEasing) },
-        label = "pc_header_scale"
-    ) { phase ->
-        if (phase == PcCompactPaymentScreenPhase.TipSelection) 1f else 0.985f
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 0f else 1f
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val parentWidthPx = with(density) { maxWidth.toPx() }
-        val startXPx = with(density) { 32.dp.toPx() }
+        val startXPx = with(density) { PC_COMPACT_TIP_HEADER_START.toPx() }
+        val startYPx = with(density) { PC_COMPACT_TIP_HEADER_TOP.toPx() }
+        val endYPx = with(density) { PC_COMPACT_STATUS_HEADER_TOP.toPx() }
         val centeredXPx = ((parentWidthPx - headerSize.width) / 2f).coerceAtLeast(0f)
-        val animatedXPx = startXPx + (centeredXPx - startXPx) * centerProgress
+        val animatedXPx = startXPx + (centeredXPx - startXPx) * phaseProgress
+        val animatedYPx = startYPx + (endYPx - startYPx) * phaseProgress
+        val titleCenteredXPx = ((headerSize.width - titleSize.width) / 2f).coerceAtLeast(0f)
+        val animatedTitleXPx = titleCenteredXPx * phaseProgress
 
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .onGloballyPositioned { coordinates -> headerSize = coordinates.size }
                 .graphicsLayer {
+                    alpha = headerAlpha
                     translationX = animatedXPx
-                    translationY = topOffset.toPx()
-                    scaleX = headerScale
-                    scaleY = headerScale
+                    translationY = animatedYPx
                 },
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.Start
         ) {
             Text(
                 text = "оплата",
@@ -365,7 +367,12 @@ private fun BoxScope.PcCompactSharedPaymentHeader(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = MontserratFontFamily,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Start,
+                modifier = Modifier
+                    .onGloballyPositioned { coordinates -> titleSize = coordinates.size }
+                    .graphicsLayer {
+                        translationX = animatedTitleXPx
+                    }
             )
 
             PcCompactAnimatedAmountText(
@@ -446,6 +453,28 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                     .align(Alignment.TopEnd)
                     .size(18.dp)
                     .clickable(enabled = tipsInteractive, onClick = onCancel)
+            )
+        }
+
+        Column(
+            modifier = Modifier.padding(
+                start = PC_COMPACT_TIP_HEADER_START,
+                top = PC_COMPACT_TIP_HEADER_TOP
+            )
+        ) {
+            Text(
+                text = "оплата",
+                color = Color.White.copy(alpha = 0.78f),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = MontserratFontFamily
+            )
+
+            PcCompactAnimatedAmountText(
+                text = state.amountText,
+                color = Color.White,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold
             )
         }
 
