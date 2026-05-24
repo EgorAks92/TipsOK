@@ -84,7 +84,6 @@ class XchengPcPaymentCommandRepository(
 
             val message = received.exceptionOrNull()?.message ?: "receive error"
             Log.e(TAG, "receive failed: $message", received.exceptionOrNull())
-            client.invalidateTransport("receive failure: $message")
             lifecycleMutex.withLock {
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(message)

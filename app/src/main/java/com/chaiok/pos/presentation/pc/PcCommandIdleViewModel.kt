@@ -87,6 +87,12 @@ class PcCommandIdleViewModel(
     fun resumeListening() {
         resetDuplicateGuard()
 
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.i(TAG, "PC idle resume ECR listening")
+            repository.resumeAfterPayment()
+                .onFailure { Log.e(TAG, "PC idle resume ECR failed", it) }
+        }
+
         if (!listeningEnabled.value) {
             listeningEnabled.value = true
         }

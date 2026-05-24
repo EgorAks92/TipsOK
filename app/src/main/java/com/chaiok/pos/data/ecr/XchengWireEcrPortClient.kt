@@ -94,17 +94,9 @@ class XchengWireEcrPortClient(context: Context) {
             runCatching {
                 ensureConnected().getOrThrow()
 
-                val serviceReady = usb != null && (!USE_GS_BRIDGE || gs != null)
-                val deviceReady = !currentUsbDevice.isNullOrBlank()
-
-                if (serviceReady && transportReady && !transportPausedForPayment && deviceReady) {
+                if (transportReady && !transportPausedForPayment && currentUsbDevice != null) {
                     Log.i(TAG, "ensureTransportReady skipped: transport already ready device=$currentUsbDevice")
                     return@runCatching Unit
-                }
-
-                if (!serviceReady) {
-                    transportReady = false
-                    currentUsbDevice = null
                 }
 
                 Log.i(TAG, "ensureTransportReady opening transport")
@@ -339,7 +331,7 @@ class XchengWireEcrPortClient(context: Context) {
                 }
                 Unit
             }.onFailure { throwable ->
-                Log.w(TAG, "pauseTransportForPayment failed, continue as paused", throwable)
+                Log.e(TAG, "pauseTransportForPayment failed", throwable)
             }
         }
     }
@@ -366,22 +358,6 @@ class XchengWireEcrPortClient(context: Context) {
         }
     }
 
-    suspend fun invalidateTransport(reason: String): Result<Unit> = withContext(Dispatchers.IO) {
-        transportMutex.withLock {
-            runCatching {
-                Log.w(TAG, "ECR invalidate transport reason=$reason device=$currentUsbDevice")
-                markTransportClosed()
-                transportPausedForPayment = false
-                Unit
-            }
-        }
-    }
-
-    private fun markTransportClosed() {
-        currentUsbDevice = null
-        transportReady = false
-    }
-
     suspend fun closePortOnly() = withContext(Dispatchers.IO) {
         Log.i(TAG, "closePortOnly start")
 
@@ -401,7 +377,8 @@ class XchengWireEcrPortClient(context: Context) {
             }
         }
 
-        markTransportClosed()
+        currentUsbDevice = null
+        transportReady = false
 
         Log.i(TAG, "closePortOnly end")
         Unit
@@ -451,7 +428,8 @@ class XchengWireEcrPortClient(context: Context) {
         gs = null
         usbConn = null
         gsConn = null
-        markTransportClosed()
+        currentUsbDevice = null
+        transportReady = false
         transportPausedForPayment = false
 
         delay(AFTER_CLOSE_ALL_DELAY_MS)
