@@ -93,7 +93,7 @@ class XchengPcPaymentCommandRepository(
         }
 
         val bytes = received.getOrNull()
-        if (bytes.isNullOrEmpty()) {
+        if (bytes == null || bytes.isEmpty()) {
             delay(LISTEN_LOOP_DELAY_MS)
             return
         }
