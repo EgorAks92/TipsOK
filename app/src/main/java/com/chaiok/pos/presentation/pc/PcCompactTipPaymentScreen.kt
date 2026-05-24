@@ -197,10 +197,10 @@ fun PcCompactTipPaymentScreen(
     }
 
     val targetPhase = when {
-        showTipSelection -> PcCompactPaymentScreenPhase.TipSelection
         visibleResultVisual.value == PcCompactPaymentResultVisual.Approved -> PcCompactPaymentScreenPhase.Approved
         visibleResultVisual.value == PcCompactPaymentResultVisual.Declined -> PcCompactPaymentScreenPhase.Declined
         showStatusScreen.value -> PcCompactPaymentScreenPhase.Processing
+        showTipSelection -> PcCompactPaymentScreenPhase.TipSelection
         else -> PcCompactPaymentScreenPhase.TipSelection
     }
 
@@ -335,7 +335,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
         transitionSpec = {
             tween(
                 durationMillis = 260,
-                delayMillis = 70,
+                delayMillis = 50,
                 easing = premiumEasing
             )
         },
@@ -445,7 +445,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 scaleY = tipsContentScale
             }
     ) {
-        PcCompactTopRings()
+        PcCompactTipSelectionWavesLayer(transition = transition)
 
         Box(
             modifier = Modifier
@@ -634,6 +634,29 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 onConfirmCustomTip(amount)
             }
         )
+    }
+}
+
+@Composable
+private fun BoxScope.PcCompactTipSelectionWavesLayer(
+    transition: Transition<PcCompactPaymentScreenPhase>
+) {
+    val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+    val wavesAlpha by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = 260, easing = premiumEasing) },
+        label = "pc_waves_alpha"
+    ) { phase ->
+        if (phase == PcCompactPaymentScreenPhase.TipSelection) 1f else 0f
+    }
+
+    if (wavesAlpha > 0.001f) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = wavesAlpha }
+        ) {
+            PcCompactTopRings(alpha = wavesAlpha)
+        }
     }
 }
 
@@ -990,7 +1013,7 @@ private fun PcCompactMorphingPaymentIndicator(
                     drawNeonSpinner(
                         rotation = spinnerRotation,
                         sweep = spinnerSweep,
-                        alpha = spinnerAlpha * spinnerPhase,
+                        alpha = spinnerAlpha * (0.55f + 0.45f * spinnerPhase),
                         scale = spinnerScale
                     )
                 }
@@ -1017,7 +1040,7 @@ private fun PcCompactMorphingPaymentIndicator(
                     drawNeonSpinner(
                         rotation = spinnerRotation,
                         sweep = spinnerSweep,
-                        alpha = spinnerAlpha * spinnerPhase,
+                        alpha = spinnerAlpha * (0.55f + 0.45f * spinnerPhase),
                         scale = spinnerScale
                     )
                 }
@@ -1544,7 +1567,10 @@ private fun neonIntervalProgress(
 }
 
 @Composable
-private fun PcCompactTopRings() {
+private fun PcCompactTopRings(alpha: Float = 1f) {
+    val ringAlpha = alpha.coerceIn(0f, 1f)
+    if (ringAlpha <= 0f) return
+
     val transition = rememberInfiniteTransition(label = "top_rings_premium")
 
     val phase = transition.animateFloat(
@@ -1607,11 +1633,11 @@ private fun PcCompactTopRings() {
                 val wave = smoothWave(progress)
 
                 val radius = radiusDp.dp.toPx() + wave * 7.dp.toPx()
-                val alpha = wave * maxAlphas[index]
+                val waveAlpha = wave * maxAlphas[index]
                 val glowAlpha = wave * maxAlphas[index] * 0.34f
 
                 drawCircle(
-                    color = glowColor.copy(alpha = glowAlpha),
+                    color = glowColor.copy(alpha = glowAlpha * ringAlpha),
                     radius = radius,
                     center = center,
                     style = Stroke(
@@ -1621,7 +1647,7 @@ private fun PcCompactTopRings() {
                 )
 
                 drawCircle(
-                    color = ringColor.copy(alpha = alpha),
+                    color = ringColor.copy(alpha = waveAlpha * ringAlpha),
                     radius = radius,
                     center = center,
                     style = Stroke(
@@ -1631,7 +1657,7 @@ private fun PcCompactTopRings() {
                 )
 
                 drawCircle(
-                    color = Color.White.copy(alpha = alpha * 0.32f),
+                    color = Color.White.copy(alpha = waveAlpha * 0.32f * ringAlpha),
                     radius = radius - 1.5.dp.toPx(),
                     center = center,
                     style = Stroke(
@@ -1645,7 +1671,7 @@ private fun PcCompactTopRings() {
         val ambient = 0.5f - 0.5f * cos((phase.value * 2f * PI).toFloat())
 
         drawCircle(
-            color = glowColor.copy(alpha = 0.028f + ambient * 0.018f),
+            color = glowColor.copy(alpha = (0.028f + ambient * 0.018f) * ringAlpha),
             radius = 118.dp.toPx(),
             center = center
         )
