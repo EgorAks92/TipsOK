@@ -51,7 +51,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,6 +86,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.runtime.setValue
 
 private enum class PcCompactPaymentResultVisual {
     None,
@@ -327,19 +327,21 @@ private fun PcCompactTipSelectionStateScreen(
         )
 
         val showServiceFeeRow = state.showServiceFeeToggle && state.serviceFeePercent > 0.0
-        val tipsTitleTop = if (showServiceFeeRow) 228.dp else 246.dp
-        val tipsRowTop = if (showServiceFeeRow) 260.dp else 286.dp
+        val tipsTitleTop = if (showServiceFeeRow) 228.dp else 262.dp
+        val tipsRowTop = if (showServiceFeeRow) 260.dp else 302.dp
 
         Text(
             text = "чаевые",
             color = Color.White.copy(alpha = 0.86f),
-            fontSize = 16.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = MontserratFontFamily,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = tipsTitleTop)
         )
+
+
 
         val tipsClickable = state.canChangeTips && !state.isRestartingPayment
         val tipsVisuallyEnabled = true
@@ -363,7 +365,7 @@ private fun PcCompactTipSelectionStateScreen(
                 .padding(top = tipsRowTop)
         ) {
             val commonCardWidth = tipCards.maxOfOrNull { it.resolveWidth(state) } ?: 90.dp
-            val normalizedCardWidth = commonCardWidth.coerceInDp(90.dp, 144.dp)
+            val normalizedCardWidth = commonCardWidth.coerceInDp(130.dp, 150.dp)
             val density = LocalDensity.current
             val viewportWidthPx = with(density) { maxWidth.toPx() }
             val cardWidthPx = with(density) { normalizedCardWidth.toPx() }
@@ -390,41 +392,42 @@ private fun PcCompactTipSelectionStateScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 itemsIndexed(items = tipCards, key = { _, card -> card.key }) { _, card ->
-                    val titleText = card.resolveTitle()
-                    val amountText = card.resolveAmountText(state)
-                when (card) {
-                    PcCompactTipCardUiModel.CustomAmount -> PcCompactTipPresetCard(
-                        percentText = titleText,
-                        amountText = amountText,
-                        cardWidth = normalizedCardWidth,
-                        selected = state.isCustomTipSelected,
-                        enabled = tipsClickable,
-                        visuallyEnabled = tipsVisuallyEnabled,
-                        onClick = { showCustomTipDialog.value = true }
-                    )
+                    val primaryText = card.resolvePrimaryText(state)
 
-                    is PcCompactTipCardUiModel.Percent -> PcCompactTipPresetCard(
-                        percentText = titleText,
-                        amountText = amountText,
-                        cardWidth = normalizedCardWidth,
-                        selected = !state.isCustomTipSelected && !state.isNoTipsSelected && card.percentIndex == state.selectedPercentIndex,
-                        enabled = tipsClickable,
-                        visuallyEnabled = tipsVisuallyEnabled,
-                        onClick = { onSelectTip(card.percentIndex) }
-                    )
+                    when (card) {
+                        PcCompactTipCardUiModel.CustomAmount -> PcCompactTipPresetCard(
+                            percentText = primaryText,
+                            amountText = null,
+                            cardWidth = normalizedCardWidth,
+                            selected = state.isCustomTipSelected,
+                            enabled = tipsClickable,
+                            visuallyEnabled = tipsVisuallyEnabled,
+                            onClick = { showCustomTipDialog.value = true }
+                        )
 
-                    PcCompactTipCardUiModel.NoTips -> PcCompactTipPresetCard(
-                        percentText = titleText,
-                        amountText = amountText,
-                        amountFontSize = 13.sp,
-                        cardWidth = normalizedCardWidth,
-                        selected = state.isNoTipsSelected,
-                        enabled = tipsClickable,
-                        visuallyEnabled = tipsVisuallyEnabled,
-                        onClick = onSelectNoTips
-                    )
+                        is PcCompactTipCardUiModel.Percent -> PcCompactTipPresetCard(
+                            percentText = primaryText,
+                            amountText = null,
+                            cardWidth = normalizedCardWidth,
+                            selected = !state.isCustomTipSelected &&
+                                    !state.isNoTipsSelected &&
+                                    card.percentIndex == state.selectedPercentIndex,
+                            enabled = tipsClickable,
+                            visuallyEnabled = tipsVisuallyEnabled,
+                            onClick = { onSelectTip(card.percentIndex) }
+                        )
+
+                        PcCompactTipCardUiModel.NoTips -> PcCompactTipPresetCard(
+                            percentText = primaryText,
+                            amountText = null,
+                            cardWidth = normalizedCardWidth,
+                            selected = state.isNoTipsSelected,
+                            enabled = tipsClickable,
+                            visuallyEnabled = tipsVisuallyEnabled,
+                            onClick = onSelectNoTips
+                        )
+                    }
                 }
-            }
         }
         }
         if (showCustomTipDialog.value) {
@@ -477,36 +480,44 @@ private sealed class PcCompactTipCardUiModel {
         }
 }
 
-private fun PcCompactTipCardUiModel.resolveTitle(): String = when (this) {
-    PcCompactTipCardUiModel.CustomAmount -> "Своя"
-    is PcCompactTipCardUiModel.Percent -> "${percent.roundToInt()}%"
-    PcCompactTipCardUiModel.NoTips -> "0%"
-}
-
-private fun PcCompactTipCardUiModel.resolveAmountText(state: PcCompactTipPaymentUiState): String = when (this) {
-    PcCompactTipCardUiModel.CustomAmount -> if (state.isCustomTipSelected && state.customTipAmount != null) {
-        formatRubles(state.customTipAmount)
-    } else {
-        "сумма"
+private fun PcCompactTipCardUiModel.resolvePrimaryText(
+    state: PcCompactTipPaymentUiState
+): String = when (this) {
+    PcCompactTipCardUiModel.CustomAmount -> {
+        if (state.isCustomTipSelected && state.customTipAmount != null) {
+            formatRubles(state.customTipAmount)
+        } else {
+            "Своя\nсумма"
+        }
     }
-    is PcCompactTipCardUiModel.Percent -> formatRubles(state.calculateTipByPercent(percent))
-    PcCompactTipCardUiModel.NoTips -> "без чаевых"
+
+    is PcCompactTipCardUiModel.Percent -> {
+        formatRubles(state.calculateTipByPercent(percent))
+    }
+
+    PcCompactTipCardUiModel.NoTips -> {
+        "Без\nчаевых"
+    }
 }
 
-private fun PcCompactTipCardUiModel.resolveWidth(state: PcCompactTipPaymentUiState): Dp =
-    compactTipCardWidth(
-        amountText = resolveAmountText(state),
-        titleText = resolveTitle()
-    )
+private fun PcCompactTipCardUiModel.resolveWidth(
+    state: PcCompactTipPaymentUiState
+): Dp = compactTipCardWidth(
+    primaryText = resolvePrimaryText(state)
+)
 
-private fun compactTipCardWidth(amountText: String, titleText: String): Dp {
-    val maxLength = maxOf(amountText.length, titleText.length)
+private fun compactTipCardWidth(primaryText: String): Dp {
+    val length = primaryText
+        .lines()
+        .maxOfOrNull { it.length }
+        ?: primaryText.length
+
     return when {
-        maxLength <= 7 -> 90.dp
-        maxLength <= 9 -> 102.dp
-        maxLength <= 11 -> 114.dp
-        maxLength <= 13 -> 126.dp
-        maxLength <= 15 -> 138.dp
+        length <= 6 -> 90.dp
+        length <= 8 -> 102.dp
+        length <= 10 -> 114.dp
+        length <= 12 -> 126.dp
+        length <= 14 -> 138.dp
         else -> 144.dp
     }
 }
@@ -1534,42 +1545,46 @@ private fun PcCompactAnimatedAmountText(
 @Composable
 private fun PcCompactTipPresetCard(
     percentText: String,
-    amountText: String,
+    amountText: String? = null,
     selected: Boolean,
     enabled: Boolean,
     visuallyEnabled: Boolean = enabled,
     amountFontSize: TextUnit? = null,
-    cardWidth: Dp = 90.dp,
+    cardWidth: Dp = 118.dp,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(28.dp)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
+    val isTwoLineLabel = percentText.contains('\n')
 
     val backgroundBrush = if (selected) {
         Brush.verticalGradient(
             listOf(
-                Color(0xFF67E0DC).copy(alpha = visualAlpha),
-                Color(0xFF20AFC2).copy(alpha = visualAlpha)
+                Color(0xFF74E8E1).copy(alpha = visualAlpha),
+                Color(0xFF20B8C8).copy(alpha = visualAlpha)
             )
         )
     } else {
         Brush.verticalGradient(
             listOf(
-                Color.White.copy(alpha = 0.22f * visualAlpha),
-                Color.White.copy(alpha = 0.11f * visualAlpha)
+                Color.White.copy(alpha = 0.24f * visualAlpha),
+                Color.White.copy(alpha = 0.12f * visualAlpha)
             )
         )
     }
 
     Box(
         modifier = Modifier
-            .size(width = cardWidth, height = if (selected) 140.dp else 124.dp)
+            .size(
+                width = cardWidth,
+                height = if (selected) 154.dp else 138.dp
+            )
             .clip(shape)
             .background(backgroundBrush)
             .border(
                 width = 1.dp,
                 color = Color.White.copy(
-                    alpha = if (selected) 0.45f * visualAlpha else 0.35f * visualAlpha
+                    alpha = if (selected) 0.48f * visualAlpha else 0.34f * visualAlpha
                 ),
                 shape = shape
             )
@@ -1579,64 +1594,45 @@ private fun PcCompactTipPresetCard(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 10.dp, vertical = 14.dp),
+            .padding(horizontal = 14.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(
-                space = if (selected) 15.dp else 13.dp,
-                alignment = Alignment.CenterVertically
-            )
+            verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = percentText,
                 color = Color.White.copy(alpha = visualAlpha),
-                fontSize = if (selected) 24.sp else 22.sp,
+                fontSize = when {
+                    isTwoLineLabel && selected -> 20.sp
+                    isTwoLineLabel -> 20.sp
+                    selected -> 20.sp
+                    else -> 20.sp
+                },
+                lineHeight = if (isTwoLineLabel) 20.sp else 20.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = MontserratFontFamily,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text(
-                text = amountText,
-                color = Color.White.copy(alpha = 0.92f * visualAlpha),
-                fontSize = amountFontSize ?: if (selected) 16.sp else 15.sp,
-                fontFamily = MontserratFontFamily,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
+                maxLines = if (isTwoLineLabel) 2 else 1,
                 softWrap = false,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Box(
-                modifier = Modifier.size(26.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    val strokeWidth = 2.dp.toPx()
-                    val radius = min(size.width, size.height) / 2f - strokeWidth / 2f
-
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.85f * visualAlpha),
-                        radius = radius,
-                        center = Offset(size.width / 2f, size.height / 2f),
-                        style = Stroke(width = strokeWidth)
-                    )
-                }
-
-                if (selected) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = visualAlpha),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
+            if (!amountText.isNullOrBlank()) {
+                Text(
+                    text = amountText,
+                    color = Color.White.copy(alpha = 0.82f * visualAlpha),
+                    fontSize = amountFontSize ?: 14.sp,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp)
+                )
             }
         }
     }
