@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -147,7 +148,7 @@ class PcCompactTipPaymentViewModel(
             )
         }
 
-        releasePcUsbBeforePayment()
+        pausePcEcrForPayment()
 
         generation += 1
         val started = startPaymentCurrentAmount("initial", generation)
@@ -157,11 +158,11 @@ class PcCompactTipPaymentViewModel(
         }
     }
 
-    private suspend fun releasePcUsbBeforePayment() {
-        Log.i(TAG, "Release ECR before SSP start")
-        runCatching { pcPaymentCommandRepository.stop() }
-            .onSuccess { Log.i(TAG, "Release ECR before SSP done") }
-            .onFailure { Log.e(TAG, "Release ECR before SSP failed", it) }
+    private suspend fun pausePcEcrForPayment() {
+        Log.i(TAG, "ECR pause for SSP payment")
+        pcPaymentCommandRepository.pauseForPayment()
+            .onSuccess { Log.i(TAG, "ECR paused for SSP payment") }
+            .onFailure { Log.e(TAG, "ECR pause before SSP failed", it) }
         delay(PC_USB_SAFETY_SETTLE_DELAY_MS)
     }
 
@@ -386,6 +387,7 @@ class PcCompactTipPaymentViewModel(
             is PosPaymentEvent.Approved -> {
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.Approved, canCancel = false, isRestartingPayment = false, errorMessage = null) }
                 delay(APPROVED_VISIBLE_MS)
+                resumePcEcrAfterPayment("approved")
                 _events.send(PcCompactTipPaymentEvent.Approved)
             }
             is PosPaymentEvent.Declined -> {
@@ -446,6 +448,7 @@ class PcCompactTipPaymentViewModel(
         declinedTimeoutJob = viewModelScope.launch {
             delay(DECLINED_AUTO_CLOSE_DELAY_MS)
             if (!userCancelInProgress && !cancelEventSent) {
+                resumePcEcrAfterPayment("declined_timeout")
                 _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
             }
         }
@@ -461,7 +464,21 @@ class PcCompactTipPaymentViewModel(
         if (cancelEventSent) return
         cancelDeclinedAutoClose()
         cancelEventSent = true
+        resumePcEcrAfterPayment("cancelled_by_user")
         _events.send(PcCompactTipPaymentEvent.CancelledByUser)
+    }
+
+    private suspend fun resumePcEcrAfterPayment(reason: String) {
+        Log.i(TAG, "ECR resume after SSP payment reason=$reason")
+        val result = withTimeoutOrNull(1_200L) {
+            pcPaymentCommandRepository.resumeAfterPayment()
+        }
+        if (result == null) {
+            Log.w(TAG, "ECR resume after SSP payment timed out")
+            return
+        }
+        result.onSuccess { Log.i(TAG, "ECR resumed listening") }
+            .onFailure { Log.e(TAG, "ECR resume after SSP payment failed", it) }
     }
 
     private fun buildRequest(state: PcCompactTipPaymentUiState): PosPaymentRequest? {
@@ -499,13 +516,18 @@ class PcCompactTipPaymentViewModel(
             CardPresentingStage.PinRequired
         )
 
-        if (active && !userCancelInProgress) {
-            cleanupScope.launch {
+        cleanupScope.launch {
+            if (active && !userCancelInProgress) {
                 runCatching { cancelPosPaymentUseCase() }
                     .onFailure { Log.e(TAG, "Cancel onCleared failed", it) }
-                cleanupScope.cancel()
             }
-        } else {
+
+            runCatching {
+                withTimeoutOrNull(1_200L) {
+                    pcPaymentCommandRepository.resumeAfterPayment()
+                }
+            }.onFailure { Log.e(TAG, "ECR resume onCleared failed", it) }
+
             cleanupScope.cancel()
         }
 
