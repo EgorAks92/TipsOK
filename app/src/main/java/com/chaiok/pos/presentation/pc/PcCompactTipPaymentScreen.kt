@@ -4,12 +4,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Transition
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
@@ -19,7 +13,11 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -44,8 +42,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,7 +59,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -73,24 +72,20 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.runtime.setValue
 
 private enum class PcCompactPaymentResultVisual {
     None,
@@ -180,20 +175,10 @@ fun PcCompactTipPaymentScreen(
             return@LaunchedEffect
         }
 
-        if (!processingRequested) {
-            return@LaunchedEffect
-        }
+        delay(400)
 
-        delay(380)
-
-        val shouldShowProcessing = processingRequested &&
-                !showTipSelection &&
-                realResultVisual == PcCompactPaymentResultVisual.None
-
-        if (shouldShowProcessing) {
-            showStatusScreen.value = true
-            visibleResultVisual.value = PcCompactPaymentResultVisual.None
-        }
+        showStatusScreen.value = true
+        visibleResultVisual.value = PcCompactPaymentResultVisual.None
     }
 
     val targetPhase = when {
@@ -453,21 +438,18 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 .padding(horizontal = 24.dp, vertical = 24.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Close,
+                painter = painterResource(id = R.drawable.ic_payment_close),
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.9f),
+                tint = Color.Unspecified,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(18.dp)
-                    .clickable(enabled = tipsInteractive, onClick = onCancel)
+                    .size(24.dp)
+                    .clickable(onClick = onCancel)
             )
         }
 
         Column(
-            modifier = Modifier.padding(
-                start = PC_COMPACT_TIP_HEADER_START,
-                top = PC_COMPACT_TIP_HEADER_TOP
-            )
+            modifier = Modifier.padding(start = 32.dp, top = 158.dp)
         ) {
             Text(
                 text = "оплата",
@@ -529,15 +511,21 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 .fillMaxWidth()
                 .padding(top = tipsRowTop)
         ) {
+            val carouselViewportWidth = maxWidth
+
             val commonCardWidth = tipCards.maxOfOrNull { it.resolveWidth(state) } ?: 90.dp
             val normalizedCardWidth = commonCardWidth.coerceInDp(130.dp, 150.dp)
+
             val density = LocalDensity.current
-            val carouselViewportWidth = maxWidth
             val viewportWidthPx = with(density) { carouselViewportWidth.toPx() }
             val cardWidthPx = with(density) { normalizedCardWidth.toPx() }
             val centerOffsetPx = -((viewportWidthPx - cardWidthPx) / 2f).roundToInt()
 
-            LaunchedEffect(tipCards.map { it.key }, state.availablePercents.size, normalizedCardWidth) {
+            LaunchedEffect(
+                tipCards.map { it.key },
+                state.availablePercents.size,
+                normalizedCardWidth
+            ) {
                 if (
                     !didInitialCenter &&
                     state.availablePercents.isNotEmpty() &&
@@ -557,48 +545,53 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                itemsIndexed(items = tipCards, key = { _, card -> card.key }) { _, card ->
+                itemsIndexed(
+                    items = tipCards,
+                    key = { _, card -> card.key }
+                ) { _, card ->
                     val primaryText = card.resolvePrimaryText(state)
 
                     when (card) {
-                        PcCompactTipCardUiModel.CustomAmount -> PcCompactTipPresetCard(
-                            percentText = primaryText,
-                            amountText = null,
-                            cardWidth = normalizedCardWidth,
-                            selected = state.isCustomTipSelected,
-                            enabled = tipsInteractive,
-                            visuallyEnabled = tipsVisuallyEnabled,
-                            onClick = {
-                                if (tipsInteractive) {
-                                    showCustomTipDialog.value = true
-                                }
-                            }
-                        )
+                        PcCompactTipCardUiModel.CustomAmount -> {
+                            PcCompactTipPresetCard(
+                                percentText = primaryText,
+                                amountText = null,
+                                cardWidth = normalizedCardWidth,
+                                selected = state.isCustomTipSelected,
+                                enabled = tipsClickable,
+                                visuallyEnabled = tipsVisuallyEnabled,
+                                onClick = { showCustomTipDialog.value = true }
+                            )
+                        }
 
-                        is PcCompactTipCardUiModel.Percent -> PcCompactTipPresetCard(
-                            percentText = primaryText,
-                            amountText = null,
-                            cardWidth = normalizedCardWidth,
-                            selected = !state.isCustomTipSelected &&
-                                    !state.isNoTipsSelected &&
-                                    card.percentIndex == state.selectedPercentIndex,
-                            enabled = tipsInteractive,
-                            visuallyEnabled = tipsVisuallyEnabled,
-                            onClick = { onSelectTip(card.percentIndex) }
-                        )
+                        is PcCompactTipCardUiModel.Percent -> {
+                            PcCompactTipPresetCard(
+                                percentText = primaryText,
+                                amountText = null,
+                                cardWidth = normalizedCardWidth,
+                                selected = !state.isCustomTipSelected &&
+                                        !state.isNoTipsSelected &&
+                                        card.percentIndex == state.selectedPercentIndex,
+                                enabled = tipsClickable,
+                                visuallyEnabled = tipsVisuallyEnabled,
+                                onClick = { onSelectTip(card.percentIndex) }
+                            )
+                        }
 
-                        PcCompactTipCardUiModel.NoTips -> PcCompactTipPresetCard(
-                            percentText = primaryText,
-                            amountText = null,
-                            cardWidth = normalizedCardWidth,
-                            selected = state.isNoTipsSelected,
-                            enabled = tipsInteractive,
-                            visuallyEnabled = tipsVisuallyEnabled,
-                            onClick = onSelectNoTips
-                        )
+                        PcCompactTipCardUiModel.NoTips -> {
+                            PcCompactTipPresetCard(
+                                percentText = primaryText,
+                                amountText = null,
+                                cardWidth = normalizedCardWidth,
+                                selected = state.isNoTipsSelected,
+                                enabled = tipsClickable,
+                                visuallyEnabled = tipsVisuallyEnabled,
+                                onClick = onSelectNoTips
+                            )
+                        }
                     }
                 }
-        }
+            }
         }
         if (showServiceFeeRow) {
             PcCompactServiceFeeGlassRow(
