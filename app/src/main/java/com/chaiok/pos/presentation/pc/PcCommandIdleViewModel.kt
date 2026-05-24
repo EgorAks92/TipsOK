@@ -1,5 +1,6 @@
 package com.chaiok.pos.presentation.pc
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PcPaymentCommand
@@ -24,9 +25,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 private const val UNLOCK_PIN_MAX_LENGTH = 4
+private const val TAG = "PcCommandIdle"
 
 data class PcCommandIdleUiState(
     val connectionStatus: PcUsbConnectionStatus = PcUsbConnectionStatus.Idle,
@@ -89,6 +90,12 @@ class PcCommandIdleViewModel(
         if (!listeningEnabled.value) {
             listeningEnabled.value = true
         }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            Log.i(TAG, "PC idle resume ECR listening")
+            repository.resumeAfterPayment()
+                .onFailure { Log.e(TAG, "PC idle resume ECR failed", it) }
+        }
     }
 
     fun pauseListening() {
@@ -97,7 +104,7 @@ class PcCommandIdleViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            repository.stop()
+            repository.stopCompletely()
         }
     }
 
@@ -226,11 +233,6 @@ class PcCommandIdleViewModel(
 
         listeningEnabled.value = false
 
-        withContext(Dispatchers.IO) {
-            repository.stop()
-        }
-
-        delay(POS_SERVICE_RELEASE_DELAY_MS)
 
         _events.emit(
             PcCommandIdleEvent.OpenTipSelection(
@@ -277,7 +279,7 @@ class PcCommandIdleViewModel(
 
     override fun onCleared() {
         cleanupScope.launch {
-            repository.stop()
+            repository.stopCompletely()
             cleanupScope.cancel()
         }
 
@@ -287,7 +289,6 @@ class PcCommandIdleViewModel(
     private companion object {
         private const val LISTEN_LOOP_DELAY_MS = 300L
         private const val NO_ID_DEDUPE_WINDOW_MS = 5_000L
-        private const val POS_SERVICE_RELEASE_DELAY_MS = 500L
         private const val DEFAULT_IMAGE = "default"
     }
 }

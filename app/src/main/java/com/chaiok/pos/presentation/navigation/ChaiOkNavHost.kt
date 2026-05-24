@@ -421,11 +421,17 @@ fun ChaiOkNavHost(container: AppContainer) {
 
                                 if (!shouldNavigateNow) return@LaunchedEffect
 
+                                if (isPcUsbSource) {
+                                    resumePcUsbEcrAfterCardPresenting(container, "approved")
+                                }
                                 navController.navigateAfterTipPayment(isPcUsbSource)
                             }
 
                             is PaymentResult.Declined,
                             is PaymentResult.Error -> {
+                                if (isPcUsbSource) {
+                                    resumePcUsbEcrAfterCardPresenting(container, "failed")
+                                }
                                 vm.handleFailedPaymentResult(result)
                             }
                         }
@@ -441,6 +447,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                         vm.resetPaymentState()
 
                         if (isPcUsbSource) {
+                            resumePcUsbEcrAfterCardPresenting(container, "cancelled")
                             val popped = navController.popBackStack(
                                 route = Routes.PcCommandIdle,
                                 inclusive = false
@@ -877,6 +884,21 @@ private fun NavHostController.navigateAfterSettings(
     }
 }
 
+private suspend fun resumePcUsbEcrAfterCardPresenting(container: AppContainer, reason: String) {
+    Log.i(PAYMENT_TAG, "PC USB payment flow resume ECR after CardPresenting result reason=$reason")
+    val result = kotlinx.coroutines.withTimeoutOrNull(1_200L) {
+        container.pcPaymentCommandRepository.resumeAfterPayment()
+    }
+    if (result == null) {
+        Log.w(PAYMENT_TAG, "PC USB payment flow resume ECR timed out")
+        return
+    }
+
+    result.onFailure { throwable ->
+        Log.e(PAYMENT_TAG, "PC USB payment flow resume ECR failed", throwable)
+    }
+}
+
 private fun NavHostController.navigateAfterTipPayment(isPcUsbSource: Boolean) {
     if (isPcUsbSource) {
         val popped = popBackStack(route = Routes.PcCommandIdle, inclusive = false)
@@ -948,7 +970,7 @@ private suspend fun startPcUsbPaymentFlow(
     Log.i(PAYMENT_TAG, "PC USB payment flow release start")
 
     runCatching {
-        container.pcPaymentCommandRepository.stop()
+        container.pcPaymentCommandRepository.pauseForPayment()
     }.onSuccess {
         Log.i(
             PAYMENT_TAG,
