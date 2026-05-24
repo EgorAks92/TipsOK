@@ -181,10 +181,7 @@ fun PcCompactTipPaymentScreen(
     when {
         showStatusScreen.value -> PcCompactPaymentStatusStateScreen(
             amountText = state.amountText,
-            result = visibleResultVisual.value,
-            errorMessage = state.errorMessage,
-            onRetry = onRetry,
-            onCancel = onCancel
+            result = visibleResultVisual.value
         )
 
         showTipSelection -> PcCompactTipSelectionStateScreen(
@@ -693,10 +690,7 @@ private fun BoxScope.PcCompactCenteredAmountHeader(
 @Composable
 private fun PcCompactPaymentStatusStateScreen(
     amountText: String,
-    result: PcCompactPaymentResultVisual,
-    errorMessage: String?,
-    onRetry: () -> Unit,
-    onCancel: () -> Unit
+    result: PcCompactPaymentResultVisual
 ) = PcCompactPaymentBackground(error = result == PcCompactPaymentResultVisual.Declined) {
     PcCompactCenteredAmountHeader(amountText)
 
@@ -743,51 +737,7 @@ private fun PcCompactPaymentStatusStateScreen(
         }
     }
 
-    AnimatedVisibility(
-        visible = result == PcCompactPaymentResultVisual.Declined,
-        modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .padding(bottom = 34.dp),
-        enter = fadeIn(animationSpec = tween(durationMillis = 280, delayMillis = 170)) +
-                slideInVertically(
-                    initialOffsetY = { it / 8 },
-                    animationSpec = tween(durationMillis = 280, delayMillis = 170)
-                ),
-        exit = fadeOut(animationSpec = tween(120))
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (!errorMessage.isNullOrBlank()) {
-                Text(
-                    text = errorMessage,
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 12.sp,
-                    fontFamily = MontserratFontFamily,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
-                )
-            }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                Text(
-                    text = "Повторить",
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontSize = 14.sp,
-                    fontFamily = MontserratFontFamily,
-                    modifier = Modifier.clickable(onClick = onRetry)
-                )
-
-                Text(
-                    text = "Отмена",
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 14.sp,
-                    fontFamily = MontserratFontFamily,
-                    modifier = Modifier.clickable(onClick = onCancel)
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -1109,6 +1059,79 @@ private fun DrawScope.drawNeonCross(
         edgeColor = Color(0xFFFF1F1F),
         coreColor = Color(0xFFFFA0A0)
     )
+
+    val unifiedAlpha = ((p - 0.72f) / 0.28f).coerceIn(0f, 1f)
+
+    if (unifiedAlpha > 0f) {
+        val crossPath = Path().apply {
+            moveTo(a.x, a.y)
+            lineTo(b.x, b.y)
+
+            moveTo(c.x, c.y)
+            lineTo(d.x, d.y)
+        }
+
+        drawPath(
+            path = crossPath,
+            color = Color(0xFFFF1F1F).copy(alpha = 0.040f * unifiedAlpha),
+            style = Stroke(
+                width = 52.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        drawPath(
+            path = crossPath,
+            color = Color(0xFFFF3030).copy(alpha = 0.070f * unifiedAlpha),
+            style = Stroke(
+                width = 42.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        drawPath(
+            path = crossPath,
+            color = Color(0xFFFF3030).copy(alpha = 0.145f * unifiedAlpha),
+            style = Stroke(
+                width = 32.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        drawPath(
+            path = crossPath,
+            color = Color(0xFFFF3030).copy(alpha = 0.36f * unifiedAlpha),
+            style = Stroke(
+                width = 23.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        drawPath(
+            path = crossPath,
+            color = Color(0xFFFFA0A0).copy(alpha = 0.94f * unifiedAlpha),
+            style = Stroke(
+                width = 12.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+
+        drawPath(
+            path = crossPath,
+            color = Color.White.copy(alpha = 0.20f * unifiedAlpha),
+            style = Stroke(
+                width = 5.dp.toPx() * settle,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
+
 }
 
 private fun DrawScope.drawNeonArc(

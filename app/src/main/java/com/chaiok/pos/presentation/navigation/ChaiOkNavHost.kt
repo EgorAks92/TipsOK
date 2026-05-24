@@ -718,6 +718,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                     when (event) {
                         PcCompactTipPaymentEvent.Approved -> navController.navigateAfterTipPayment(true)
                         PcCompactTipPaymentEvent.CancelledByUser -> navController.navigateAfterTipPayment(true)
+                        PcCompactTipPaymentEvent.DeclinedTimeout -> navController.navigateAfterTipPayment(true)
                     }
                 }
             }
