@@ -2,6 +2,7 @@ package com.chaiok.pos.data.repository
 
 import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.domain.model.AppSettings
+import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
@@ -95,6 +96,12 @@ class DataStoreSettingsRepository(
     override suspend fun setPcEcrProtocol(protocol: PcEcrProtocol) {
         runCatching {
             dataStore.setPcEcrProtocol(protocol)
+        }
+    }
+
+    override suspend fun setArcus2NewWaySettings(settings: Arcus2NewWaySettings) {
+        runCatching {
+            dataStore.setArcus2NewWaySettings(settings)
         }
     }
 

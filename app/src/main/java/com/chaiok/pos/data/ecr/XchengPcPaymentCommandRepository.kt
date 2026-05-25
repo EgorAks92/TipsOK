@@ -7,7 +7,12 @@ import com.chaiok.pos.domain.model.PcPaymentResponse
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
+import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
+import com.chaiok.pos.domain.model.PcEcrCommand
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
+import com.chaiok.pos.domain.repository.SettingsRepository
+import android.content.Context
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -17,11 +22,11 @@ import kotlinx.coroutines.sync.withLock
 
 class XchengPcPaymentCommandRepository(
     private val client: XchengWireEcrPortClient,
-    private val protocolProvider: () -> PcEcrProtocol = { PcEcrProtocol.CHAIOK_JSON },
-    private val arcusSettingsProvider: () -> Arcus2NewWaySettings = { Arcus2NewWaySettings() }
+    private val settingsRepository: SettingsRepository,
+    context: Context
 ) : PcPaymentCommandRepository {
 
-    private val arcusAdapter by lazy { Arcus2NewWayProtocolAdapter({ arcusSettingsProvider() }, Arcus2RawFrameLogger()) }
+    private val rawLogger = Arcus2RawFrameLogger(context)
 
     private enum class PcEcrLifecycleState {
         Disconnected,
@@ -128,6 +133,29 @@ class XchengPcPaymentCommandRepository(
             sendResult
         }
 
+    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings): Result<Unit> = lifecycleMutex.withLock {
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        fun status(text: String) = if (settings.sendStatusMessages) session.sendCommandAndWaitOk("STATUS:$text") else Result.success(Unit)
+        fun printIfNeeded() : Result<Unit> {
+            if (!settings.sendPrintCommands || receiptText.isNullOrBlank()) return Result.success(Unit)
+            if (settings.sendStartEndPrint) session.sendCommandAndWaitOk("STARTPRINT:CUSTOMER").getOrElse { return Result.failure(it) }
+            session.sendPrintReceipt(receiptText).getOrElse { return Result.failure(it) }
+            if (settings.sendStartEndPrint) session.sendCommandAndWaitOk("ENDPRINT:CUSTOMER").getOrElse { return Result.failure(it) }
+            return Result.success(Unit)
+        }
+        when (result) {
+            is PcEcrFinalPaymentResult.Approved -> { status("Одобрено").getOrElse { return@withLock Result.failure(it) }; printIfNeeded().getOrElse { return@withLock Result.failure(it) }; session.sendCommandAndWaitOk("STORERC:00").getOrElse { return@withLock Result.failure(it) } }
+            is PcEcrFinalPaymentResult.Declined -> { status("Отклонено").getOrElse { return@withLock Result.failure(it) }; printIfNeeded().getOrElse { return@withLock Result.failure(it) }; session.sendCommandAndWaitOk("STORERC:${result.resultCode ?: settings.declinedDefaultRc}").getOrElse { return@withLock Result.failure(it) } }
+            is PcEcrFinalPaymentResult.Cancelled -> { status("Отменено").getOrElse { return@withLock Result.failure(it) }; session.sendCommandAndWaitOk("STORERC:${settings.cancelledRc}").getOrElse { return@withLock Result.failure(it) } }
+            is PcEcrFinalPaymentResult.Error -> { status("Ошибка").getOrElse { return@withLock Result.failure(it) }; session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrElse { return@withLock Result.failure(it) } }
+        }
+        if (settings.sendSetTags) session.sendSetTags(Arcus2TagsBuilder.buildPaymentTags(result, sourceCommand.amount, sourceCommand.currency, null)).getOrElse { return@withLock Result.failure(it) }
+        session.sendCommandAndWaitOk("ENDTR").getOrElse { return@withLock Result.failure(it) }
+        lifecycleState = PcEcrLifecycleState.Listening
+        status.value = PcUsbConnectionStatus.WaitingForData
+        Result.success(Unit)
+    }
+
     override suspend fun listenOnce() {
         val ensureResult = lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {
@@ -204,14 +232,20 @@ class XchengPcPaymentCommandRepository(
 
         Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
 
-        val command = when (protocolProvider()) {
+        val settings = settingsRepository.observeSettings().first()
+        val command = when (settings.pcEcrProtocol) {
             PcEcrProtocol.CHAIOK_JSON -> PcPaymentCommandParser.parse(bytes)
-            PcEcrProtocol.ARCUS2_NEWWAY -> when (val parsed = arcusAdapter.parseIncoming(bytes)) {
-                is EcrParseResult.Command -> when (val cmd = parsed.command) {
-                    is PcEcrCommand.Payment -> PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2")
+            PcEcrProtocol.ARCUS2_NEWWAY -> {
+                val adapter = Arcus2NewWayProtocolAdapter({ settings.arcus2NewWaySettings }, rawLogger)
+                when (val parsed = adapter.parseIncoming(bytes)) {
+                    is EcrParseResult.Command -> when (val cmd = parsed.command) {
+                        is PcEcrCommand.Payment -> PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
+                        is PcEcrCommand.Ping -> { sendArcus2PaymentResult(PcPaymentCommand(amount = java.math.BigDecimal.ONE, sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY), PcEcrFinalPaymentResult.Approved(), null, settings.arcus2NewWaySettings); null }
+                        is PcEcrCommand.Refund, is PcEcrCommand.Reversal, is PcEcrCommand.Settlement -> { sendArcus2PaymentResult(PcPaymentCommand(amount = java.math.BigDecimal.ONE, sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY), PcEcrFinalPaymentResult.Error("unsupported"), null, settings.arcus2NewWaySettings); null }
+                        else -> null
+                    }
                     else -> null
                 }
-                else -> null
             }
         }
         if (command != null) {

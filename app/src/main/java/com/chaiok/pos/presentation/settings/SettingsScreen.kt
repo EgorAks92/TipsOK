@@ -45,6 +45,7 @@ import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import com.chaiok.pos.domain.model.PcEcrProtocol
 
 private val SettingsBackgroundColor = Color.White
 private val SettingsPrimaryTextColor = Color(0xFF1B2128)
@@ -137,7 +138,8 @@ fun SettingsRoute(
         onPcIdleImages = onPcIdleImages,
         onTogglePcUsbMode = viewModel::togglePcUsbMode,
         onTogglePcCompactServiceFee = viewModel::togglePcCompactServiceFeeEnabled,
-        onToggleShowCustomTipButton = viewModel::onShowCustomTipButtonChanged
+        onToggleShowCustomTipButton = viewModel::onShowCustomTipButtonChanged,
+        onPcEcrProtocolChanged = viewModel::onPcEcrProtocolChanged
     )
 }
 
@@ -151,7 +153,8 @@ fun SettingsScreen(
     onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
-    onToggleShowCustomTipButton: (Boolean) -> Unit
+    onToggleShowCustomTipButton: (Boolean) -> Unit,
+    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit
 ) {
     when (rememberChaiOkDeviceClass()) {
         ChaiOkDeviceClass.SquareCompact -> {
@@ -164,7 +167,9 @@ fun SettingsScreen(
                 onPcIdleImages = onPcIdleImages,
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
-                onToggleShowCustomTipButton = onToggleShowCustomTipButton
+                onToggleShowCustomTipButton = onToggleShowCustomTipButton,
+                onPcEcrProtocolChanged = onPcEcrProtocolChanged,
+                onPcEcrProtocolChanged = onPcEcrProtocolChanged
             )
         }
 
@@ -178,7 +183,8 @@ fun SettingsScreen(
                 onPcIdleImages = onPcIdleImages,
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
-                onToggleShowCustomTipButton = onToggleShowCustomTipButton
+                onToggleShowCustomTipButton = onToggleShowCustomTipButton,
+                onPcEcrProtocolChanged = onPcEcrProtocolChanged
             )
         }
     }
@@ -194,7 +200,8 @@ private fun SettingsRegularScreen(
     onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
-    onToggleShowCustomTipButton: (Boolean) -> Unit
+    onToggleShowCustomTipButton: (Boolean) -> Unit,
+    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -252,6 +259,13 @@ private fun SettingsRegularScreen(
                     onClick = onPcIdleImages
                 )
 
+                SettingsRegularItem(
+                    title = "Протокол кассы",
+                    subtitle = if (state.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) "ARCUS2 NewWay" else "ChaiOK JSON",
+                    iconRes = R.drawable.ic_settings_integration,
+                    onClick = { onPcEcrProtocolChanged(if (state.pcEcrProtocol == PcEcrProtocol.CHAIOK_JSON) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON) }
+                )
+
                 SettingsRegularToggleItem(
                     title = "Режим работы с кассой",
                     subtitle = if (state.pcUsbModeEnabled) "Включено" else "Выключено",
@@ -289,7 +303,8 @@ private fun SettingsSquarePremiumScreen(
     onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
-    onToggleShowCustomTipButton: (Boolean) -> Unit
+    onToggleShowCustomTipButton: (Boolean) -> Unit,
+    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit
 ) {
     val metrics = squarePremiumSettingsMetrics()
     val scrollState = rememberScrollState()

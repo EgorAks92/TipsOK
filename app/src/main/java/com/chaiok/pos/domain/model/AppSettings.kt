@@ -19,7 +19,10 @@ data class Arcus2NewWaySettings(
     val sendStatusMessages: Boolean = true,
     val waitOkTimeoutMs: Long = 5000L,
     val maxReceiptPrintBlockBytes: Int = 500,
-    val enableRawArcus2Log: Boolean = true
+    val enableRawArcus2Log: Boolean = true,
+    val declinedDefaultRc: String = "05",
+    val cancelledRc: String = "999",
+    val errorRc: String = "999"
 )
 
 data class AppSettings(

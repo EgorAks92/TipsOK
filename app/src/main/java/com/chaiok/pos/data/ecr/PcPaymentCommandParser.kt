@@ -3,6 +3,7 @@ package com.chaiok.pos.data.ecr
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import org.json.JSONObject
 import java.math.BigDecimal
+import com.chaiok.pos.domain.model.PcEcrProtocol
 import java.math.RoundingMode
 
 object PcPaymentCommandParser {
@@ -47,7 +48,8 @@ object PcPaymentCommandParser {
             commandId = obj.optString("commandId").ifBlank { null },
             orderId = obj.optString("orderId").ifBlank { null },
             currency = currency,
-            rawPayloadPreview = preview(line)
+            rawPayloadPreview = preview(line),
+            sourceProtocol = PcEcrProtocol.CHAIOK_JSON
         )
     }.getOrNull()
 
@@ -58,7 +60,7 @@ object PcPaymentCommandParser {
             else -> text
         }
         val amount = parseAmount(token, currency = "RUB", allowComma = true) ?: return null
-        return PcPaymentCommand(amount = amount, rawPayloadPreview = preview(text))
+        return PcPaymentCommand(amount = amount, rawPayloadPreview = preview(text), sourceProtocol = PcEcrProtocol.CHAIOK_JSON)
     }
 
     private fun parseAmount(raw: String, currency: String, allowComma: Boolean): BigDecimal? {
