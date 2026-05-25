@@ -5,8 +5,11 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.chaiok.pos.domain.model.Arcus2NewWaySettings
+import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.TipRange
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -21,125 +24,130 @@ class AppDataStore(private val context: Context) {
         val waiterStatus = stringPreferencesKey("waiter_status")
         val hasLinkedCard = booleanPreferencesKey("has_linked_card")
         val cardSha = stringPreferencesKey("card_sha")
-
         val tipRangePercents = stringPreferencesKey("tip_range_percents")
         val tipRangeStart = intPreferencesKey("tip_range_start")
         val tipRangeFinish = intPreferencesKey("tip_range_finish")
         val tipRangeDefaultIndex = intPreferencesKey("tip_range_default_index")
-
         val serviceFeePercent = doublePreferencesKey("service_fee_percent")
         val pcUsbMode = booleanPreferencesKey("pc_usb_mode_enabled")
         val pcIdleImages = stringPreferencesKey("pc_idle_images")
         val pcCompactServiceFeeEnabled = booleanPreferencesKey("pc_compact_service_fee_enabled")
         val showCustomTipButton = booleanPreferencesKey("show_custom_tip_button")
+        val pcEcrProtocol = stringPreferencesKey("pc_ecr_protocol")
+
+        val arcus2SaleClass = stringPreferencesKey("arcus2_sale_class")
+        val arcus2SaleOp = stringPreferencesKey("arcus2_sale_op")
+        val arcus2ReversalClass = stringPreferencesKey("arcus2_reversal_class")
+        val arcus2ReversalOp = stringPreferencesKey("arcus2_reversal_op")
+        val arcus2RefundClass = stringPreferencesKey("arcus2_refund_class")
+        val arcus2RefundOp = stringPreferencesKey("arcus2_refund_op")
+        val arcus2SettlementClass = stringPreferencesKey("arcus2_settlement_class")
+        val arcus2SettlementOp = stringPreferencesKey("arcus2_settlement_op")
+        val arcus2PingClass = stringPreferencesKey("arcus2_ping_class")
+        val arcus2PingOp = stringPreferencesKey("arcus2_ping_op")
+        val arcus2CurrencyRub = stringPreferencesKey("arcus2_currency_rub_code")
+        val arcus2CurrencyAmd = stringPreferencesKey("arcus2_currency_amd_code")
+        val arcus2SendPrint = booleanPreferencesKey("arcus2_send_print_commands")
+        val arcus2SendStartEndPrint = booleanPreferencesKey("arcus2_send_start_end_print")
+        val arcus2SendSetTags = booleanPreferencesKey("arcus2_send_set_tags")
+        val arcus2SendStatusMessages = booleanPreferencesKey("arcus2_send_status_messages")
+        val arcus2WaitOkTimeoutMs = longPreferencesKey("arcus2_wait_ok_timeout_ms")
+        val arcus2MaxReceiptPrintBlockBytes = intPreferencesKey("arcus2_max_receipt_print_block_bytes")
+        val arcus2EnableRawLog = booleanPreferencesKey("arcus2_enable_raw_log")
+        val arcus2DeclinedDefaultRc = stringPreferencesKey("arcus2_declined_default_rc")
+        val arcus2CancelledRc = stringPreferencesKey("arcus2_cancelled_rc")
+        val arcus2ErrorRc = stringPreferencesKey("arcus2_error_rc")
+        val arcus2MinimalResultMode = booleanPreferencesKey("arcus2_minimal_result_mode")
+        val arcus2WaitOkAfterEachCommand = booleanPreferencesKey("arcus2_wait_ok_after_each_command")
+        val arcus2SendBeginTrOnPaymentStart = booleanPreferencesKey("arcus2_send_begin_tr_on_payment_start")
+        val arcus2SendStatusOnPaymentStart = booleanPreferencesKey("arcus2_send_status_on_payment_start")
+        val arcus2PaymentStartStatusText = stringPreferencesKey("arcus2_payment_start_status_text")
+        val arcus2DrainOkAfterCommandMs = longPreferencesKey("arcus2_drain_ok_after_command_ms")
     }
 
-    val integrationModeFlow: Flow<Boolean> =
-        context.dataStore.data.map { it[Keys.integrationMode] ?: false }
+    val integrationModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.integrationMode] ?: false }
+    val tableModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.tableMode] ?: false }
+    val tileBackgroundFlow: Flow<String> = context.dataStore.data.map { it[Keys.tileBackground] ?: "default" }
+    val waiterStatusFlow: Flow<String> = context.dataStore.data.map { it[Keys.waiterStatus] ?: "На смене" }
+    val hasLinkedCardFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.hasLinkedCard] ?: false }
+    val cardShaFlow: Flow<String?> = context.dataStore.data.map { it[Keys.cardSha] }
+    val serviceFeePercentFlow: Flow<Double> = context.dataStore.data.map { it[Keys.serviceFeePercent] ?: 0.0 }
+    val pcUsbModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.pcUsbMode] ?: false }
+    val pcIdleImagesFlow: Flow<List<String>> = context.dataStore.data.map { prefs -> prefs[Keys.pcIdleImages]?.split(PC_IDLE_IMAGES_SEPARATOR)?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList() }
+    val pcCompactServiceFeeEnabledFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.pcCompactServiceFeeEnabled] ?: true }
+    val showCustomTipButtonFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.showCustomTipButton] ?: true }
+    val pcEcrProtocolFlow: Flow<PcEcrProtocol> = context.dataStore.data.map { it[Keys.pcEcrProtocol]?.let { v -> runCatching { PcEcrProtocol.valueOf(v) }.getOrNull() } ?: PcEcrProtocol.CHAIOK_JSON }
 
-    val tableModeFlow: Flow<Boolean> =
-        context.dataStore.data.map { it[Keys.tableMode] ?: false }
-
-    val tileBackgroundFlow: Flow<String> =
-        context.dataStore.data.map { it[Keys.tileBackground] ?: "default" }
-
-    val waiterStatusFlow: Flow<String> =
-        context.dataStore.data.map { it[Keys.waiterStatus] ?: "На смене" }
-
-    val hasLinkedCardFlow: Flow<Boolean> =
-        context.dataStore.data.map { it[Keys.hasLinkedCard] ?: false }
-
-    val cardShaFlow: Flow<String?> =
-        context.dataStore.data.map { it[Keys.cardSha] }
-
-    val serviceFeePercentFlow: Flow<Double> =
-        context.dataStore.data.map { it[Keys.serviceFeePercent] ?: 0.0 }
-
-    val pcUsbModeFlow: Flow<Boolean> =
-        context.dataStore.data.map { it[Keys.pcUsbMode] ?: false }
-
-    val pcIdleImagesFlow: Flow<List<String>> =
-        context.dataStore.data.map { prefs ->
-            prefs[Keys.pcIdleImages]
-                ?.split(PC_IDLE_IMAGES_SEPARATOR)
-                ?.map { it.trim() }
-                ?.filter { it.isNotBlank() }
-                ?: emptyList()
-        }
-
-    val pcCompactServiceFeeEnabledFlow: Flow<Boolean> =
-        context.dataStore.data.map { it[Keys.pcCompactServiceFeeEnabled] ?: true }
-
-    val showCustomTipButtonFlow: Flow<Boolean> =
-        context.dataStore.data.map { it[Keys.showCustomTipButton] ?: true }
-
-    val tipRangeFlow: Flow<TipRange?> = context.dataStore.data.map { prefs ->
-        val percentsRaw = prefs[Keys.tipRangePercents]
-            ?.takeIf { it.isNotBlank() }
-            ?: return@map null
-
-        val percents = percentsRaw
-            .split(",")
-            .mapNotNull { it.toDoubleOrNull() }
-
-        if (percents.isEmpty()) return@map null
-
-        TipRange(
-            percents = percents,
-            startRange = prefs[Keys.tipRangeStart] ?: 0,
-            finishRange = prefs[Keys.tipRangeFinish] ?: 0,
-            defaultIndex = prefs[Keys.tipRangeDefaultIndex] ?: 0
+    val arcus2NewWaySettingsFlow: Flow<Arcus2NewWaySettings> = context.dataStore.data.map { p ->
+        val d = Arcus2NewWaySettings()
+        Arcus2NewWaySettings(
+            saleClass = p[Keys.arcus2SaleClass] ?: d.saleClass,
+            saleOp = p[Keys.arcus2SaleOp] ?: d.saleOp,
+            universalReversalClass = p[Keys.arcus2ReversalClass] ?: d.universalReversalClass,
+            universalReversalOp = p[Keys.arcus2ReversalOp] ?: d.universalReversalOp,
+            refundClass = p[Keys.arcus2RefundClass] ?: d.refundClass,
+            refundOp = p[Keys.arcus2RefundOp] ?: d.refundOp,
+            settlementClass = p[Keys.arcus2SettlementClass] ?: d.settlementClass,
+            settlementOp = p[Keys.arcus2SettlementOp] ?: d.settlementOp,
+            pingClass = p[Keys.arcus2PingClass] ?: d.pingClass,
+            pingOp = p[Keys.arcus2PingOp] ?: d.pingOp,
+            currencyRubCode = p[Keys.arcus2CurrencyRub] ?: d.currencyRubCode,
+            currencyAmdCode = p[Keys.arcus2CurrencyAmd] ?: d.currencyAmdCode,
+            sendPrintCommands = p[Keys.arcus2SendPrint] ?: d.sendPrintCommands,
+            sendStartEndPrint = p[Keys.arcus2SendStartEndPrint] ?: d.sendStartEndPrint,
+            sendSetTags = p[Keys.arcus2SendSetTags] ?: d.sendSetTags,
+            sendStatusMessages = p[Keys.arcus2SendStatusMessages] ?: d.sendStatusMessages,
+            waitOkTimeoutMs = p[Keys.arcus2WaitOkTimeoutMs] ?: d.waitOkTimeoutMs,
+            maxReceiptPrintBlockBytes = p[Keys.arcus2MaxReceiptPrintBlockBytes] ?: d.maxReceiptPrintBlockBytes,
+            enableRawArcus2Log = p[Keys.arcus2EnableRawLog] ?: d.enableRawArcus2Log,
+            declinedDefaultRc = p[Keys.arcus2DeclinedDefaultRc] ?: d.declinedDefaultRc,
+            cancelledRc = p[Keys.arcus2CancelledRc] ?: d.cancelledRc,
+            errorRc = p[Keys.arcus2ErrorRc] ?: d.errorRc,
+            minimalResultMode = p[Keys.arcus2MinimalResultMode] ?: d.minimalResultMode,
+            waitOkAfterEachCommand = p[Keys.arcus2WaitOkAfterEachCommand] ?: d.waitOkAfterEachCommand,
+            sendBeginTrOnPaymentStart = p[Keys.arcus2SendBeginTrOnPaymentStart] ?: d.sendBeginTrOnPaymentStart,
+            sendStatusOnPaymentStart = p[Keys.arcus2SendStatusOnPaymentStart] ?: d.sendStatusOnPaymentStart,
+            paymentStartStatusText = p[Keys.arcus2PaymentStartStatusText] ?: d.paymentStartStatusText,
+            drainOkAfterCommandMs = p[Keys.arcus2DrainOkAfterCommandMs] ?: d.drainOkAfterCommandMs
         )
     }
 
-    suspend fun setIntegrationMode(value: Boolean) = context.dataStore.edit {
-        it[Keys.integrationMode] = value
+    val tipRangeFlow: Flow<TipRange?> = context.dataStore.data.map { prefs ->
+        val percentsRaw = prefs[Keys.tipRangePercents]?.takeIf { it.isNotBlank() } ?: return@map null
+        val percents = percentsRaw.split(",").mapNotNull { it.toDoubleOrNull() }
+        if (percents.isEmpty()) return@map null
+        TipRange(percents = percents, startRange = prefs[Keys.tipRangeStart] ?: 0, finishRange = prefs[Keys.tipRangeFinish] ?: 0, defaultIndex = prefs[Keys.tipRangeDefaultIndex] ?: 0)
     }
 
-    suspend fun setTableMode(value: Boolean) = context.dataStore.edit {
-        it[Keys.tableMode] = value
+    suspend fun setIntegrationMode(value: Boolean) = context.dataStore.edit { it[Keys.integrationMode] = value }
+    suspend fun setTableMode(value: Boolean) = context.dataStore.edit { it[Keys.tableMode] = value }
+    suspend fun setTileBackground(value: String) = context.dataStore.edit { it[Keys.tileBackground] = value }
+    suspend fun setWaiterStatus(value: String) = context.dataStore.edit { it[Keys.waiterStatus] = value }
+    suspend fun setHasLinkedCard(value: Boolean) = context.dataStore.edit { it[Keys.hasLinkedCard] = value }
+    suspend fun setCardSha(value: String) = context.dataStore.edit { it[Keys.cardSha] = value }
+    suspend fun setServiceFeePercent(value: Double) = context.dataStore.edit { it[Keys.serviceFeePercent] = value.coerceAtLeast(0.0) }
+    suspend fun setPcUsbMode(value: Boolean) = context.dataStore.edit { it[Keys.pcUsbMode] = value }
+    suspend fun setPcIdleImages(images: List<String>) = context.dataStore.edit { it[Keys.pcIdleImages] = images.map { i -> i.trim() }.filter { it.isNotBlank() }.joinToString(PC_IDLE_IMAGES_SEPARATOR) }
+    suspend fun setPcCompactServiceFeeEnabled(value: Boolean) = context.dataStore.edit { it[Keys.pcCompactServiceFeeEnabled] = value }
+    suspend fun setShowCustomTipButton(value: Boolean) = context.dataStore.edit { it[Keys.showCustomTipButton] = value }
+    suspend fun setPcEcrProtocol(value: PcEcrProtocol) = context.dataStore.edit { it[Keys.pcEcrProtocol] = value.name }
+    suspend fun setArcus2NewWaySettings(value: Arcus2NewWaySettings) = context.dataStore.edit {
+        it[Keys.arcus2SaleClass] = value.saleClass; it[Keys.arcus2SaleOp] = value.saleOp
+        it[Keys.arcus2ReversalClass] = value.universalReversalClass; it[Keys.arcus2ReversalOp] = value.universalReversalOp
+        it[Keys.arcus2RefundClass] = value.refundClass; it[Keys.arcus2RefundOp] = value.refundOp
+        it[Keys.arcus2SettlementClass] = value.settlementClass; it[Keys.arcus2SettlementOp] = value.settlementOp
+        it[Keys.arcus2PingClass] = value.pingClass; it[Keys.arcus2PingOp] = value.pingOp
+        it[Keys.arcus2CurrencyRub] = value.currencyRubCode; it[Keys.arcus2CurrencyAmd] = value.currencyAmdCode
+        it[Keys.arcus2SendPrint] = value.sendPrintCommands; it[Keys.arcus2SendStartEndPrint] = value.sendStartEndPrint
+        it[Keys.arcus2SendSetTags] = value.sendSetTags; it[Keys.arcus2SendStatusMessages] = value.sendStatusMessages
+        it[Keys.arcus2WaitOkTimeoutMs] = value.waitOkTimeoutMs; it[Keys.arcus2MaxReceiptPrintBlockBytes] = value.maxReceiptPrintBlockBytes
+        it[Keys.arcus2EnableRawLog] = value.enableRawArcus2Log
+        it[Keys.arcus2DeclinedDefaultRc] = value.declinedDefaultRc; it[Keys.arcus2CancelledRc] = value.cancelledRc; it[Keys.arcus2ErrorRc] = value.errorRc
+        it[Keys.arcus2MinimalResultMode] = value.minimalResultMode; it[Keys.arcus2WaitOkAfterEachCommand] = value.waitOkAfterEachCommand
+        it[Keys.arcus2SendBeginTrOnPaymentStart] = value.sendBeginTrOnPaymentStart; it[Keys.arcus2SendStatusOnPaymentStart] = value.sendStatusOnPaymentStart
+        it[Keys.arcus2PaymentStartStatusText] = value.paymentStartStatusText
+        it[Keys.arcus2DrainOkAfterCommandMs] = value.drainOkAfterCommandMs
     }
-
-    suspend fun setTileBackground(value: String) = context.dataStore.edit {
-        it[Keys.tileBackground] = value
-    }
-
-    suspend fun setWaiterStatus(value: String) = context.dataStore.edit {
-        it[Keys.waiterStatus] = value
-    }
-
-    suspend fun setHasLinkedCard(value: Boolean) = context.dataStore.edit {
-        it[Keys.hasLinkedCard] = value
-    }
-
-    suspend fun setCardSha(value: String) = context.dataStore.edit {
-        it[Keys.cardSha] = value
-    }
-
-    suspend fun setServiceFeePercent(value: Double) = context.dataStore.edit {
-        it[Keys.serviceFeePercent] = value.coerceAtLeast(0.0)
-    }
-
-    suspend fun setPcUsbMode(value: Boolean) = context.dataStore.edit {
-        it[Keys.pcUsbMode] = value
-    }
-
-    suspend fun setPcIdleImages(images: List<String>) = context.dataStore.edit {
-        val raw = images
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .joinToString(PC_IDLE_IMAGES_SEPARATOR)
-        it[Keys.pcIdleImages] = raw
-    }
-
-    suspend fun setPcCompactServiceFeeEnabled(value: Boolean) = context.dataStore.edit {
-        it[Keys.pcCompactServiceFeeEnabled] = value
-    }
-
-    suspend fun setShowCustomTipButton(value: Boolean) = context.dataStore.edit {
-        it[Keys.showCustomTipButton] = value
-    }
-
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {
         it[Keys.tipRangePercents] = value.percents.joinToString(",")
         it[Keys.tipRangeStart] = value.startRange

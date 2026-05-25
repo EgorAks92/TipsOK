@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PosPaymentEvent
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
+import com.chaiok.pos.domain.model.PcEcrProtocol
+import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
 import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
@@ -106,7 +108,8 @@ class PcCompactTipPaymentViewModel(
     private val transactionLogRepository: PcPaymentTransactionLogRepository,
     private val sourceCommandId: String?,
     private val sourceOrderId: String?,
-    private val sourceCurrency: String?
+    private val sourceCurrency: String?,
+    private val sourceProtocol: String?
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PcCompactTipPaymentUiState(billAmount = billAmount))
     val uiState = _uiState.asStateFlow()
@@ -547,13 +550,42 @@ class PcCompactTipPaymentViewModel(
             terminalId = terminalId
         )
         Log.i(TAG, "PC ECR payment result prepared commandId=${frame.commandId} status=${frame.status}")
-        val sendResult = pcPaymentCommandRepository.sendPaymentResult(frame)
+        val sendResult = if ((sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name) {
+            pcPaymentCommandRepository.sendArcus2PaymentResult(
+                sourceCommand = PcPaymentCommand(
+                    amount = toMoneyAmount(state.billAmount, commandCurrency),
+                    commandId = commandId,
+                    currency = commandCurrency,
+                    orderId = sourceOrderId?.ifBlank { null },
+                    sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY
+                ),
+                result = result,
+                receiptText = when (result) {
+                    is PcEcrFinalPaymentResult.Approved -> result.receiptText
+                    is PcEcrFinalPaymentResult.Declined -> result.receiptText
+                    is PcEcrFinalPaymentResult.Cancelled -> result.receiptText
+                    is PcEcrFinalPaymentResult.Error -> result.receiptText
+                },
+                settings = observeSettingsUseCase().first().arcus2NewWaySettings
+            )
+        } else pcPaymentCommandRepository.sendPaymentResult(frame)
+        val isArcus = (sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name
         if (sendResult.isSuccess) {
-            Log.i(TAG, "PC ECR payment result sent commandId=${frame.commandId} status=${frame.status}")
-            transactionLogRepository.save(frame, "SENT", null)
+            if (isArcus) {
+                Log.i(TAG, "PC ARCUS2 payment result sequence sent commandId=${frame.commandId} status=${frame.status}")
+                transactionLogRepository.save(frame, "SENT_ARCUS2", null)
+            } else {
+                Log.i(TAG, "PC ECR payment result sent commandId=${frame.commandId} status=${frame.status}")
+                transactionLogRepository.save(frame, "SENT", null)
+            }
         } else {
-            Log.e(TAG, "PC ECR payment result send failed commandId=${frame.commandId} error=${sendResult.exceptionOrNull()?.message}")
-            transactionLogRepository.save(frame, "FAILED", sendResult.exceptionOrNull()?.message)
+            if (isArcus) {
+                Log.e(TAG, "PC ARCUS2 payment result sequence send failed commandId=${frame.commandId} error=${sendResult.exceptionOrNull()?.message}")
+                transactionLogRepository.save(frame, "FAILED_ARCUS2", sendResult.exceptionOrNull()?.message)
+            } else {
+                Log.e(TAG, "PC ECR payment result send failed commandId=${frame.commandId} error=${sendResult.exceptionOrNull()?.message}")
+                transactionLogRepository.save(frame, "FAILED", sendResult.exceptionOrNull()?.message)
+            }
         }
         Log.i(TAG, "PC ECR transaction log saved commandId=${frame.commandId}")
     }

@@ -2,6 +2,8 @@ package com.chaiok.pos.data.repository
 
 import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.domain.model.AppSettings
+import com.chaiok.pos.domain.model.Arcus2NewWaySettings
+import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -30,8 +32,10 @@ class DataStoreSettingsRepository(
         return combine(
             baseSettingsFlow,
             dataStore.pcCompactServiceFeeEnabledFlow,
-            dataStore.showCustomTipButtonFlow
-        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton ->
+            dataStore.showCustomTipButtonFlow,
+            dataStore.pcEcrProtocolFlow,
+            dataStore.arcus2NewWaySettingsFlow
+        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcEcrProtocol, arcus2NewWaySettings ->
             AppSettings(
                 integrationModeEnabled = base.integration,
                 tableModeEnabled = base.table,
@@ -39,7 +43,9 @@ class DataStoreSettingsRepository(
                 pcUsbModeEnabled = base.pcUsb,
                 pcIdleImages = base.pcIdleImages,
                 pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled,
-                showCustomTipButton = showCustomTipButton
+                showCustomTipButton = showCustomTipButton,
+                pcEcrProtocol = pcEcrProtocol,
+                arcus2NewWaySettings = arcus2NewWaySettings
             )
         }
     }
@@ -83,6 +89,19 @@ class DataStoreSettingsRepository(
     override suspend fun setShowCustomTipButton(enabled: Boolean) {
         runCatching {
             dataStore.setShowCustomTipButton(enabled)
+        }
+    }
+
+
+    override suspend fun setPcEcrProtocol(protocol: PcEcrProtocol) {
+        runCatching {
+            dataStore.setPcEcrProtocol(protocol)
+        }
+    }
+
+    override suspend fun setArcus2NewWaySettings(settings: Arcus2NewWaySettings) {
+        runCatching {
+            dataStore.setArcus2NewWaySettings(settings)
         }
     }
 
