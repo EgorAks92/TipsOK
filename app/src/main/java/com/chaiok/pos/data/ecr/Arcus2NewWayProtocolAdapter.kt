@@ -27,7 +27,7 @@ class NoOpArcus2FrameLogger : Arcus2FrameLogger {
 
 class Arcus2RawFrameLogger(
     private val context: Context,
-    private val enableFullRawLog: Boolean = true
+    private val enableFullRawLog: Boolean = false
 ) : Arcus2FrameLogger {
     private val dir = File(context.filesDir, "ecr_arcus2_raw").apply { mkdirs() }
 
@@ -125,7 +125,9 @@ class Arcus2CashRegisterSession(
         val frame = Arcus2BinLenCodec.encode(data)
         rawLogger.logOutgoing(frame, label)
         client.send(frame).getOrElse { return Result.failure(it) }
-        val response = client.receiveOnce(settings.waitOkTimeoutMs).getOrElse { return Result.failure(it) }
+        val response = client.receiveOnce(settings.waitOkTimeoutMs)
+            .getOrElse { return Result.failure(it) }
+            ?: return Result.failure(IllegalStateException("ARCUS2 cash register OK timeout for $label"))
         val responseText = decodeWin1251(Arcus2BinLenCodec.decode(response).getOrElse { return Result.failure(it) }.data)
             .trim('\u0000', ' ', '\n', '\r', '\t')
 
@@ -174,6 +176,13 @@ object Arcus2NewWayResultSequenceBuilder {
             }
             is PcEcrFinalPaymentResult.Declined -> {
                 if (settings.sendStatusMessages) addText("STATUS", "STATUS:Отклонено")
+                if (settings.sendPrintCommands && !receiptText.isNullOrBlank()) {
+                    if (settings.sendStartEndPrint) addText("STARTPRINT", "STARTPRINT:CUSTOMER")
+                    splitReceiptToPrintChunks(receiptText, settings.maxReceiptPrintBlockBytes).forEach { chunk ->
+                        addText("PRINT", "PRINT:$chunk")
+                    }
+                    if (settings.sendStartEndPrint) addText("ENDPRINT", "ENDPRINT:CUSTOMER")
+                }
                 addText("STORERC", "STORERC:${result.resultCode ?: settings.declinedDefaultRc}")
                 if (settings.sendSetTags) addText("SETTAGS", "SETTAGS:")
                 addText("ENDTR", "ENDTR")

@@ -34,6 +34,12 @@ class Arcus2NewWayResultSequenceBuilderTest {
         assertTrue(seq.map { decodeWin1251(it.data) }.none { it.startsWith("PRINT:") })
     }
 
+    @Test fun declinedWithReceiptPrints() {
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Declined(), "line1\nline2", Arcus2NewWaySettings())
+        val texts = seq.map { decodeWin1251(it.data) }
+        assertTrue(texts.any { it.startsWith("PRINT:") })
+    }
+
     @Test fun declined() {
         val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Declined(), null, Arcus2NewWaySettings())
         val texts = seq.map { decodeWin1251(it.data) }
