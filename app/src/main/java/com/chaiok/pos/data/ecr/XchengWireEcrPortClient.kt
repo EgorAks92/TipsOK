@@ -16,12 +16,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 class XchengWireEcrPortClient(context: Context) {
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
-
     private val appContext = context.applicationContext
 
     private var usb: IComm? = null
@@ -317,8 +313,7 @@ class XchengWireEcrPortClient(context: Context) {
     suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             ensureTransportReady().getOrThrow()
-            val line = json.encodeToString(frame) + "\n"
-            val bytes = line.toByteArray(Charsets.UTF_8)
+            val bytes = ChaiOkEcrFrameEncoder.encodePaymentResultLine(frame)
             Log.i(TAG, "send payment_result commandId=${frame.commandId} orderId=${frame.orderId ?: "-"} status=${frame.status} success=${frame.success} bytes=${bytes.size}")
             val usbComm = usb ?: error("USB service missing after ensure")
             usbComm.send(bytes)

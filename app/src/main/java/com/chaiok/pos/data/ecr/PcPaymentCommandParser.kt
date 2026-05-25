@@ -41,7 +41,7 @@ object PcPaymentCommandParser {
             else -> return null
         }
 
-        val amount = parseAmount(amountRaw, allowComma = false) ?: return null
+        val amount = parseAmount(amountRaw, currency = currency, allowComma = false) ?: return null
         PcPaymentCommand(
             amount = amount,
             commandId = obj.optString("commandId").ifBlank { null },
@@ -57,15 +57,17 @@ object PcPaymentCommandParser {
             text.startsWith("AMOUNT=", true) -> text.substringAfter('=')
             else -> text
         }
-        val amount = parseAmount(token, allowComma = true) ?: return null
+        val amount = parseAmount(token, currency = "RUB", allowComma = true) ?: return null
         return PcPaymentCommand(amount = amount, rawPayloadPreview = preview(text))
     }
 
-    private fun parseAmount(raw: String, allowComma: Boolean): BigDecimal? {
+    private fun parseAmount(raw: String, currency: String, allowComma: Boolean): BigDecimal? {
         val value = raw.trim().let { if (allowComma) it.replace(',', '.') else it }
-        return value.toBigDecimalOrNull()
-            ?.setScale(2, RoundingMode.HALF_UP)
-            ?.takeIf { it > BigDecimal.ZERO }
+        val decimal = value.toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO } ?: return null
+        return when (currency.uppercase()) {
+            "AMD" -> decimal.setScale(0, RoundingMode.HALF_UP)
+            else -> decimal.setScale(2, RoundingMode.HALF_UP)
+        }
     }
 
     private fun preview(value: String): String = value

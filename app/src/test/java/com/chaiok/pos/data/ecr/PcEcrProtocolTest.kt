@@ -4,8 +4,6 @@ import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.chaiok.pos.domain.model.ChaiOkEcrReceiptFrame
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import java.math.BigDecimal
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -13,11 +11,12 @@ import org.junit.Test
 class PcEcrProtocolTest {
     @Test
     fun dto_serializes_payment_result_type() {
-        val json = Json { encodeDefaults = true; explicitNulls = false }
         val frame = ChaiOkEcrPaymentResultFrame(commandId = "CHECK-1", status = "approved", success = true, currency = "RUB", createdAt = "2026-01-01T00:00:00Z", receipt = ChaiOkEcrReceiptFrame(text = "line1\nline2"))
-        val line = json.encodeToString(frame)
+        val bytes = ChaiOkEcrFrameEncoder.encodePaymentResultLine(frame)
+        val line = bytes.toString(Charsets.UTF_8)
         assertTrue(line.contains("\"type\":\"payment_result\""))
-        assertTrue((line + "\n").endsWith("\n"))
+        assertTrue(line.contains("line1\\nline2"))
+        assertEquals("\n".first().code.toByte(), bytes.last())
     }
 
     @Test

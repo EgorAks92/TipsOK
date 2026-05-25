@@ -1,8 +1,5 @@
 package com.chaiok.pos.domain.model
 
-import kotlinx.serialization.Serializable
-
-@Serializable
 data class ChaiOkEcrPaymentResultFrame(
     val proto: String = "chaiok-ecr",
     val version: Int = 1,
@@ -25,7 +22,6 @@ data class ChaiOkEcrPaymentResultFrame(
     val receipt: ChaiOkEcrReceiptFrame? = null
 )
 
-@Serializable
 data class ChaiOkEcrReceiptFrame(
     val format: String = "text",
     val encoding: String = "utf-8",

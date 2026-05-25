@@ -610,7 +610,7 @@ class PcCompactTipPaymentViewModel(
     private fun buildRequest(state: PcCompactTipPaymentUiState): PosPaymentRequest? {
         if (waiterId.isBlank() || terminalId.isBlank()) return null
         return PosPaymentRequest(
-            amount = BigDecimal.valueOf(state.totalAmount).setScale(2, RoundingMode.HALF_UP),
+            amount = toMoneyAmount(state.totalAmount, commandCurrency),
             waiterId = waiterId,
             terminalId = terminalId,
             tipAmount = state.selectedTipAmount,

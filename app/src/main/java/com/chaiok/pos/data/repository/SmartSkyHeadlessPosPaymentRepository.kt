@@ -519,22 +519,33 @@ class SmartSkyHeadlessPosPaymentRepository(
 
     private fun TransactionResult.extractReceiptText(): String? {
         fun normalize(value: String?): String? = value
-            ?.replace("
-", "
-")
-            ?.replace('', '
-')
-            ?.trim()
-            ?.ifBlank { null }
+            ?.replace("\r\n", "\n")
+            ?.replace('\r', '\n')
+            runCatching { javaClass.getMethod("getReceipt").invoke(this) as? String }.getOrNull(),
+            runCatching { javaClass.getMethod("getReceiptText").invoke(this) as? String }.getOrNull(),
+            runCatching { javaClass.getMethod("getCustomerReceipt").invoke(this) as? String }.getOrNull(),
+            runCatching { javaClass.getMethod("getMerchantReceipt").invoke(this) as? String }.getOrNull()
+            return direct.distinct().joinToString("\n\n")
+        val candidateNames = listOf(
+            "receipt",
+            "receiptText",
+            "slip",
+            "customerReceipt",
+            "merchantReceipt",
+            "customerSlip",
+            "merchantSlip",
+            "printData",
+            "check",
+            "receiptData"
+        )
 
-        val direct = listOfNotNull(
-            runCatching { this.javaClass.getMethod("getReceipt").invoke(this) as? String }.getOrNull(),
-            runCatching { this.javaClass.getMethod("getReceiptText").invoke(this) as? String }.getOrNull(),
-            runCatching { this.javaClass.getMethod("getCustomerReceipt").invoke(this) as? String }.getOrNull(),
-            runCatching { this.javaClass.getMethod("getMerchantReceipt").invoke(this) as? String }.getOrNull(),
-        ).mapNotNull(::normalize)
+                val getterName = "get" + name.replaceFirstChar { it.uppercase() }
+                val method = javaClass.methods.firstOrNull {
+                    it.parameterCount == 0 && it.name == getterName
+                }
 
-        if (direct.isNotEmpty()) {
+
+        return reflected.distinct().joinToString("\n\n")
             return direct.distinct().joinToString("
 
 ")
