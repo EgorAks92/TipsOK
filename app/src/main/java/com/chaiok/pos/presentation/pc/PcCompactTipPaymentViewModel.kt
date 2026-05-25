@@ -519,8 +519,9 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = "Оплата отменена"
                     )
                 }
-                pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Cancelled(message = "Cancelled")
-                scheduleDeclinedAutoClose()
+                sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled"))
+                resumePcEcrAfterPayment("cancelled")
+                _events.send(PcCompactTipPaymentEvent.CancelledByUser)
             }
         }
     }
@@ -540,9 +541,9 @@ class PcCompactTipPaymentViewModel(
             commandId = commandId,
             orderId = sourceOrderId?.ifBlank { null },
             currency = commandCurrency,
-            billAmount = BigDecimal.valueOf(state.billAmount).setScale(2, RoundingMode.HALF_UP),
-            tipAmount = BigDecimal.valueOf(state.selectedTipAmount).setScale(2, RoundingMode.HALF_UP),
-            totalAmount = BigDecimal.valueOf(state.totalAmount).setScale(2, RoundingMode.HALF_UP),
+            billAmount = toMoneyAmount(state.billAmount, commandCurrency),
+            tipAmount = toMoneyAmount(state.selectedTipAmount, commandCurrency),
+            totalAmount = toMoneyAmount(state.totalAmount, commandCurrency),
             terminalId = terminalId
         )
         Log.i(TAG, "PC ECR payment result prepared commandId=${frame.commandId} status=${frame.status}")
@@ -599,6 +600,12 @@ class PcCompactTipPaymentViewModel(
         result.onSuccess { Log.i(TAG, "ECR resumed listening") }
             .onFailure { Log.e(TAG, "ECR resume after SSP payment failed", it) }
     }
+
+    private fun toMoneyAmount(value: Double, currency: String): BigDecimal =
+        when (currency.uppercase()) {
+            "AMD" -> BigDecimal.valueOf(value).setScale(0, RoundingMode.HALF_UP)
+            else -> BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP)
+        }
 
     private fun buildRequest(state: PcCompactTipPaymentUiState): PosPaymentRequest? {
         if (waiterId.isBlank() || terminalId.isBlank()) return null

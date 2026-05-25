@@ -11,6 +11,7 @@ class PcPaymentCommandParserTest {
     @Test fun wrongProtoRejected() { assertNull(PcPaymentCommandParser.parse("{\"proto\":\"x\",\"version\":1,\"type\":\"payment\",\"amount\":\"1.00\"}".toByteArray())) }
     @Test fun wrongVersionRejected() { assertNull(PcPaymentCommandParser.parse("{\"proto\":\"chaiok-ecr\",\"version\":2,\"type\":\"payment\",\"amount\":\"1.00\"}".toByteArray())) }
     @Test fun wrongTypeRejected() { assertNull(PcPaymentCommandParser.parse("{\"proto\":\"chaiok-ecr\",\"version\":1,\"type\":\"status\",\"amount\":\"1.00\"}".toByteArray())) }
+    @Test fun amdCurrencyAccepted() { assertEquals("AMD", PcPaymentCommandParser.parse("{\"proto\":\"chaiok-ecr\",\"version\":1,\"type\":\"payment\",\"amount\":\"1500\",\"currency\":\"amd\"}".toByteArray())?.currency) }
     @Test fun unsupportedCurrencyRejected() { assertNull(PcPaymentCommandParser.parse("{\"proto\":\"chaiok-ecr\",\"version\":1,\"type\":\"payment\",\"amount\":\"1.00\",\"currency\":\"USD\"}".toByteArray())) }
     @Test fun amountNumberValid() { assertEquals("1.25", PcPaymentCommandParser.parse("{\"proto\":\"chaiok-ecr\",\"version\":1,\"type\":\"payment\",\"amount\":1.25}".toByteArray())?.amount.toString()) }
     @Test fun commaFallbackValid() { assertEquals("1250.00", PcPaymentCommandParser.parse("1250,00".toByteArray())?.amount.toString()) }

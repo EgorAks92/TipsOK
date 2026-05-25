@@ -29,8 +29,11 @@ object PcPaymentCommandParser {
         if (obj.optInt("version", -1) != 1) return null
         if (obj.optString("type") != "payment") return null
 
-        val currency = obj.optString("currency", "RUB").ifBlank { "RUB" }
-        if (currency != "RUB") return null
+        val currency = obj.optString("currency", "RUB")
+            .trim()
+            .uppercase()
+            .ifBlank { "RUB" }
+        if (currency !in setOf("RUB", "AMD")) return null
 
         val amountRaw: String = when (val amount = obj.opt("amount")) {
             is Number -> amount.toString()

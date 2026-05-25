@@ -518,16 +518,42 @@ class SmartSkyHeadlessPosPaymentRepository(
 
 
     private fun TransactionResult.extractReceiptText(): String? {
-        val candidateNames = listOf("receipt", "receiptText", "slip", "customerReceipt", "merchantReceipt", "customerSlip", "merchantSlip")
-        val parts = mutableListOf<String>()
-        candidateNames.forEach { name ->
-            val value = runCatching {
-                val method = javaClass.methods.firstOrNull { it.parameterCount == 0 && it.name.equals("get" + name.replaceFirstChar { c -> c.uppercase() }) }
-                method?.invoke(this) as? String
-            }.getOrNull()?.trim().orEmpty()
-            if (value.isNotBlank()) parts += value
+        fun normalize(value: String?): String? = value
+            ?.replace("
+", "
+")
+            ?.replace('', '
+')
+            ?.trim()
+            ?.ifBlank { null }
+
+        val direct = listOfNotNull(
+            runCatching { this.javaClass.getMethod("getReceipt").invoke(this) as? String }.getOrNull(),
+            runCatching { this.javaClass.getMethod("getReceiptText").invoke(this) as? String }.getOrNull(),
+            runCatching { this.javaClass.getMethod("getCustomerReceipt").invoke(this) as? String }.getOrNull(),
+            runCatching { this.javaClass.getMethod("getMerchantReceipt").invoke(this) as? String }.getOrNull(),
+        ).mapNotNull(::normalize)
+
+        if (direct.isNotEmpty()) {
+            return direct.distinct().joinToString("
+
+")
         }
-        return parts.distinct().joinToString("\n\n").ifBlank { null }
+
+        val candidateNames = listOf("receipt", "receiptText", "slip", "customerReceipt", "merchantReceipt", "customerSlip", "merchantSlip", "printData", "check", "receiptData")
+        val reflected = candidateNames.mapNotNull { name ->
+            runCatching {
+                val method = javaClass.methods.firstOrNull { it.parameterCount == 0 && it.name.equals("get" + name.replaceFirstChar { c -> c.uppercase() }) }
+                normalize(method?.invoke(this) as? String)
+            }.getOrNull()
+        }
+        if (reflected.isEmpty()) {
+            Log.i(PAYMENT_TAG, "SSP receipt text not found in TransactionResult, fallback receipt will be used")
+            return null
+        }
+        return reflected.distinct().joinToString("
+
+")
     }
 
     private fun TransactionResult?.toSafePaymentResultLog(): String {

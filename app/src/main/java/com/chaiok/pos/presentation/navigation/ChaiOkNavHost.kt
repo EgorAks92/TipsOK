@@ -374,14 +374,19 @@ fun ChaiOkNavHost(container: AppContainer) {
                 navArgument("orderId") {
                     type = NavType.StringType
                     defaultValue = ""
+                },
+                navArgument("currency") {
+                    type = NavType.StringType
+                    defaultValue = "RUB"
                 }
             )
         ) { backStack ->
-            val billAmount = backStack.arguments
-                ?.getLong("billAmountKopecks")
-                ?.toDouble()
-                ?.div(100.0)
-                ?: 0.0
+            val currency = backStack.arguments?.getString("currency")?.ifBlank { "RUB" } ?: "RUB"
+            val billAmountMinor = backStack.arguments?.getLong("billAmountKopecks") ?: 0L
+            val billAmount = when (currency.uppercase()) {
+                "AMD" -> billAmountMinor.toDouble()
+                else -> billAmountMinor.toDouble() / 100.0
+            }
 
             val isPcUsbSource = backStack.arguments?.getString("source") == "pc_usb"
             val deviceClass = rememberChaiOkDeviceClass()
@@ -707,7 +712,12 @@ fun ChaiOkNavHost(container: AppContainer) {
                 navArgument("currency") { type = NavType.StringType; defaultValue = "RUB" }
             )
         ) { backStack ->
-            val billAmount = backStack.arguments?.getLong("billAmountKopecks")?.toDouble()?.div(100.0) ?: 0.0
+            val currency = backStack.arguments?.getString("currency")?.ifBlank { "RUB" } ?: "RUB"
+            val billAmountMinor = backStack.arguments?.getLong("billAmountKopecks") ?: 0L
+            val billAmount = when (currency.uppercase()) {
+                "AMD" -> billAmountMinor.toDouble()
+                else -> billAmountMinor.toDouble() / 100.0
+            }
             val vm: PcCompactTipPaymentViewModel = viewModel(
                 factory = SimpleFactory {
                     PcCompactTipPaymentViewModel(
