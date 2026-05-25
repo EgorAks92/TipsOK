@@ -168,7 +168,6 @@ fun SettingsScreen(
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
                 onToggleShowCustomTipButton = onToggleShowCustomTipButton,
-                onPcEcrProtocolChanged = onPcEcrProtocolChanged,
                 onPcEcrProtocolChanged = onPcEcrProtocolChanged
             )
         }
@@ -369,6 +368,14 @@ private fun SettingsSquarePremiumScreen(
                         iconRes = R.drawable.ic_cash,
                         metrics = metrics,
                         onClick = onPcIdleImages
+                    )
+
+                    SettingsPremiumItem(
+                        title = "Протокол кассы",
+                        subtitle = if (state.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) "ARCUS2 NewWay" else "ChaiOK JSON",
+                        iconRes = R.drawable.ic_settings_integration,
+                        metrics = metrics,
+                        onClick = { onPcEcrProtocolChanged(if (state.pcEcrProtocol == PcEcrProtocol.CHAIOK_JSON) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON) }
                     )
 
                     SettingsPremiumToggleItem(

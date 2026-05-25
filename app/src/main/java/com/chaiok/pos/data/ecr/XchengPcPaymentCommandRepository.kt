@@ -9,6 +9,7 @@ import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcEcrCommand
+import java.math.BigDecimal
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.repository.SettingsRepository
 import android.content.Context
@@ -133,27 +134,62 @@ class XchengPcPaymentCommandRepository(
             sendResult
         }
 
-    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings): Result<Unit> = lifecycleMutex.withLock {
+    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings): Result<Unit> {
+        lifecycleMutex.withLock {
+            if (lifecycleState == PcEcrLifecycleState.Stopped) {
+                lifecycleState = PcEcrLifecycleState.Disconnected
+                status.value = PcUsbConnectionStatus.BindingService
+            }
+        }
+
+        val resumeResult = client.resumeTransportAfterPayment()
+        if (resumeResult.isFailure) {
+            val message = resumeResult.exceptionOrNull()?.message ?: "resume transport error"
+            lifecycleMutex.withLock {
+                lifecycleState = PcEcrLifecycleState.Error
+                status.value = PcUsbConnectionStatus.Error(message)
+            }
+            return resumeResult
+        }
+
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
-        fun status(text: String) = if (settings.sendStatusMessages) session.sendCommandAndWaitOk("STATUS:$text") else Result.success(Unit)
-        fun printIfNeeded() : Result<Unit> {
-            if (!settings.sendPrintCommands || receiptText.isNullOrBlank()) return Result.success(Unit)
-            if (settings.sendStartEndPrint) session.sendCommandAndWaitOk("STARTPRINT:CUSTOMER").getOrElse { return Result.failure(it) }
-            session.sendPrintReceipt(receiptText).getOrElse { return Result.failure(it) }
-            if (settings.sendStartEndPrint) session.sendCommandAndWaitOk("ENDPRINT:CUSTOMER").getOrElse { return Result.failure(it) }
-            return Result.success(Unit)
+        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings)
+        val sendResult = runCatching {
+            sequence.forEach { cmd ->
+                session.sendDataAndWaitOk(cmd.data, cmd.label).getOrThrow()
+            }
         }
-        when (result) {
-            is PcEcrFinalPaymentResult.Approved -> { status("Одобрено").getOrElse { return@withLock Result.failure(it) }; printIfNeeded().getOrElse { return@withLock Result.failure(it) }; session.sendCommandAndWaitOk("STORERC:00").getOrElse { return@withLock Result.failure(it) } }
-            is PcEcrFinalPaymentResult.Declined -> { status("Отклонено").getOrElse { return@withLock Result.failure(it) }; printIfNeeded().getOrElse { return@withLock Result.failure(it) }; session.sendCommandAndWaitOk("STORERC:${result.resultCode ?: settings.declinedDefaultRc}").getOrElse { return@withLock Result.failure(it) } }
-            is PcEcrFinalPaymentResult.Cancelled -> { status("Отменено").getOrElse { return@withLock Result.failure(it) }; session.sendCommandAndWaitOk("STORERC:${settings.cancelledRc}").getOrElse { return@withLock Result.failure(it) } }
-            is PcEcrFinalPaymentResult.Error -> { status("Ошибка").getOrElse { return@withLock Result.failure(it) }; session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrElse { return@withLock Result.failure(it) } }
+
+        lifecycleMutex.withLock {
+            if (sendResult.isSuccess) {
+                lifecycleState = PcEcrLifecycleState.Listening
+                status.value = PcUsbConnectionStatus.WaitingForData
+            } else {
+                lifecycleState = PcEcrLifecycleState.Error
+                status.value = PcUsbConnectionStatus.Error(sendResult.exceptionOrNull()?.message ?: "arcus2 send error")
+            }
         }
-        if (settings.sendSetTags) session.sendSetTags(Arcus2TagsBuilder.buildPaymentTags(result, sourceCommand.amount, sourceCommand.currency, null)).getOrElse { return@withLock Result.failure(it) }
-        session.sendCommandAndWaitOk("ENDTR").getOrElse { return@withLock Result.failure(it) }
-        lifecycleState = PcEcrLifecycleState.Listening
-        status.value = PcUsbConnectionStatus.WaitingForData
-        Result.success(Unit)
+        return sendResult.map { Unit }
+    }
+
+    private suspend fun sendArcus2SimpleSuccess(settings: Arcus2NewWaySettings): Result<Unit> {
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        return runCatching {
+            client.resumeTransportAfterPayment().getOrThrow()
+            session.sendCommandAndWaitOk("STORERC:00").getOrThrow()
+            session.sendCommandAndWaitOk("ENDTR").getOrThrow()
+        }.map { Unit }
+    }
+
+    private suspend fun sendArcus2Unsupported(settings: Arcus2NewWaySettings, message: String): Result<Unit> {
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        return runCatching {
+            client.resumeTransportAfterPayment().getOrThrow()
+            if (settings.sendStatusMessages) session.sendCommandAndWaitOk("STATUS:Операция не поддержана").getOrThrow()
+            session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrThrow()
+            session.sendCommandAndWaitOk("ENDTR").getOrThrow()
+            Log.w(TAG, message)
+        }.map { Unit }
     }
 
     override suspend fun listenOnce() {
@@ -240,8 +276,8 @@ class XchengPcPaymentCommandRepository(
                 when (val parsed = adapter.parseIncoming(bytes)) {
                     is EcrParseResult.Command -> when (val cmd = parsed.command) {
                         is PcEcrCommand.Payment -> PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
-                        is PcEcrCommand.Ping -> { sendArcus2PaymentResult(PcPaymentCommand(amount = java.math.BigDecimal.ONE, sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY), PcEcrFinalPaymentResult.Approved(), null, settings.arcus2NewWaySettings); null }
-                        is PcEcrCommand.Refund, is PcEcrCommand.Reversal, is PcEcrCommand.Settlement -> { sendArcus2PaymentResult(PcPaymentCommand(amount = java.math.BigDecimal.ONE, sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY), PcEcrFinalPaymentResult.Error("unsupported"), null, settings.arcus2NewWaySettings); null }
+                        is PcEcrCommand.Ping -> { sendArcus2SimpleSuccess(settings.arcus2NewWaySettings); null }
+                        is PcEcrCommand.Refund, is PcEcrCommand.Reversal, is PcEcrCommand.Settlement -> { sendArcus2Unsupported(settings.arcus2NewWaySettings, "Unsupported ARCUS2 operation"); null }
                         else -> null
                     }
                     else -> null
