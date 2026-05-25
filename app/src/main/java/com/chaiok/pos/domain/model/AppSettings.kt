@@ -27,8 +27,7 @@ data class Arcus2NewWaySettings(
     val waitOkAfterEachCommand: Boolean = false,
     val sendBeginTrOnPaymentStart: Boolean = true,
     val sendStatusOnPaymentStart: Boolean = true,
-    val paymentStartStatusText: String = "Ожидание карты",
-    val drainOkAfterCommandMs: Long = 200L
+    val paymentStartStatusText: String = "Ожидание карты"
 )
 
 data class AppSettings(

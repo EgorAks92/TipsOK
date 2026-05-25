@@ -14,13 +14,13 @@ class Arcus2NewWayResultSequenceBuilderTest {
     @Test fun minimalApprovedSequence() {
         val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), "hello", Arcus2NewWaySettings(minimalResultMode = true))
         val texts = seq.map { decodeWin1251(it.data) }
-        assertTrue(texts == listOf("STORERC:00", "SETTAGS:", "ENDTR"))
+        assertTrue(texts == listOf("STORERC:00", "ENDTR"))
     }
 
     @Test fun minimalDeclinedSequence() {
         val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Declined(), null, Arcus2NewWaySettings(minimalResultMode = true))
         val texts = seq.map { decodeWin1251(it.data) }
-        assertTrue(texts == listOf("STORERC:05", "SETTAGS:", "ENDTR"))
+        assertTrue(texts == listOf("STORERC:05", "ENDTR"))
     }
 
     @Test fun approvedWithReceipt() {

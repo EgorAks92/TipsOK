@@ -143,15 +143,11 @@ class XchengPcPaymentCommandRepository(
 
     override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings): Result<Unit> {
         lifecycleMutex.withLock {
-            if (lifecycleState == PcEcrLifecycleState.Stopped && !activeArcus2Transaction) {
+            if (lifecycleState == PcEcrLifecycleState.Stopped) {
                 val message = "ARCUS2 result cannot be sent: repository stopped and COM session is lost"
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(message)
                 return Result.failure(IllegalStateException(message))
-            }
-            if (lifecycleState == PcEcrLifecycleState.Stopped && activeArcus2Transaction) {
-                Log.w(TAG, "ARCUS2 result requested while lifecycle=Stopped but activeArcus2Transaction=true; sending final result on kept transport")
-                lifecycleState = PcEcrLifecycleState.PausedForPayment
             }
         }
 
@@ -163,7 +159,7 @@ class XchengPcPaymentCommandRepository(
             is PcEcrFinalPaymentResult.Cancelled -> "cancelled"
             is PcEcrFinalPaymentResult.Error -> "error"
         }
-        Log.i(TAG, "ARCUS2 final result send start commandId=${sourceCommand.commandId ?: "-"} lifecycle=$lifecycleState active=$activeArcus2Transaction status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
+        Log.i(TAG, "ARCUS2 result sequence commandId=${sourceCommand.commandId ?: "-"} status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
 
         val sendResult = runCatching {
             sequence.forEach { cmd ->
@@ -175,17 +171,10 @@ class XchengPcPaymentCommandRepository(
             if (sendResult.isSuccess) {
                 lifecycleState = PcEcrLifecycleState.Listening
                 status.value = PcUsbConnectionStatus.WaitingForData
-                Log.i(TAG, "ARCUS2 final result sent commandId=${sourceCommand.commandId ?: "-"}")
             } else {
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(sendResult.exceptionOrNull()?.message ?: "arcus2 send error")
-                Log.e(TAG, "ARCUS2 final result failed commandId=${sourceCommand.commandId ?: "-"} error=${sendResult.exceptionOrNull()?.message}")
             }
-            if (activeArcus2Transaction) {
-                Log.i(TAG, "ARCUS2 active transaction cleared commandId=${activeArcus2CommandId ?: "-"}")
-            }
-            activeArcus2Transaction = false
-            activeArcus2CommandId = null
         }
         return sendResult
     }
@@ -315,13 +304,6 @@ class XchengPcPaymentCommandRepository(
                                 null
                             } else {
                                 Log.i(TAG, "ARCUS2 payment command accepted commandId=${cmd.commandId ?: "-"}")
-                                lifecycleMutex.withLock {
-                                    activeArcus2Transaction = true
-                                    activeArcus2CommandId = cmd.commandId
-                                    lifecycleState = PcEcrLifecycleState.PausedForPayment
-                                    status.value = PcUsbConnectionStatus.Idle
-                                }
-                                Log.i(TAG, "ARCUS2 active transaction started commandId=${cmd.commandId ?: "-"}")
                                 PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
                             }
                         }

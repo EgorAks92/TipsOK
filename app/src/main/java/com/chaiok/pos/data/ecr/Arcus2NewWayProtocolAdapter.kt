@@ -133,19 +133,7 @@ class Arcus2CashRegisterSession(
         Log.i("Arcus2Session", "ARCUS2 OUT sent label=$label bytes=${frame.size}")
         if (!settings.waitOkAfterEachCommand) {
             Log.i("Arcus2Session", "ARCUS2 sent label=$label without waiting OK")
-            val drained = client.receiveOnce(settings.drainOkAfterCommandMs).getOrNull()
-            val maybe = drained
-                ?.let { Arcus2BinLenCodec.decode(it).getOrNull()?.data }
-                ?.let(::decodeWin1251)
-                ?.trim('\u0000', ' ', '\n', '\r', '\t')
-            when (maybe) {
-                null, "", "OK" -> return Result.success(Unit)
-                "ER" -> return Result.failure(IllegalStateException("Cash register returned ER for $label"))
-                else -> {
-                    Log.w("Arcus2Session", "ARCUS2 drain unknown label=$label resp=${maybe.take(32)}")
-                    return Result.success(Unit)
-                }
-            }
+            return Result.success(Unit)
         }
 
         Log.i("Arcus2Session", "ARCUS2 wait OK label=$label timeoutMs=${settings.waitOkTimeoutMs}")
@@ -183,22 +171,18 @@ object Arcus2NewWayResultSequenceBuilder {
             return when (result) {
                 is PcEcrFinalPaymentResult.Approved -> listOf(
                     Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:00")),
-                    Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:")),
                     Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
                 )
                 is PcEcrFinalPaymentResult.Declined -> listOf(
                     Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${result.resultCode ?: settings.declinedDefaultRc}")),
-                    Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:")),
                     Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
                 )
                 is PcEcrFinalPaymentResult.Cancelled -> listOf(
                     Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${settings.cancelledRc}")),
-                    Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:")),
                     Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
                 )
                 is PcEcrFinalPaymentResult.Error -> listOf(
                     Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${settings.errorRc}")),
-                    Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:")),
                     Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
                 )
             }

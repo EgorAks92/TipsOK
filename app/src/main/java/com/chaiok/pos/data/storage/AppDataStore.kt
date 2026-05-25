@@ -62,7 +62,6 @@ class AppDataStore(private val context: Context) {
         val arcus2SendBeginTrOnPaymentStart = booleanPreferencesKey("arcus2_send_begin_tr_on_payment_start")
         val arcus2SendStatusOnPaymentStart = booleanPreferencesKey("arcus2_send_status_on_payment_start")
         val arcus2PaymentStartStatusText = stringPreferencesKey("arcus2_payment_start_status_text")
-        val arcus2DrainOkAfterCommandMs = longPreferencesKey("arcus2_drain_ok_after_command_ms")
     }
 
     val integrationModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.integrationMode] ?: false }
@@ -107,8 +106,7 @@ class AppDataStore(private val context: Context) {
             waitOkAfterEachCommand = p[Keys.arcus2WaitOkAfterEachCommand] ?: d.waitOkAfterEachCommand,
             sendBeginTrOnPaymentStart = p[Keys.arcus2SendBeginTrOnPaymentStart] ?: d.sendBeginTrOnPaymentStart,
             sendStatusOnPaymentStart = p[Keys.arcus2SendStatusOnPaymentStart] ?: d.sendStatusOnPaymentStart,
-            paymentStartStatusText = p[Keys.arcus2PaymentStartStatusText] ?: d.paymentStartStatusText,
-            drainOkAfterCommandMs = p[Keys.arcus2DrainOkAfterCommandMs] ?: d.drainOkAfterCommandMs
+            paymentStartStatusText = p[Keys.arcus2PaymentStartStatusText] ?: d.paymentStartStatusText
         )
     }
 
@@ -146,7 +144,6 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2MinimalResultMode] = value.minimalResultMode; it[Keys.arcus2WaitOkAfterEachCommand] = value.waitOkAfterEachCommand
         it[Keys.arcus2SendBeginTrOnPaymentStart] = value.sendBeginTrOnPaymentStart; it[Keys.arcus2SendStatusOnPaymentStart] = value.sendStatusOnPaymentStart
         it[Keys.arcus2PaymentStartStatusText] = value.paymentStartStatusText
-        it[Keys.arcus2DrainOkAfterCommandMs] = value.drainOkAfterCommandMs
     }
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {
         it[Keys.tipRangePercents] = value.percents.joinToString(",")
