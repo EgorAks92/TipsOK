@@ -45,6 +45,12 @@ class XchengPcPaymentCommandRepository(
     @Volatile
     private var lifecycleState: PcEcrLifecycleState = PcEcrLifecycleState.Disconnected
 
+    @Volatile
+    private var activeArcus2Transaction: Boolean = false
+
+    @Volatile
+    private var activeArcus2CommandId: String? = null
+
     override fun observeCommands(): Flow<PcPaymentCommand> = commands
 
     override fun observeStatus(): Flow<PcUsbConnectionStatus> = status
@@ -427,8 +433,15 @@ class XchengPcPaymentCommandRepository(
         }
     }
 
-    override suspend fun stopCompletely(): Result<Unit> =
-        lifecycleMutex.withLock {
+    override suspend fun stopCompletely(): Result<Unit> {
+        val settings = settingsRepository.observeSettings().first()
+        return lifecycleMutex.withLock {
+            if (settings.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY && activeArcus2Transaction) {
+                lifecycleState = PcEcrLifecycleState.PausedForPayment
+                status.value = PcUsbConnectionStatus.Idle
+                Log.i(TAG, "ARCUS2 active transaction: ignore stopCompletely until final result is sent commandId=${activeArcus2CommandId ?: "-"}")
+                return@withLock Result.success(Unit)
+            }
             Log.i(TAG, "ECR stop completely")
 
             if (
@@ -450,6 +463,7 @@ class XchengPcPaymentCommandRepository(
 
             result
         }
+    }
 
     private fun ByteArray.toHexPreview(limit: Int = 96): String =
         take(limit).joinToString(" ") { "%02X".format(it) }
