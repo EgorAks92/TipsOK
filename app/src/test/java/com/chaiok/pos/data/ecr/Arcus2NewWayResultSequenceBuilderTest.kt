@@ -37,38 +37,38 @@ class Arcus2NewWayResultSequenceBuilderTest {
 
     @Test fun approvedLongReceiptMultiplePrint() {
         val longReceipt = (1..30).joinToString("\n") { "LINE-$it-ABCDEFGHIJ" }
-        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), longReceipt, Arcus2NewWaySettings(maxReceiptPrintBlockBytes = 40))
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), longReceipt, Arcus2NewWaySettings(minimalResultMode = false, maxReceiptPrintBlockBytes = 40))
         val printCount = seq.map { decodeWin1251(it.data) }.count { it.startsWith("PRINT:") }
         assertTrue(printCount > 1)
     }
 
     @Test fun approvedWithoutPrint() {
-        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), "hello", Arcus2NewWaySettings(sendPrintCommands = false))
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), "hello", Arcus2NewWaySettings(minimalResultMode = false, sendPrintCommands = false))
         assertTrue(seq.map { decodeWin1251(it.data) }.none { it.startsWith("PRINT:") })
     }
 
     @Test fun declinedWithReceiptPrints() {
-        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Declined(), "line1\nline2", Arcus2NewWaySettings())
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Declined(), "line1\nline2", Arcus2NewWaySettings(minimalResultMode = false))
         val texts = seq.map { decodeWin1251(it.data) }
         assertTrue(texts.any { it.startsWith("PRINT:") })
     }
 
     @Test fun declined() {
-        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Declined(), null, Arcus2NewWaySettings())
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Declined(), null, Arcus2NewWaySettings(minimalResultMode = false))
         val texts = seq.map { decodeWin1251(it.data) }
         assertTrue(texts.any { it.startsWith("STORERC:05") })
         assertTrue(texts.last().startsWith("ENDTR"))
     }
 
     @Test fun cancelled() {
-        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Cancelled(), null, Arcus2NewWaySettings())
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Cancelled(), null, Arcus2NewWaySettings(minimalResultMode = false))
         val texts = seq.map { decodeWin1251(it.data) }
         assertTrue(texts.any { it.startsWith("STORERC:999") })
         assertTrue(texts.last().startsWith("ENDTR"))
     }
 
     @Test fun error() {
-        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Error("e"), null, Arcus2NewWaySettings())
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Error("e"), null, Arcus2NewWaySettings(minimalResultMode = false))
         val texts = seq.map { decodeWin1251(it.data) }
         assertTrue(texts.any { it.startsWith("STORERC:999") })
         assertTrue(texts.last().startsWith("ENDTR"))

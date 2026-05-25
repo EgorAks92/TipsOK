@@ -367,12 +367,20 @@ class XchengPcPaymentCommandRepository(
         }
     }
 
-    override suspend fun resumeAfterPayment(): Result<Unit> =
-        lifecycleMutex.withLock {
+    override suspend fun resumeAfterPayment(): Result<Unit> {
+        val settings = settingsRepository.observeSettings().first()
+        return lifecycleMutex.withLock {
             Log.i(TAG, "ECR resume after SSP payment")
 
             if (lifecycleState == PcEcrLifecycleState.Stopped) {
                 Log.i(TAG, "Skip ECR resume: repository stopped completely")
+                return@withLock Result.success(Unit)
+            }
+
+            if (settings.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) {
+                lifecycleState = PcEcrLifecycleState.Listening
+                status.value = PcUsbConnectionStatus.WaitingForData
+                Log.i(TAG, "ARCUS2 mode: resume listening without reopening USB transport")
                 return@withLock Result.success(Unit)
             }
 
@@ -391,6 +399,7 @@ class XchengPcPaymentCommandRepository(
 
             result
         }
+    }
 
     override suspend fun stopCompletely(): Result<Unit> =
         lifecycleMutex.withLock {
