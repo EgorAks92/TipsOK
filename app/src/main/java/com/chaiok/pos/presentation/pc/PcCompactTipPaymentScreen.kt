@@ -69,7 +69,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -105,8 +107,11 @@ private enum class PcCompactPaymentScreenPhase {
 private val PC_COMPACT_TIP_HEADER_START = 32.dp
 private val PC_COMPACT_TIP_HEADER_TOP = 112.dp
 private val PC_COMPACT_STATUS_HEADER_TOP = 64.dp
-private val PC_COMPACT_TIP_CARD_WIDTH = 140.dp
+private val PC_COMPACT_TIP_CARD_MIN_WIDTH = 140.dp
+private val PC_COMPACT_TIP_CARD_MAX_WIDTH = 190.dp
 private val PC_COMPACT_TIP_CARD_HEIGHT = 90.dp
+private val PC_COMPACT_TIP_CARD_HORIZONTAL_PADDING = 12.dp
+private val PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING = 8.dp
 
 @Composable
 fun PcCompactTipPaymentScreen(
@@ -398,8 +403,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             showCustomTipDialog.value = false
         }
     }
-    LaunchedEffect(state.showCustomTipButton) {
-        if (!state.showCustomTipButton) {
+    LaunchedEffect(state.tipConfigLoaded, state.showCustomTipButton) {
+        if (!state.tipConfigLoaded || !state.showCustomTipButton) {
             showCustomTipDialog.value = false
         }
     }
@@ -503,10 +508,41 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         val tipsVisuallyEnabled = true
 
         val tipCards = buildList {
-            if (state.showCustomTipButton) add(PcCompactTipCardUiModel.CustomAmount)
+            if (state.tipConfigLoaded && state.showCustomTipButton) {
+                add(PcCompactTipCardUiModel.CustomAmount)
+            }
             state.availablePercents.forEachIndexed { index, percent ->
                 add(PcCompactTipCardUiModel.Percent(percent = percent, percentIndex = index))
             }
+        }
+        val textMeasurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        val cardPrimaryTexts = tipCards.map { it.resolvePrimaryText(state) }
+        val resolvedTipCardWidth = remember(cardPrimaryTexts, density) {
+            val textStyle = TextStyle(
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = MontserratFontFamily
+            )
+            val maxTextWidthDp = cardPrimaryTexts
+                .map { text ->
+                    val singleLineText = text.replace('\n', ' ')
+                    val measuredWidthPx = textMeasurer.measure(
+                        text = singleLineText,
+                        style = textStyle,
+                        maxLines = 1,
+                        softWrap = false
+                    ).size.width
+                    with(density) { measuredWidthPx.toDp() }
+                }
+                .maxOrNull()
+                ?: 0.dp
+
+            val desiredWidth = maxTextWidthDp +
+                    PC_COMPACT_TIP_CARD_HORIZONTAL_PADDING * 2 +
+                    PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING
+
+            desiredWidth.coerceIn(PC_COMPACT_TIP_CARD_MIN_WIDTH, PC_COMPACT_TIP_CARD_MAX_WIDTH)
         }
         val tipCardKeysSignature = tipCards.joinToString("|") { it.key }
 
@@ -521,12 +557,11 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         ) {
             val carouselViewportWidth = maxWidth
 
-            val density = LocalDensity.current
             val viewportWidthPx = with(density) { carouselViewportWidth.toPx() }
-            val cardWidthPx = with(density) { PC_COMPACT_TIP_CARD_WIDTH.toPx() }
+            val cardWidthPx = with(density) { resolvedTipCardWidth.toPx() }
             val centerOffsetPx = -((viewportWidthPx - cardWidthPx) / 2f).roundToInt()
 
-            LaunchedEffect(tipCardKeysSignature, centerOffsetPx) {
+            LaunchedEffect(tipCardKeysSignature, centerOffsetPx, resolvedTipCardWidth) {
                 if (tipCards.isNotEmpty()) {
                     listState.scrollToItem(
                         index = middleIndex,
@@ -555,8 +590,9 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                                 selected = state.isCustomTipSelected,
                                 enabled = tipsInteractive,
                                 visuallyEnabled = tipsVisuallyEnabled,
+                                cardWidth = resolvedTipCardWidth,
                                 onClick = {
-                                    if (tipsInteractive && state.showCustomTipButton) {
+                                    if (tipsInteractive && state.tipConfigLoaded && state.showCustomTipButton) {
                                         showCustomTipDialog.value = true
                                     }
                                 }
@@ -572,6 +608,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                                         card.percentIndex == state.selectedPercentIndex,
                                 enabled = tipsInteractive,
                                 visuallyEnabled = tipsVisuallyEnabled,
+                                cardWidth = resolvedTipCardWidth,
                                 onClick = { onSelectTip(card.percentIndex) }
                             )
                         }
@@ -615,7 +652,12 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         }
     }
 
-    if (showCustomTipDialog.value && phase == PcCompactPaymentScreenPhase.TipSelection) {
+    if (
+        showCustomTipDialog.value &&
+        phase == PcCompactPaymentScreenPhase.TipSelection &&
+        state.tipConfigLoaded &&
+        state.showCustomTipButton
+    ) {
         PcCompactCustomTipDialog(
             initialValue = customTipInputValue(state.customTipAmount),
             onDismiss = { showCustomTipDialog.value = false },
@@ -1804,11 +1846,11 @@ private fun PcCompactTipPresetCard(
     enabled: Boolean,
     visuallyEnabled: Boolean = enabled,
     amountFontSize: TextUnit? = null,
+    cardWidth: Dp = PC_COMPACT_TIP_CARD_MIN_WIDTH,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(28.dp)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
-    val isTwoLineLabel = percentText.contains('\n')
 
     val backgroundBrush = if (selected) {
         Brush.verticalGradient(
@@ -1828,7 +1870,7 @@ private fun PcCompactTipPresetCard(
 
     Box(
         modifier = Modifier
-            .size(width = PC_COMPACT_TIP_CARD_WIDTH, height = PC_COMPACT_TIP_CARD_HEIGHT)
+            .size(width = cardWidth, height = PC_COMPACT_TIP_CARD_HEIGHT)
             .clip(shape)
             .background(backgroundBrush)
             .border(
@@ -1855,13 +1897,8 @@ private fun PcCompactTipPresetCard(
             Text(
                 text = percentText,
                 color = Color.White.copy(alpha = visualAlpha),
-                fontSize = when {
-                    isTwoLineLabel && selected -> 20.sp
-                    isTwoLineLabel -> 20.sp
-                    selected -> 20.sp
-                    else -> 20.sp
-                },
-                lineHeight = if (isTwoLineLabel) 20.sp else 20.sp,
+                fontSize = 20.sp,
+                lineHeight = 20.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = MontserratFontFamily,
                 textAlign = TextAlign.Center,

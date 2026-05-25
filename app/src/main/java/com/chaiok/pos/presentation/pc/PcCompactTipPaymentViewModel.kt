@@ -42,7 +42,8 @@ data class PcCompactTipPaymentUiState(
     val customTipAmount: Double? = null,
     val isCustomTipSelected: Boolean = false,
     val isNoTipsSelected: Boolean = false,
-    val showCustomTipButton: Boolean = true,
+    val showCustomTipButton: Boolean = false,
+    val tipConfigLoaded: Boolean = false,
     val serviceFeePercent: Double = 0.0,
     val showServiceFeeToggle: Boolean = true,
     val isServiceFeeEnabled: Boolean = false,
@@ -145,6 +146,7 @@ class PcCompactTipPaymentViewModel(
                 serviceFeePercent = profile.serviceFeePercent.coerceAtLeast(0.0),
                 showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                 showCustomTipButton = settings.showCustomTipButton,
+                tipConfigLoaded = true,
                 isServiceFeeEnabled = false,
                 paymentStage = CardPresentingStage.Preparing
             )
@@ -183,6 +185,7 @@ class PcCompactTipPaymentViewModel(
                         current.copy(
                             showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                             showCustomTipButton = false,
+                            tipConfigLoaded = true,
                             isCustomTipSelected = false,
                             isNoTipsSelected = !hasPercents,
                             selectedPercentIndex = if (hasPercents) 0 else current.selectedPercentIndex,
@@ -192,7 +195,8 @@ class PcCompactTipPaymentViewModel(
                     } else {
                         current.copy(
                             showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
-                            showCustomTipButton = settings.showCustomTipButton
+                            showCustomTipButton = settings.showCustomTipButton,
+                            tipConfigLoaded = true
                         )
                     }
                 }
