@@ -6,6 +6,7 @@ import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcCompactServiceFeeEnabledUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
+import com.chaiok.pos.domain.usecase.UpdateShowCustomTipButtonUseCase
 import com.chaiok.pos.presentation.background.WaiterBackgroundMemoryCache
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,14 +20,16 @@ data class SettingsUiState(
     val waiterStatus: String = "Коплю на отпуск!",
     val tileBackground: String? = WaiterBackgroundMemoryCache.currentBackground,
     val pcUsbModeEnabled: Boolean = false,
-    val pcCompactServiceFeeEnabled: Boolean = true
+    val pcCompactServiceFeeEnabled: Boolean = true,
+    val showCustomTipButton: Boolean = true
 )
 
 class SettingsViewModel(
     private val observeProfileUseCase: ObserveProfileUseCase,
     private val observeSettingsUseCase: ObserveSettingsUseCase,
     private val updatePcUsbModeUseCase: UpdatePcUsbModeUseCase,
-    private val updatePcCompactServiceFeeEnabledUseCase: UpdatePcCompactServiceFeeEnabledUseCase
+    private val updatePcCompactServiceFeeEnabledUseCase: UpdatePcCompactServiceFeeEnabledUseCase,
+    private val updateShowCustomTipButtonUseCase: UpdateShowCustomTipButtonUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -67,7 +70,8 @@ class SettingsViewModel(
                     waiterStatus = waiterStatus,
                     tileBackground = background,
                     pcUsbModeEnabled = settings.pcUsbModeEnabled,
-                    pcCompactServiceFeeEnabled = settings.pcCompactServiceFeeEnabled
+                    pcCompactServiceFeeEnabled = settings.pcCompactServiceFeeEnabled,
+                    showCustomTipButton = settings.showCustomTipButton
                 )
             }.collect { nextState ->
                 _uiState.update { nextState }
@@ -84,6 +88,12 @@ class SettingsViewModel(
     fun togglePcCompactServiceFeeEnabled(enabled: Boolean) {
         viewModelScope.launch {
             updatePcCompactServiceFeeEnabledUseCase(enabled)
+        }
+    }
+
+    fun onShowCustomTipButtonChanged(enabled: Boolean) {
+        viewModelScope.launch {
+            updateShowCustomTipButtonUseCase(enabled)
         }
     }
 }

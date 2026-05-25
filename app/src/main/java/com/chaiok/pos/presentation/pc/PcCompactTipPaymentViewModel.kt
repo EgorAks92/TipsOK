@@ -42,6 +42,7 @@ data class PcCompactTipPaymentUiState(
     val customTipAmount: Double? = null,
     val isCustomTipSelected: Boolean = false,
     val isNoTipsSelected: Boolean = false,
+    val showCustomTipButton: Boolean = true,
     val serviceFeePercent: Double = 0.0,
     val showServiceFeeToggle: Boolean = true,
     val isServiceFeeEnabled: Boolean = false,
@@ -143,10 +144,12 @@ class PcCompactTipPaymentViewModel(
                 selectedPercentIndex = selected,
                 serviceFeePercent = profile.serviceFeePercent.coerceAtLeast(0.0),
                 showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
+                showCustomTipButton = settings.showCustomTipButton,
                 isServiceFeeEnabled = false,
                 paymentStage = CardPresentingStage.Preparing
             )
         }
+        observeSettings()
 
         pausePcEcrForPayment()
 
@@ -155,6 +158,39 @@ class PcCompactTipPaymentViewModel(
         if (started) {
             activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
             activeSelectedTip = _uiState.value.currentSelectedTip()
+        }
+    }
+
+    private fun observeSettings() {
+        viewModelScope.launch {
+            observeSettingsUseCase().collect { settings ->
+                _uiState.update { current ->
+                    if (settings.showCustomTipButton || !current.isCustomTipSelected) {
+                        current.copy(
+                            showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
+                            showCustomTipButton = settings.showCustomTipButton
+                        )
+                    } else {
+                        val hasPercents = current.availablePercents.isNotEmpty()
+                        current.copy(
+                            showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
+                            showCustomTipButton = false,
+                            isCustomTipSelected = false,
+                            isNoTipsSelected = !hasPercents,
+                            selectedPercentIndex = if (hasPercents) 0 else current.selectedPercentIndex
+                        )
+                    }
+                }
+                if (!settings.showCustomTipButton && _uiState.value.isCustomTipSelected) {
+                    pendingSelectedIndex = null
+                    activeSelectedTip = if (_uiState.value.availablePercents.isNotEmpty()) {
+                        PcCompactSelectedTip.Percent(0)
+                    } else {
+                        PcCompactSelectedTip.NoTips
+                    }
+                    restartPaymentWithCurrentAmount("custom tip disabled in settings")
+                }
+            }
         }
     }
 
@@ -215,6 +251,7 @@ class PcCompactTipPaymentViewModel(
     fun applyCustomTipAmount(amount: Double) {
         val normalized = amount.coerceAtLeast(0.0)
         val state = _uiState.value
+        if (!state.showCustomTipButton) return
         if (!state.canChangeTips) return
         if (normalized <= 0.0) return
         if (state.isCustomTipSelected && abs((state.customTipAmount ?: 0.0) - normalized) < 0.01) return

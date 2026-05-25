@@ -136,7 +136,8 @@ fun SettingsRoute(
         onBackground = onBackground,
         onPcIdleImages = onPcIdleImages,
         onTogglePcUsbMode = viewModel::togglePcUsbMode,
-        onTogglePcCompactServiceFee = viewModel::togglePcCompactServiceFeeEnabled
+        onTogglePcCompactServiceFee = viewModel::togglePcCompactServiceFeeEnabled,
+        onToggleShowCustomTipButton = viewModel::onShowCustomTipButtonChanged
     )
 }
 
@@ -149,7 +150,8 @@ fun SettingsScreen(
     onBackground: () -> Unit,
     onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit,
-    onTogglePcCompactServiceFee: (Boolean) -> Unit
+    onTogglePcCompactServiceFee: (Boolean) -> Unit,
+    onToggleShowCustomTipButton: (Boolean) -> Unit
 ) {
     when (rememberChaiOkDeviceClass()) {
         ChaiOkDeviceClass.SquareCompact -> {
@@ -161,7 +163,8 @@ fun SettingsScreen(
                 onBackground = onBackground,
                 onPcIdleImages = onPcIdleImages,
                 onTogglePcUsbMode = onTogglePcUsbMode,
-                onTogglePcCompactServiceFee = onTogglePcCompactServiceFee
+                onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
+                onToggleShowCustomTipButton = onToggleShowCustomTipButton
             )
         }
 
@@ -174,7 +177,8 @@ fun SettingsScreen(
                 onBackground = onBackground,
                 onPcIdleImages = onPcIdleImages,
                 onTogglePcUsbMode = onTogglePcUsbMode,
-                onTogglePcCompactServiceFee = onTogglePcCompactServiceFee
+                onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
+                onToggleShowCustomTipButton = onToggleShowCustomTipButton
             )
         }
     }
@@ -189,7 +193,8 @@ private fun SettingsRegularScreen(
     onBackground: () -> Unit,
     onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit,
-    onTogglePcCompactServiceFee: (Boolean) -> Unit
+    onTogglePcCompactServiceFee: (Boolean) -> Unit,
+    onToggleShowCustomTipButton: (Boolean) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -262,6 +267,13 @@ private fun SettingsRegularScreen(
                     checked = state.pcCompactServiceFeeEnabled,
                     onToggle = onTogglePcCompactServiceFee
                 )
+                SettingsRegularToggleItem(
+                    title = "Своя сумма",
+                    subtitle = "Показывать кнопку ввода своей суммы чаевых",
+                    iconRes = R.drawable.ic_settings_tips,
+                    checked = state.showCustomTipButton,
+                    onToggle = onToggleShowCustomTipButton
+                )
             }
         }
     }
@@ -276,7 +288,8 @@ private fun SettingsSquarePremiumScreen(
     onBackground: () -> Unit,
     onPcIdleImages: () -> Unit,
     onTogglePcUsbMode: (Boolean) -> Unit,
-    onTogglePcCompactServiceFee: (Boolean) -> Unit
+    onTogglePcCompactServiceFee: (Boolean) -> Unit,
+    onToggleShowCustomTipButton: (Boolean) -> Unit
 ) {
     val metrics = squarePremiumSettingsMetrics()
     val scrollState = rememberScrollState()
@@ -359,6 +372,14 @@ private fun SettingsSquarePremiumScreen(
                         metrics = metrics,
                         checked = state.pcCompactServiceFeeEnabled,
                         onToggle = onTogglePcCompactServiceFee
+                    )
+                    SettingsPremiumToggleItem(
+                        title = "Своя сумма",
+                        subtitle = "Показывать кнопку ввода своей суммы чаевых",
+                        iconRes = R.drawable.ic_settings_tips,
+                        metrics = metrics,
+                        checked = state.showCustomTipButton,
+                        onToggle = onToggleShowCustomTipButton
                     )
                 }
             }
