@@ -22,7 +22,9 @@ data class Arcus2NewWaySettings(
     val enableRawArcus2Log: Boolean = true,
     val declinedDefaultRc: String = "05",
     val cancelledRc: String = "999",
-    val errorRc: String = "999"
+    val errorRc: String = "999",
+    val minimalResultMode: Boolean = true,
+    val waitOkAfterEachCommand: Boolean = false
 )
 
 data class AppSettings(

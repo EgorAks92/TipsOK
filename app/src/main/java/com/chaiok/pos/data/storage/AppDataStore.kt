@@ -57,6 +57,8 @@ class AppDataStore(private val context: Context) {
         val arcus2DeclinedDefaultRc = stringPreferencesKey("arcus2_declined_default_rc")
         val arcus2CancelledRc = stringPreferencesKey("arcus2_cancelled_rc")
         val arcus2ErrorRc = stringPreferencesKey("arcus2_error_rc")
+        val arcus2MinimalResultMode = booleanPreferencesKey("arcus2_minimal_result_mode")
+        val arcus2WaitOkAfterEachCommand = booleanPreferencesKey("arcus2_wait_ok_after_each_command")
     }
 
     val integrationModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.integrationMode] ?: false }
@@ -96,7 +98,9 @@ class AppDataStore(private val context: Context) {
             enableRawArcus2Log = p[Keys.arcus2EnableRawLog] ?: d.enableRawArcus2Log,
             declinedDefaultRc = p[Keys.arcus2DeclinedDefaultRc] ?: d.declinedDefaultRc,
             cancelledRc = p[Keys.arcus2CancelledRc] ?: d.cancelledRc,
-            errorRc = p[Keys.arcus2ErrorRc] ?: d.errorRc
+            errorRc = p[Keys.arcus2ErrorRc] ?: d.errorRc,
+            minimalResultMode = p[Keys.arcus2MinimalResultMode] ?: d.minimalResultMode,
+            waitOkAfterEachCommand = p[Keys.arcus2WaitOkAfterEachCommand] ?: d.waitOkAfterEachCommand
         )
     }
 
@@ -131,6 +135,7 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2WaitOkTimeoutMs] = value.waitOkTimeoutMs; it[Keys.arcus2MaxReceiptPrintBlockBytes] = value.maxReceiptPrintBlockBytes
         it[Keys.arcus2EnableRawLog] = value.enableRawArcus2Log
         it[Keys.arcus2DeclinedDefaultRc] = value.declinedDefaultRc; it[Keys.arcus2CancelledRc] = value.cancelledRc; it[Keys.arcus2ErrorRc] = value.errorRc
+        it[Keys.arcus2MinimalResultMode] = value.minimalResultMode; it[Keys.arcus2WaitOkAfterEachCommand] = value.waitOkAfterEachCommand
     }
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {
         it[Keys.tipRangePercents] = value.percents.joinToString(",")

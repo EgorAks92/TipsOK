@@ -10,8 +10,21 @@ import java.math.BigDecimal
 class Arcus2NewWayResultSequenceBuilderTest {
     private val cmd = PcPaymentCommand(amount = BigDecimal("100.00"))
 
+
+    @Test fun minimalApprovedSequence() {
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), "hello", Arcus2NewWaySettings(minimalResultMode = true))
+        val texts = seq.map { decodeWin1251(it.data) }
+        assertTrue(texts == listOf("STORERC:00", "ENDTR"))
+    }
+
+    @Test fun minimalDeclinedSequence() {
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Declined(), null, Arcus2NewWaySettings(minimalResultMode = true))
+        val texts = seq.map { decodeWin1251(it.data) }
+        assertTrue(texts == listOf("STORERC:05", "ENDTR"))
+    }
+
     @Test fun approvedWithReceipt() {
-        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), "hello", Arcus2NewWaySettings())
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), "hello", Arcus2NewWaySettings(minimalResultMode = false))
         val texts = seq.map { decodeWin1251(it.data) }
         assertTrue(texts.any { it.startsWith("STATUS:Одобрено") })
         assertTrue(texts.any { it.startsWith("STARTPRINT:CUSTOMER") })

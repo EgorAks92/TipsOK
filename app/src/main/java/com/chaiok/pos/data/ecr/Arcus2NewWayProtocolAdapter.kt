@@ -12,6 +12,10 @@ import java.io.File
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 fun interface Arcus2NewWaySettingsProvider { fun get(): Arcus2NewWaySettings }
 
@@ -30,15 +34,16 @@ class Arcus2RawFrameLogger(
     private val enableFullRawLog: Boolean = false
 ) : Arcus2FrameLogger {
     private val dir = File(context.filesDir, "ecr_arcus2_raw").apply { mkdirs() }
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun logIncoming(bytes: ByteArray) {
         Log.i("Arcus2Raw", "ARCUS2 IN length=${bytes.size} hexPreview=${bytes.toHexPreview(48)}")
-        write("IN", bytes, "incoming")
+        ioScope.launch { write("IN", bytes, "incoming") }
     }
 
     override fun logOutgoing(bytes: ByteArray, note: String) {
         Log.i("Arcus2Raw", "ARCUS2 OUT label=$note length=${bytes.size}")
-        write("OUT", bytes, note)
+        ioScope.launch { write("OUT", bytes, note) }
     }
 
     private fun write(direction: String, bytes: ByteArray, note: String) {
@@ -125,14 +130,21 @@ class Arcus2CashRegisterSession(
         val frame = Arcus2BinLenCodec.encode(data)
         rawLogger.logOutgoing(frame, label)
         client.send(frame).getOrElse { return Result.failure(it) }
+        Log.i("Arcus2Session", "ARCUS2 OUT sent label=$label bytes=${frame.size}")
+        if (!settings.waitOkAfterEachCommand) {
+            Log.i("Arcus2Session", "ARCUS2 sent label=$label without waiting OK")
+            return Result.success(Unit)
+        }
+
+        Log.i("Arcus2Session", "ARCUS2 wait OK label=$label timeoutMs=${settings.waitOkTimeoutMs}")
         val response = client.receiveOnce(settings.waitOkTimeoutMs)
             .getOrElse { return Result.failure(it) }
-            ?: return Result.failure(IllegalStateException("ARCUS2 cash register OK timeout for $label"))
+            ?: return Result.failure(IllegalStateException("ARCUS2 cash register OK timeout for $label").also { Log.w("Arcus2Session", "ARCUS2 OK timeout label=$label") })
         val responseText = decodeWin1251(Arcus2BinLenCodec.decode(response).getOrElse { return Result.failure(it) }.data)
             .trim('\u0000', ' ', '\n', '\r', '\t')
 
         return when (responseText) {
-            "OK" -> Result.success(Unit)
+            "OK" -> { Log.i("Arcus2Session", "ARCUS2 OK label=$label"); Result.success(Unit) }
             "ER" -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
             else -> Result.failure(IllegalStateException("Unexpected ARCUS2 response for $label: ${responseText.take(32)}"))
         }
@@ -154,6 +166,28 @@ object Arcus2NewWayResultSequenceBuilder {
     ): List<Arcus2OutgoingCommand> {
         val commands = mutableListOf<Arcus2OutgoingCommand>()
         fun addText(label: String, text: String) { commands += Arcus2OutgoingCommand(label, encodeWin1251(text)) }
+
+        if (settings.minimalResultMode) {
+            return when (result) {
+                is PcEcrFinalPaymentResult.Approved -> listOf(
+                    Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:00")),
+                    Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
+                )
+                is PcEcrFinalPaymentResult.Declined -> listOf(
+                    Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${result.resultCode ?: settings.declinedDefaultRc}")),
+                    Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
+                )
+                is PcEcrFinalPaymentResult.Cancelled -> listOf(
+                    Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${settings.cancelledRc}")),
+                    Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
+                )
+                is PcEcrFinalPaymentResult.Error -> listOf(
+                    Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${settings.errorRc}")),
+                    Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
+                )
+            }
+        }
+
 
         when (result) {
             is PcEcrFinalPaymentResult.Approved -> {

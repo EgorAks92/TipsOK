@@ -138,28 +138,28 @@ class XchengPcPaymentCommandRepository(
     override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings): Result<Unit> {
         lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.Stopped) {
-                lifecycleState = PcEcrLifecycleState.Disconnected
-                status.value = PcUsbConnectionStatus.BindingService
-            }
-        }
-
-        val resumeResult = client.resumeTransportAfterPayment()
-        if (resumeResult.isFailure) {
-            val message = resumeResult.exceptionOrNull()?.message ?: "resume transport error"
-            lifecycleMutex.withLock {
+                val message = "ARCUS2 result cannot be sent: repository stopped and COM session is lost"
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(message)
+                return Result.failure(IllegalStateException(message))
             }
-            return resumeResult
         }
 
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings)
+        val resultStatus = when (result) {
+            is PcEcrFinalPaymentResult.Approved -> "approved"
+            is PcEcrFinalPaymentResult.Declined -> "declined"
+            is PcEcrFinalPaymentResult.Cancelled -> "cancelled"
+            is PcEcrFinalPaymentResult.Error -> "error"
+        }
+        Log.i(TAG, "ARCUS2 result sequence commandId=${sourceCommand.commandId ?: "-"} status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
+
         val sendResult = runCatching {
             sequence.forEach { cmd ->
                 session.sendDataAndWaitOk(cmd.data, cmd.label).getOrThrow()
             }
-        }
+        }.map { Unit }
 
         lifecycleMutex.withLock {
             if (sendResult.isSuccess) {
@@ -170,7 +170,7 @@ class XchengPcPaymentCommandRepository(
                 status.value = PcUsbConnectionStatus.Error(sendResult.exceptionOrNull()?.message ?: "arcus2 send error")
             }
         }
-        return sendResult.map { Unit }
+        return sendResult
     }
 
     private suspend fun sendArcus2SimpleSuccessWhileListening(settings: Arcus2NewWaySettings): Result<Unit> {
@@ -338,8 +338,11 @@ class XchengPcPaymentCommandRepository(
         }
     }
 
-    override suspend fun pauseForPayment(): Result<Unit> =
-        lifecycleMutex.withLock {
+    override suspend fun pauseForPayment(): Result<Unit> {
+        val currentSettings = settingsRepository.observeSettings().first()
+        val protocol = currentSettings.pcEcrProtocol
+
+        return lifecycleMutex.withLock {
             Log.i(TAG, "ECR pause for SSP payment")
 
             if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {
@@ -349,20 +352,20 @@ class XchengPcPaymentCommandRepository(
             lifecycleState = PcEcrLifecycleState.PausedForPayment
             status.value = PcUsbConnectionStatus.Idle
 
-            val result = client.pauseTransportForPayment()
+            if (protocol == PcEcrProtocol.ARCUS2_NEWWAY) {
+                Log.i(TAG, "ARCUS2 mode: keep USB transport open during SSP payment")
+                return@withLock Result.success(Unit)
+            }
 
+            val result = client.pauseTransportForPayment()
             if (result.isSuccess) {
                 Log.i(TAG, "ECR paused for SSP payment")
             } else {
-                Log.w(
-                    TAG,
-                    "ECR pause transport failed but continue as paused",
-                    result.exceptionOrNull()
-                )
+                Log.w(TAG, "ECR pause transport failed but continue as paused", result.exceptionOrNull())
             }
-
             Result.success(Unit)
         }
+    }
 
     override suspend fun resumeAfterPayment(): Result<Unit> =
         lifecycleMutex.withLock {
