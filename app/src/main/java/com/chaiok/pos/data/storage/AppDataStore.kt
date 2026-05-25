@@ -60,6 +60,7 @@ class AppDataStore(private val context: Context) {
         val arcus2MinimalResultMode = booleanPreferencesKey("arcus2_minimal_result_mode")
         val arcus2WaitOkAfterEachCommand = booleanPreferencesKey("arcus2_wait_ok_after_each_command")
         val arcus2SendReceiptInMinimalMode = booleanPreferencesKey("arcus2_send_receipt_in_minimal_mode")
+        val arcus2UsePrintSessionMarkersInMinimalMode = booleanPreferencesKey("arcus2_use_print_session_markers_in_minimal_mode")
         val arcus2DrainOkAfterCommandMs = longPreferencesKey("arcus2_drain_ok_after_command_ms")
         val arcus2SendBeginTrOnPaymentStart = booleanPreferencesKey("arcus2_send_begin_tr_on_payment_start")
         val arcus2SendStatusOnPaymentStart = booleanPreferencesKey("arcus2_send_status_on_payment_start")
@@ -107,6 +108,7 @@ class AppDataStore(private val context: Context) {
             minimalResultMode = p[Keys.arcus2MinimalResultMode] ?: d.minimalResultMode,
             waitOkAfterEachCommand = p[Keys.arcus2WaitOkAfterEachCommand] ?: d.waitOkAfterEachCommand,
             sendReceiptInMinimalMode = p[Keys.arcus2SendReceiptInMinimalMode] ?: d.sendReceiptInMinimalMode,
+            usePrintSessionMarkersInMinimalMode = p[Keys.arcus2UsePrintSessionMarkersInMinimalMode] ?: d.usePrintSessionMarkersInMinimalMode,
             drainOkAfterCommandMs = p[Keys.arcus2DrainOkAfterCommandMs] ?: d.drainOkAfterCommandMs,
             sendBeginTrOnPaymentStart = p[Keys.arcus2SendBeginTrOnPaymentStart] ?: d.sendBeginTrOnPaymentStart,
             sendStatusOnPaymentStart = p[Keys.arcus2SendStatusOnPaymentStart] ?: d.sendStatusOnPaymentStart,
@@ -146,7 +148,8 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2EnableRawLog] = value.enableRawArcus2Log
         it[Keys.arcus2DeclinedDefaultRc] = value.declinedDefaultRc; it[Keys.arcus2CancelledRc] = value.cancelledRc; it[Keys.arcus2ErrorRc] = value.errorRc
         it[Keys.arcus2MinimalResultMode] = value.minimalResultMode; it[Keys.arcus2WaitOkAfterEachCommand] = value.waitOkAfterEachCommand
-        it[Keys.arcus2SendReceiptInMinimalMode] = value.sendReceiptInMinimalMode; it[Keys.arcus2DrainOkAfterCommandMs] = value.drainOkAfterCommandMs
+        it[Keys.arcus2SendReceiptInMinimalMode] = value.sendReceiptInMinimalMode; it[Keys.arcus2UsePrintSessionMarkersInMinimalMode] = value.usePrintSessionMarkersInMinimalMode
+        it[Keys.arcus2DrainOkAfterCommandMs] = value.drainOkAfterCommandMs
         it[Keys.arcus2SendBeginTrOnPaymentStart] = value.sendBeginTrOnPaymentStart; it[Keys.arcus2SendStatusOnPaymentStart] = value.sendStatusOnPaymentStart
         it[Keys.arcus2PaymentStartStatusText] = value.paymentStartStatusText
     }

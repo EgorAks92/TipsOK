@@ -26,6 +26,7 @@ data class Arcus2NewWaySettings(
     val minimalResultMode: Boolean = true,
     val waitOkAfterEachCommand: Boolean = false,
     val sendReceiptInMinimalMode: Boolean = true,
+    val usePrintSessionMarkersInMinimalMode: Boolean = false,
     val drainOkAfterCommandMs: Long = 200L,
     val sendBeginTrOnPaymentStart: Boolean = true,
     val sendStatusOnPaymentStart: Boolean = true,

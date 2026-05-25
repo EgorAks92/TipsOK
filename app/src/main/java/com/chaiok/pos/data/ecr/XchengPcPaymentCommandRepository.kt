@@ -172,7 +172,20 @@ class XchengPcPaymentCommandRepository(
 
         val sendResult = runCatching {
             sequence.forEach { cmd ->
-                session.sendDataAndWaitOk(cmd.data, cmd.label).getOrThrow()
+                val r = session.sendDataAndWaitOk(cmd.data, cmd.label)
+                if (r.isFailure) {
+                    val ex = r.exceptionOrNull()
+                    val message = ex?.message.orEmpty()
+                    val transportFailure = message.contains("USB service missing", ignoreCase = true) ||
+                        message.contains("USB device missing", ignoreCase = true) ||
+                        message.contains("send failed", ignoreCase = true) ||
+                        message.contains("transport", ignoreCase = true)
+                    if (cmd.critical || transportFailure) {
+                        throw ex ?: IllegalStateException("ARCUS2 critical command failed: ${cmd.label}")
+                    } else {
+                        Log.w(TAG, "ARCUS2 non-critical command failed label=${cmd.label}: $message")
+                    }
+                }
             }
         }.map { Unit }
 
@@ -342,6 +355,10 @@ class XchengPcPaymentCommandRepository(
                             null
                         }
                         else -> null
+                    }
+                    is EcrParseResult.Ack -> {
+                        Log.i(TAG, "ARCUS2 standalone control response ignored")
+                        null
                     }
                     is EcrParseResult.Error -> {
                         val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "ARCUS2 parse/protocol error: ${parsed.reason}")
