@@ -261,7 +261,7 @@ private fun SettingsRegularScreen(
                 SettingsRegularItem(
                     title = "Протокол кассы",
                     subtitle = if (state.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) "ARCUS2 NewWay" else "ChaiOK JSON",
-                    iconRes = R.drawable.ic_settings_integration,
+                    iconRes = R.drawable.ic_cash,
                     onClick = { onPcEcrProtocolChanged(if (state.pcEcrProtocol == PcEcrProtocol.CHAIOK_JSON) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON) }
                 )
 
@@ -373,7 +373,7 @@ private fun SettingsSquarePremiumScreen(
                     SettingsPremiumItem(
                         title = "Протокол кассы",
                         subtitle = if (state.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) "ARCUS2 NewWay" else "ChaiOK JSON",
-                        iconRes = R.drawable.ic_settings_integration,
+                        iconRes = R.drawable.ic_cash,
                         metrics = metrics,
                         onClick = { onPcEcrProtocolChanged(if (state.pcEcrProtocol == PcEcrProtocol.CHAIOK_JSON) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON) }
                     )

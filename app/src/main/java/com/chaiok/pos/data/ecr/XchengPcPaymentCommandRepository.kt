@@ -27,6 +27,7 @@ class XchengPcPaymentCommandRepository(
     context: Context
 ) : PcPaymentCommandRepository {
 
+    // TODO: wire enableRawArcus2Log from AppSettings into logger creation dynamically
     private val rawLogger = Arcus2RawFrameLogger(context)
 
     private enum class PcEcrLifecycleState {
@@ -289,6 +290,14 @@ class XchengPcPaymentCommandRepository(
                     is EcrParseResult.Error -> {
                         val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "ARCUS2 parse/protocol error: ${parsed.reason}")
                         updateArcusListeningState(r, "arcus2 parse error")
+                        null
+                    }
+                    is EcrParseResult.Unknown -> {
+                        val r = sendArcus2UnsupportedWhileListening(
+                            settings.arcus2NewWaySettings,
+                            "ARCUS2 unknown command: ${parsed.reason}"
+                        )
+                        updateArcusListeningState(r, "arcus2 unknown error")
                         null
                     }
                     else -> null

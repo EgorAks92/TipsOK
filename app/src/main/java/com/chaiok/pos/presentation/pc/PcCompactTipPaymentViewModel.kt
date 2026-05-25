@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PosPaymentEvent
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcEcrProtocol
+import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
 import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
