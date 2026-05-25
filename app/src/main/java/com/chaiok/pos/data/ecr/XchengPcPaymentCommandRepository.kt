@@ -37,6 +37,9 @@ class XchengPcPaymentCommandRepository(
     override suspend fun sendResponse(response: PcPaymentResponse): Result<Unit> =
         client.send(response.payload.toByteArray(Charsets.UTF_8))
 
+    override suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit> =
+        client.sendPaymentResult(frame)
+
     override suspend fun listenOnce() {
         val ensureResult = lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {

@@ -3,6 +3,8 @@ package com.chaiok.pos.data.di
 import android.content.Context
 import android.util.Log
 import com.chaiok.pos.data.ecr.XchengPcPaymentCommandRepository
+import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
+import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
 import com.chaiok.pos.data.ecr.XchengWireEcrPortClient
 import com.chaiok.pos.data.remote.TerminalNetworkFactory
 import com.chaiok.pos.data.repository.BackendAuthRepository
@@ -82,6 +84,8 @@ class AppContainer(context: Context) {
     }
     val settingsRepository: SettingsRepository by lazy { DataStoreSettingsRepository(appDataStore) }
     val pcPaymentCommandRepository by lazy { XchengPcPaymentCommandRepository(XchengWireEcrPortClient(appContext)) }
+    val pcEcrPaymentResultMapper by lazy { PcEcrPaymentResultMapper() }
+    val pcPaymentTransactionLogRepository by lazy { PcPaymentTransactionLogRepository(appContext) }
     val reviewRepository: ReviewRepository by lazy { BackendReviewRepository(terminalApi, sessionRepository) }
     val posPaymentRepository: PosPaymentRepository by lazy { SmartSkyHeadlessPosPaymentRepository(appContext) }
 

@@ -3,6 +3,7 @@ package com.chaiok.pos.domain.repository
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcPaymentResponse
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
+import com.chaiok.pos.data.ecr.ChaiOkEcrPaymentResultFrame
 import kotlinx.coroutines.flow.Flow
 
 interface PcPaymentCommandRepository {
@@ -12,6 +13,8 @@ interface PcPaymentCommandRepository {
     fun observeStatus(): Flow<PcUsbConnectionStatus>
 
     suspend fun sendResponse(response: PcPaymentResponse): Result<Unit>
+
+    suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit>
 
     suspend fun listenOnce()
 

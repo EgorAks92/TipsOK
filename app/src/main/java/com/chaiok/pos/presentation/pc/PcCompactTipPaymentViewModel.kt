@@ -4,7 +4,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PosPaymentEvent
+import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.domain.model.PosPaymentRequest
+import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
+import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.CancelPosPaymentUseCase
@@ -98,7 +101,11 @@ class PcCompactTipPaymentViewModel(
     private val observeSettingsUseCase: ObserveSettingsUseCase,
     private val observeProfileUseCase: ObserveProfileUseCase,
     private val sessionRepository: SessionRepository,
-    private val pcPaymentCommandRepository: PcPaymentCommandRepository
+    private val pcPaymentCommandRepository: PcPaymentCommandRepository,
+    private val paymentResultMapper: PcEcrPaymentResultMapper,
+    private val transactionLogRepository: PcPaymentTransactionLogRepository,
+    private val sourceCommandId: String?,
+    private val sourceOrderId: String?
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PcCompactTipPaymentUiState(billAmount = billAmount))
     val uiState = _uiState.asStateFlow()
@@ -440,6 +447,7 @@ class PcCompactTipPaymentViewModel(
             is PosPaymentEvent.Approved -> {
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.Approved, canCancel = false, isRestartingPayment = false, errorMessage = null) }
                 delay(APPROVED_VISIBLE_MS)
+                sendPcEcrResult(PaymentResult.Approved(event.transactionId, event.rrn, event.authCode, event.message))
                 resumePcEcrAfterPayment("approved")
                 _events.send(PcCompactTipPaymentEvent.Approved)
             }
@@ -453,6 +461,7 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = event.reason ?: "Оплата отклонена"
                     )
                 }
+                sendPcEcrResult(PaymentResult.Declined(event.reason, null, null))
                 scheduleDeclinedAutoClose()
             }
             is PosPaymentEvent.Error -> {
@@ -465,6 +474,7 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = event.message.ifBlank { "Ошибка оплаты" }
                     )
                 }
+                sendPcEcrResult(PaymentResult.Error(event.message.ifBlank { "Ошибка оплаты" }))
                 scheduleDeclinedAutoClose()
             }
             PosPaymentEvent.Cancelled -> {
@@ -489,9 +499,36 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = "Оплата отменена"
                     )
                 }
+                sendPcEcrResult(PaymentResult.Error("Cancelled"))
                 scheduleDeclinedAutoClose()
             }
         }
+    }
+
+    private suspend fun sendPcEcrResult(result: PaymentResult) {
+        val commandId = sourceCommandId?.ifBlank { null }
+            ?: sourceOrderId?.ifBlank { null }
+            ?: "generated-${System.currentTimeMillis()}"
+        val state = _uiState.value
+        val frame = paymentResultMapper.map(
+            paymentResult = result,
+            commandId = commandId,
+            orderId = sourceOrderId?.ifBlank { null },
+            currency = "RUB",
+            billAmount = BigDecimal.valueOf(state.billAmount).setScale(2, RoundingMode.HALF_UP),
+            tipAmount = BigDecimal.valueOf(state.selectedTipAmount).setScale(2, RoundingMode.HALF_UP),
+            terminalId = terminalId
+        )
+        Log.i(TAG, "PC ECR payment result prepared commandId=${frame.commandId} status=${frame.status}")
+        val sendResult = pcPaymentCommandRepository.sendPaymentResult(frame)
+        if (sendResult.isSuccess) {
+            Log.i(TAG, "PC ECR payment result sent commandId=${frame.commandId} status=${frame.status}")
+            transactionLogRepository.save(frame, "SENT", null)
+        } else {
+            Log.e(TAG, "PC ECR payment result send failed commandId=${frame.commandId} error=${sendResult.exceptionOrNull()?.message}")
+            transactionLogRepository.save(frame, "FAILED", sendResult.exceptionOrNull()?.message)
+        }
+        Log.i(TAG, "PC ECR transaction log saved commandId=${frame.commandId}")
     }
 
     private fun scheduleDeclinedAutoClose() {

@@ -715,7 +715,11 @@ fun ChaiOkNavHost(container: AppContainer) {
                         observeSettingsUseCase = container.observeSettingsUseCase,
                         observeProfileUseCase = container.observeProfileUseCase,
                         sessionRepository = container.sessionRepository,
-                        pcPaymentCommandRepository = container.pcPaymentCommandRepository
+                        pcPaymentCommandRepository = container.pcPaymentCommandRepository,
+                        paymentResultMapper = container.pcEcrPaymentResultMapper,
+                        transactionLogRepository = container.pcPaymentTransactionLogRepository,
+                        sourceCommandId = backStack.arguments?.getString("commandId"),
+                        sourceOrderId = backStack.arguments?.getString("orderId")
                     )
                 }
             )
