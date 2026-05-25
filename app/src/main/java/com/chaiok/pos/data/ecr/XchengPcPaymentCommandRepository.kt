@@ -306,6 +306,29 @@ class XchengPcPaymentCommandRepository(
         }
     }
 
+    private suspend fun updateArcusListeningState(
+        result: Result<Unit>,
+        fallbackErrorMessage: String
+    ) {
+        lifecycleMutex.withLock {
+            if (result.isSuccess) {
+                lifecycleState = PcEcrLifecycleState.Listening
+                status.value = PcUsbConnectionStatus.WaitingForData
+            } else {
+                val message = result.exceptionOrNull()?.message ?: fallbackErrorMessage
+
+                lifecycleState = PcEcrLifecycleState.Error
+                status.value = PcUsbConnectionStatus.Error(message)
+
+                Log.e(
+                    TAG,
+                    "ARCUS2 immediate response failed: $message",
+                    result.exceptionOrNull()
+                )
+            }
+        }
+    }
+
     override suspend fun pauseForPayment(): Result<Unit> =
         lifecycleMutex.withLock {
             Log.i(TAG, "ECR pause for SSP payment")
