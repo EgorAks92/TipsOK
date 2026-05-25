@@ -15,6 +15,10 @@ import com.skytech.smartskyposlib.State
 import com.skytech.smartskyposlib.TransactionCallback
 import com.skytech.smartskyposlib.TransactionParams
 import com.skytech.smartskyposlib.TransactionResult
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -22,10 +26,6 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.math.BigDecimal
-import java.math.RoundingMode
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 
 class SmartSkyHeadlessPosPaymentRepository(
     context: Context
@@ -423,48 +423,41 @@ class SmartSkyHeadlessPosPaymentRepository(
                     ?.toString(),
                 rrn = rrn,
                 authCode = authCode,
-                message = message ?: "Оплата одобрена"
+                message = message ?: "Оплата одобрена",
+                receiptText = extractReceiptText()
             )
         } else {
             val declineMessage = message?.takeIf { it.isNotBlank() } ?: "Оплата отклонена"
             val declineCode = approvalDecision.normalizedRc ?: code
                 .takeIf { it != APPROVED_CODE }
                 ?.toString()
+
             PosPaymentEvent.Declined(
                 reason = declineMessage,
                 code = declineCode,
-                rawMessage = message
+                rawMessage = message,
+                receiptText = extractReceiptText()
             )
         }
     }
 
     private fun Int.toNonTerminalPaymentEvent(message: String?): PosPaymentEvent? {
         return when (this) {
-            State.STARTUP.code -> {
-                PosPaymentEvent.Preparing
-            }
+            State.STARTUP.code -> PosPaymentEvent.Preparing
 
             State.CARD_READING.code,
             State.QR_AND_CARD_READING.code,
             State.USE_CHIP_READER.code,
             State.USE_MAG_READER.code,
             State.PRESENT_CARD_AGAIN.code,
-            State.USE_OTHER_INTERFACE.code -> {
-                PosPaymentEvent.WaitingForCard
-            }
+            State.USE_OTHER_INTERFACE.code -> PosPaymentEvent.WaitingForCard
 
-            State.PIN_CODE_ENTERING.code -> {
-                PosPaymentEvent.PinRequired
-            }
+            State.PIN_CODE_ENTERING.code -> PosPaymentEvent.PinRequired
 
             State.CONNECTING.code,
-            State.DATA_EXCHANGE.code -> {
-                PosPaymentEvent.Processing
-            }
+            State.DATA_EXCHANGE.code -> PosPaymentEvent.Processing
 
-            State.READY.code -> {
-                null
-            }
+            State.READY.code -> null
 
             State.STOPPED.code -> {
                 if (cancellationRequested.get()) {
@@ -511,6 +504,62 @@ class SmartSkyHeadlessPosPaymentRepository(
             .valueOf(this)
             .setScale(2, RoundingMode.HALF_UP)
             .toDouble()
+    }
+
+    private fun TransactionResult.extractReceiptText(): String? {
+        fun normalize(value: String?): String? = value
+            ?.replace("\r\n", "\n")
+            ?.replace('\r', '\n')
+            ?.trim()
+            ?.ifBlank { null }
+
+        val direct = listOfNotNull(
+            runCatching { javaClass.getMethod("getReceipt").invoke(this) as? String }.getOrNull(),
+            runCatching { javaClass.getMethod("getReceiptText").invoke(this) as? String }.getOrNull(),
+            runCatching { javaClass.getMethod("getCustomerReceipt").invoke(this) as? String }.getOrNull(),
+            runCatching { javaClass.getMethod("getMerchantReceipt").invoke(this) as? String }.getOrNull()
+        ).mapNotNull(::normalize)
+
+        if (direct.isNotEmpty()) {
+            return direct.distinct().joinToString("\n\n")
+        }
+
+        val candidateNames = listOf(
+            "receipt",
+            "receiptText",
+            "slip",
+            "customerReceipt",
+            "merchantReceipt",
+            "customerSlip",
+            "merchantSlip",
+            "printData",
+            "check",
+            "receiptData"
+        )
+
+        val reflected = candidateNames.mapNotNull { name ->
+            runCatching {
+                val getterName = "get" + name.replaceFirstChar { char ->
+                    char.uppercase()
+                }
+
+                val method = javaClass.methods.firstOrNull { candidate ->
+                    candidate.parameterCount == 0 && candidate.name == getterName
+                }
+
+                normalize(method?.invoke(this) as? String)
+            }.getOrNull()
+        }
+
+        if (reflected.isEmpty()) {
+            Log.i(
+                PAYMENT_TAG,
+                "SSP receipt text not found in TransactionResult, fallback receipt will be used"
+            )
+            return null
+        }
+
+        return reflected.distinct().joinToString("\n\n")
     }
 
     private fun TransactionResult?.toSafePaymentResultLog(): String {

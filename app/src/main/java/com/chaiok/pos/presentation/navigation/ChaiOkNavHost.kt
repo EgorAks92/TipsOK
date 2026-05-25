@@ -374,14 +374,19 @@ fun ChaiOkNavHost(container: AppContainer) {
                 navArgument("orderId") {
                     type = NavType.StringType
                     defaultValue = ""
+                },
+                navArgument("currency") {
+                    type = NavType.StringType
+                    defaultValue = "RUB"
                 }
             )
         ) { backStack ->
-            val billAmount = backStack.arguments
-                ?.getLong("billAmountKopecks")
-                ?.toDouble()
-                ?.div(100.0)
-                ?: 0.0
+            val currency = backStack.arguments?.getString("currency")?.ifBlank { "RUB" } ?: "RUB"
+            val billAmountMinor = backStack.arguments?.getLong("billAmountKopecks") ?: 0L
+            val billAmount = when (currency.uppercase()) {
+                "AMD" -> billAmountMinor.toDouble()
+                else -> billAmountMinor.toDouble() / 100.0
+            }
 
             val isPcUsbSource = backStack.arguments?.getString("source") == "pc_usb"
             val deviceClass = rememberChaiOkDeviceClass()
@@ -666,7 +671,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                                             Routes.pcCompactTipPaymentFromPc(
                                                 value.amount,
                                                 value.commandId,
-                                                value.orderId
+                                                value.orderId,
+                                                value.currency
                                             )
                                         )
                                     } else {
@@ -674,7 +680,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                                             Routes.tipSelectionFromPc(
                                                 value.amount,
                                                 value.commandId,
-                                                value.orderId
+                                                value.orderId,
+                                                value.currency
                                             )
                                         )
                                     }
@@ -701,10 +708,16 @@ fun ChaiOkNavHost(container: AppContainer) {
             arguments = listOf(
                 navArgument("billAmountKopecks") { type = NavType.LongType },
                 navArgument("commandId") { type = NavType.StringType; defaultValue = "" },
-                navArgument("orderId") { type = NavType.StringType; defaultValue = "" }
+                navArgument("orderId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("currency") { type = NavType.StringType; defaultValue = "RUB" }
             )
         ) { backStack ->
-            val billAmount = backStack.arguments?.getLong("billAmountKopecks")?.toDouble()?.div(100.0) ?: 0.0
+            val currency = backStack.arguments?.getString("currency")?.ifBlank { "RUB" } ?: "RUB"
+            val billAmountMinor = backStack.arguments?.getLong("billAmountKopecks") ?: 0L
+            val billAmount = when (currency.uppercase()) {
+                "AMD" -> billAmountMinor.toDouble()
+                else -> billAmountMinor.toDouble() / 100.0
+            }
             val vm: PcCompactTipPaymentViewModel = viewModel(
                 factory = SimpleFactory {
                     PcCompactTipPaymentViewModel(
@@ -715,7 +728,12 @@ fun ChaiOkNavHost(container: AppContainer) {
                         observeSettingsUseCase = container.observeSettingsUseCase,
                         observeProfileUseCase = container.observeProfileUseCase,
                         sessionRepository = container.sessionRepository,
-                        pcPaymentCommandRepository = container.pcPaymentCommandRepository
+                        pcPaymentCommandRepository = container.pcPaymentCommandRepository,
+                        paymentResultMapper = container.pcEcrPaymentResultMapper,
+                        transactionLogRepository = container.pcPaymentTransactionLogRepository,
+                        sourceCommandId = backStack.arguments?.getString("commandId"),
+                        sourceOrderId = backStack.arguments?.getString("orderId"),
+                        sourceCurrency = backStack.arguments?.getString("currency")
                     )
                 }
             )

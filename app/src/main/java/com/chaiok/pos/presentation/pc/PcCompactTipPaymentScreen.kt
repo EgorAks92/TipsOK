@@ -363,7 +363,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
             Text(
                 text = "оплата",
                 color = Color.White.copy(alpha = 0.78f),
-                fontSize = 16.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = MontserratFontFamily,
                 textAlign = TextAlign.Start,
@@ -495,7 +495,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         Text(
             text = "чаевые",
             color = Color.White.copy(alpha = 0.86f),
-            fontSize = 24.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = MontserratFontFamily,
             modifier = Modifier
