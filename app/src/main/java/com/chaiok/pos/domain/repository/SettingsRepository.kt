@@ -11,4 +11,5 @@ interface SettingsRepository {
     suspend fun setPcUsbMode(enabled: Boolean)
     suspend fun setPcIdleImages(images: List<String>)
     suspend fun setPcCompactServiceFeeEnabled(enabled: Boolean)
+    suspend fun setShowCustomTipButton(enabled: Boolean)
 }

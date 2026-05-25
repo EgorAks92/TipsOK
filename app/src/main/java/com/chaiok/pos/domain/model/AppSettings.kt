@@ -6,5 +6,6 @@ data class AppSettings(
     val tileBackground: String = "default",
     val pcUsbModeEnabled: Boolean = false,
     val pcIdleImages: List<String> = emptyList(),
-    val pcCompactServiceFeeEnabled: Boolean = true
+    val pcCompactServiceFeeEnabled: Boolean = true,
+    val showCustomTipButton: Boolean = true
 )

@@ -24,6 +24,10 @@ class FakeSettingsRepo(private val settingsFlow: MutableStateFlow<AppSettings>) 
     override suspend fun setIntegrationMode(enabled: Boolean) = Unit
     override suspend fun setTableMode(enabled: Boolean) = Unit
     override suspend fun setTileBackground(background: String) = Unit
+    override suspend fun setPcUsbMode(enabled: Boolean) = Unit
+    override suspend fun setPcIdleImages(images: List<String>) = Unit
+    override suspend fun setPcCompactServiceFeeEnabled(enabled: Boolean) = Unit
+    override suspend fun setShowCustomTipButton(enabled: Boolean) = Unit
 }
 
 class FakeAuthRepo2 : AuthRepository {

@@ -29,15 +29,17 @@ class DataStoreSettingsRepository(
 
         return combine(
             baseSettingsFlow,
-            dataStore.pcCompactServiceFeeEnabledFlow
-        ) { base, pcCompactServiceFeeEnabled ->
+            dataStore.pcCompactServiceFeeEnabledFlow,
+            dataStore.showCustomTipButtonFlow
+        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton ->
             AppSettings(
                 integrationModeEnabled = base.integration,
                 tableModeEnabled = base.table,
                 tileBackground = base.background,
                 pcUsbModeEnabled = base.pcUsb,
                 pcIdleImages = base.pcIdleImages,
-                pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled
+                pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled,
+                showCustomTipButton = showCustomTipButton
             )
         }
     }
@@ -75,6 +77,12 @@ class DataStoreSettingsRepository(
     override suspend fun setPcCompactServiceFeeEnabled(enabled: Boolean) {
         runCatching {
             dataStore.setPcCompactServiceFeeEnabled(enabled)
+        }
+    }
+
+    override suspend fun setShowCustomTipButton(enabled: Boolean) {
+        runCatching {
+            dataStore.setShowCustomTipButton(enabled)
         }
     }
 
