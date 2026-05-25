@@ -49,7 +49,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -485,8 +484,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         )
 
         val showServiceFeeRow = state.showServiceFeeToggle && state.serviceFeePercent > 0.0
-        val tipsTitleTop = if (showServiceFeeRow) 228.dp else 262.dp
-        val tipsRowTop = if (showServiceFeeRow) 260.dp else 302.dp
+        val tipsTitleTop = if (showServiceFeeRow) 214.dp else 262.dp
+        val tipsRowTop = if (showServiceFeeRow) 244.dp else 302.dp
 
         Text(
             text = "чаевые",
@@ -509,13 +508,10 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 add(PcCompactTipCardUiModel.Percent(percent = percent, percentIndex = index))
             }
         }
-        val tipCardKeys = tipCards.map { it.key }
-        val tipCardKeysSignature = tipCardKeys.joinToString("|")
+        val tipCardKeysSignature = tipCards.joinToString("|") { it.key }
 
         val middleIndex = tipCards.size / 2
         val listState = rememberLazyListState()
-        var didInitialCenter by rememberSaveable { mutableStateOf(false) }
-        var lastTipCardKeysSignature by rememberSaveable { mutableStateOf("") }
 
         BoxWithConstraints(
             modifier = Modifier
@@ -530,20 +526,12 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             val cardWidthPx = with(density) { PC_COMPACT_TIP_CARD_WIDTH.toPx() }
             val centerOffsetPx = -((viewportWidthPx - cardWidthPx) / 2f).roundToInt()
 
-            LaunchedEffect(tipCardKeysSignature) {
-                if (lastTipCardKeysSignature != tipCardKeysSignature) {
-                    didInitialCenter = false
-                    lastTipCardKeysSignature = tipCardKeysSignature
-                }
-            }
-
-            LaunchedEffect(tipCardKeysSignature, state.availablePercents.size, tipCards.size) {
-                if (!didInitialCenter && tipCards.isNotEmpty()) {
+            LaunchedEffect(tipCardKeysSignature, centerOffsetPx) {
+                if (tipCards.isNotEmpty()) {
                     listState.scrollToItem(
                         index = middleIndex,
                         scrollOffset = centerOffsetPx
                     )
-                    didInitialCenter = true
                 }
             }
 
@@ -591,11 +579,12 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 }
             }
         }
-        val noTipsButtonGap = if (showServiceFeeRow) 12.dp else 20.dp
+        val noTipsButtonGap = if (showServiceFeeRow) 10.dp else 20.dp
         val noTipsButtonTop = tipsRowTop + PC_COMPACT_TIP_CARD_HEIGHT + noTipsButtonGap
         PcCompactNoTipsButton(
             selected = state.isNoTipsSelected,
             enabled = tipsInteractive,
+            visuallyEnabled = tipsVisuallyEnabled,
             onClick = onSelectNoTips,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -1904,18 +1893,25 @@ private fun PcCompactTipPresetCard(
 private fun PcCompactNoTipsButton(
     selected: Boolean,
     enabled: Boolean,
+    visuallyEnabled: Boolean = true,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(20.dp)
-    val alpha = if (enabled) 1f else 0.5f
+    val visualAlpha = if (visuallyEnabled) 1f else 0.5f
     val backgroundBrush = if (selected) {
         Brush.verticalGradient(
-            listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))
+            listOf(
+                Color(0xFF74E8E1).copy(alpha = visualAlpha),
+                Color(0xFF20B8C8).copy(alpha = visualAlpha)
+            )
         )
     } else {
         Brush.verticalGradient(
-            listOf(Color.White.copy(alpha = 0.22f * alpha), Color.White.copy(alpha = 0.10f * alpha))
+            listOf(
+                Color.White.copy(alpha = 0.22f * visualAlpha),
+                Color.White.copy(alpha = 0.10f * visualAlpha)
+            )
         )
     }
     Box(
@@ -1923,13 +1919,19 @@ private fun PcCompactNoTipsButton(
             .size(width = 448.dp, height = 56.dp)
             .clip(shape)
             .background(backgroundBrush)
-            .border(1.dp, Color.White.copy(alpha = if (selected) 0.45f * alpha else 0.3f * alpha), shape)
+            .border(
+                1.dp,
+                Color.White.copy(
+                    alpha = if (selected) 0.45f * visualAlpha else 0.3f * visualAlpha
+                ),
+                shape
+            )
             .clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "Без чаевых",
-            color = Color.White.copy(alpha = alpha),
+            color = Color.White.copy(alpha = visualAlpha),
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = MontserratFontFamily
