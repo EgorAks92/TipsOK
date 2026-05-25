@@ -4,7 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PosPaymentEvent
-import com.chaiok.pos.domain.model.PaymentResult
+import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
 import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
@@ -105,7 +105,8 @@ class PcCompactTipPaymentViewModel(
     private val paymentResultMapper: PcEcrPaymentResultMapper,
     private val transactionLogRepository: PcPaymentTransactionLogRepository,
     private val sourceCommandId: String?,
-    private val sourceOrderId: String?
+    private val sourceOrderId: String?,
+    private val sourceCurrency: String?
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PcCompactTipPaymentUiState(billAmount = billAmount))
     val uiState = _uiState.asStateFlow()
@@ -127,6 +128,9 @@ class PcCompactTipPaymentViewModel(
     private var userCancelInProgress = false
     private var cancelEventSent = false
     private var ignoreNextCancelledFromRestart = false
+    private var pcEcrFinalResultSent = false
+    private var pendingFinalPcEcrResult: PcEcrFinalPaymentResult? = null
+    private var commandCurrency: String = "RUB"
 
     private var waiterId: String = ""
     private var activePaymentServiceFeeEnabled: Boolean = false
@@ -138,6 +142,7 @@ class PcCompactTipPaymentViewModel(
 
     private suspend fun initStateAndStart() {
         terminalId = sessionRepository.terminalId.first().orEmpty()
+        commandCurrency = sourceCurrency?.ifBlank { null } ?: "RUB"
         val profile = observeProfileUseCase().filterNotNull().first()
         waiterId = profile.id
 
@@ -447,7 +452,15 @@ class PcCompactTipPaymentViewModel(
             is PosPaymentEvent.Approved -> {
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.Approved, canCancel = false, isRestartingPayment = false, errorMessage = null) }
                 delay(APPROVED_VISIBLE_MS)
-                sendPcEcrResult(PaymentResult.Approved(event.transactionId, event.rrn, event.authCode, event.message))
+                sendPcEcrFinalResultOnce(
+                    PcEcrFinalPaymentResult.Approved(
+                        message = event.message,
+                        externalTransactionId = event.transactionId,
+                        rrn = event.rrn,
+                        authCode = event.authCode,
+                        receiptText = event.receiptText
+                    )
+                )
                 resumePcEcrAfterPayment("approved")
                 _events.send(PcCompactTipPaymentEvent.Approved)
             }
@@ -461,7 +474,11 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = event.reason ?: "Оплата отклонена"
                     )
                 }
-                sendPcEcrResult(PaymentResult.Declined(event.reason, null, null))
+                pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Declined(
+                    resultCode = event.code,
+                    message = event.reason ?: event.rawMessage,
+                    receiptText = event.receiptText
+                )
                 scheduleDeclinedAutoClose()
             }
             is PosPaymentEvent.Error -> {
@@ -474,7 +491,10 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = event.message.ifBlank { "Ошибка оплаты" }
                     )
                 }
-                sendPcEcrResult(PaymentResult.Error(event.message.ifBlank { "Ошибка оплаты" }))
+                pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Error(
+                    message = event.message.ifBlank { "Ошибка оплаты" },
+                    receiptText = event.receiptText
+                )
                 scheduleDeclinedAutoClose()
             }
             PosPaymentEvent.Cancelled -> {
@@ -499,24 +519,30 @@ class PcCompactTipPaymentViewModel(
                         errorMessage = "Оплата отменена"
                     )
                 }
-                sendPcEcrResult(PaymentResult.Error("Cancelled"))
+                pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Cancelled(message = "Cancelled")
                 scheduleDeclinedAutoClose()
             }
         }
     }
 
-    private suspend fun sendPcEcrResult(result: PaymentResult) {
+    private suspend fun sendPcEcrFinalResultOnce(result: PcEcrFinalPaymentResult) {
+        if (pcEcrFinalResultSent) {
+            Log.i(TAG, "Skip duplicate PC ECR final result send")
+            return
+        }
+        pcEcrFinalResultSent = true
         val commandId = sourceCommandId?.ifBlank { null }
             ?: sourceOrderId?.ifBlank { null }
             ?: "generated-${System.currentTimeMillis()}"
         val state = _uiState.value
         val frame = paymentResultMapper.map(
-            paymentResult = result,
+            result = result,
             commandId = commandId,
             orderId = sourceOrderId?.ifBlank { null },
-            currency = "RUB",
+            currency = commandCurrency,
             billAmount = BigDecimal.valueOf(state.billAmount).setScale(2, RoundingMode.HALF_UP),
             tipAmount = BigDecimal.valueOf(state.selectedTipAmount).setScale(2, RoundingMode.HALF_UP),
+            totalAmount = BigDecimal.valueOf(state.totalAmount).setScale(2, RoundingMode.HALF_UP),
             terminalId = terminalId
         )
         Log.i(TAG, "PC ECR payment result prepared commandId=${frame.commandId} status=${frame.status}")
@@ -538,6 +564,7 @@ class PcCompactTipPaymentViewModel(
         declinedTimeoutJob = viewModelScope.launch {
             delay(DECLINED_AUTO_CLOSE_DELAY_MS)
             if (!userCancelInProgress && !cancelEventSent) {
+                pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnce(it) }
                 resumePcEcrAfterPayment("declined_timeout")
                 _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
             }
@@ -547,6 +574,7 @@ class PcCompactTipPaymentViewModel(
     private fun cancelDeclinedAutoClose() {
         declinedTimeoutJob?.cancel()
         declinedTimeoutJob = null
+        pendingFinalPcEcrResult = null
     }
 
 
@@ -554,6 +582,7 @@ class PcCompactTipPaymentViewModel(
         if (cancelEventSent) return
         cancelDeclinedAutoClose()
         cancelEventSent = true
+        sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"))
         resumePcEcrAfterPayment("cancelled_by_user")
         _events.send(PcCompactTipPaymentEvent.CancelledByUser)
     }

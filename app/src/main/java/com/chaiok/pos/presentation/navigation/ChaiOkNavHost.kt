@@ -666,7 +666,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                                             Routes.pcCompactTipPaymentFromPc(
                                                 value.amount,
                                                 value.commandId,
-                                                value.orderId
+                                                value.orderId,
+                                                value.currency
                                             )
                                         )
                                     } else {
@@ -674,7 +675,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                                             Routes.tipSelectionFromPc(
                                                 value.amount,
                                                 value.commandId,
-                                                value.orderId
+                                                value.orderId,
+                                                value.currency
                                             )
                                         )
                                     }
@@ -701,7 +703,8 @@ fun ChaiOkNavHost(container: AppContainer) {
             arguments = listOf(
                 navArgument("billAmountKopecks") { type = NavType.LongType },
                 navArgument("commandId") { type = NavType.StringType; defaultValue = "" },
-                navArgument("orderId") { type = NavType.StringType; defaultValue = "" }
+                navArgument("orderId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("currency") { type = NavType.StringType; defaultValue = "RUB" }
             )
         ) { backStack ->
             val billAmount = backStack.arguments?.getLong("billAmountKopecks")?.toDouble()?.div(100.0) ?: 0.0
@@ -719,7 +722,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         paymentResultMapper = container.pcEcrPaymentResultMapper,
                         transactionLogRepository = container.pcPaymentTransactionLogRepository,
                         sourceCommandId = backStack.arguments?.getString("commandId"),
-                        sourceOrderId = backStack.arguments?.getString("orderId")
+                        sourceOrderId = backStack.arguments?.getString("orderId"),
+                        sourceCurrency = backStack.arguments?.getString("currency")
                     )
                 }
             )

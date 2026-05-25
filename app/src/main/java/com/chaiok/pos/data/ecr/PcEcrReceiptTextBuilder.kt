@@ -1,5 +1,7 @@
 package com.chaiok.pos.data.ecr
 
+import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
+
 class PcEcrReceiptTextBuilder {
     fun buildFromSspReceipt(rawReceipt: String): String =
         normalizeAndSanitize(rawReceipt).ifBlank { "ЧАЙОК / TIPLY\nРЕЗУЛЬТАТ ОПЕРАЦИИ" }

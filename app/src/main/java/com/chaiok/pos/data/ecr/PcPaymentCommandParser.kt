@@ -43,6 +43,7 @@ object PcPaymentCommandParser {
             amount = amount,
             commandId = obj.optString("commandId").ifBlank { null },
             orderId = obj.optString("orderId").ifBlank { null },
+            currency = currency,
             rawPayloadPreview = preview(line)
         )
     }.getOrNull()

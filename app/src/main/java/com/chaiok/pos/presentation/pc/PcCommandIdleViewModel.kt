@@ -244,7 +244,8 @@ class PcCommandIdleViewModel(
             PcCommandIdleEvent.OpenTipSelection(
                 amount = command.amount,
                 commandId = command.commandId,
-                orderId = command.orderId
+                orderId = command.orderId,
+                currency = command.currency
             )
         )
     }
@@ -305,6 +306,7 @@ sealed interface PcCommandIdleEvent {
     data class OpenTipSelection(
         val amount: BigDecimal,
         val commandId: String?,
-        val orderId: String?
+        val orderId: String?,
+        val currency: String
     ) : PcCommandIdleEvent
 }

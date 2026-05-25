@@ -423,7 +423,8 @@ class SmartSkyHeadlessPosPaymentRepository(
                     ?.toString(),
                 rrn = rrn,
                 authCode = authCode,
-                message = message ?: "Оплата одобрена"
+                message = message ?: "Оплата одобрена",
+                receiptText = extractReceiptText()
             )
         } else {
             val declineMessage = message?.takeIf { it.isNotBlank() } ?: "Оплата отклонена"
@@ -433,7 +434,8 @@ class SmartSkyHeadlessPosPaymentRepository(
             PosPaymentEvent.Declined(
                 reason = declineMessage,
                 code = declineCode,
-                rawMessage = message
+                rawMessage = message,
+                receiptText = extractReceiptText()
             )
         }
     }
@@ -511,6 +513,21 @@ class SmartSkyHeadlessPosPaymentRepository(
             .valueOf(this)
             .setScale(2, RoundingMode.HALF_UP)
             .toDouble()
+    }
+
+
+
+    private fun TransactionResult.extractReceiptText(): String? {
+        val candidateNames = listOf("receipt", "receiptText", "slip", "customerReceipt", "merchantReceipt", "customerSlip", "merchantSlip")
+        val parts = mutableListOf<String>()
+        candidateNames.forEach { name ->
+            val value = runCatching {
+                val method = javaClass.methods.firstOrNull { it.parameterCount == 0 && it.name.equals("get" + name.replaceFirstChar { c -> c.uppercase() }) }
+                method?.invoke(this) as? String
+            }.getOrNull()?.trim().orEmpty()
+            if (value.isNotBlank()) parts += value
+        }
+        return parts.distinct().joinToString("\n\n").ifBlank { null }
     }
 
     private fun TransactionResult?.toSafePaymentResultLog(): String {

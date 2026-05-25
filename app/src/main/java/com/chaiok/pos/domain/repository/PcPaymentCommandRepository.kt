@@ -3,7 +3,7 @@ package com.chaiok.pos.domain.repository
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcPaymentResponse
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
-import com.chaiok.pos.data.ecr.ChaiOkEcrPaymentResultFrame
+import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import kotlinx.coroutines.flow.Flow
 
 interface PcPaymentCommandRepository {

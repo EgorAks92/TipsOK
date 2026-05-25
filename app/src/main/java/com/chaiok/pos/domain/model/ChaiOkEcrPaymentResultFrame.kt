@@ -1,4 +1,4 @@
-package com.chaiok.pos.data.ecr
+package com.chaiok.pos.domain.model
 
 import kotlinx.serialization.Serializable
 
@@ -31,4 +31,3 @@ data class ChaiOkEcrReceiptFrame(
     val encoding: String = "utf-8",
     val text: String
 )
-

@@ -1,6 +1,7 @@
 package com.chaiok.pos.data.ecr
 
 import android.util.Log
+import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcPaymentResponse
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus

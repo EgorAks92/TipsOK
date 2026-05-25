@@ -11,18 +11,21 @@ sealed interface PosPaymentEvent {
         val transactionId: String? = null,
         val rrn: String? = null,
         val authCode: String? = null,
-        val message: String? = null
+        val message: String? = null,
+        val receiptText: String? = null
     ) : PosPaymentEvent
 
     data class Declined(
         val reason: String? = null,
         val code: String? = null,
-        val rawMessage: String? = null
+        val rawMessage: String? = null,
+        val receiptText: String? = null
     ) : PosPaymentEvent
 
     data class Error(
         val message: String,
-        val rawMessage: String? = null
+        val rawMessage: String? = null,
+        val receiptText: String? = null
     ) : PosPaymentEvent
 
     data object Cancelled : PosPaymentEvent

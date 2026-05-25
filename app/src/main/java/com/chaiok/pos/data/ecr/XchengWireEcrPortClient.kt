@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
+import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.xcheng.wiredecr.IComm
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -315,7 +316,10 @@ class XchengWireEcrPortClient(context: Context) {
 
     suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit> {
         val line = json.encodeToString(frame) + "\n"
-        return send(line.toByteArray(Charsets.UTF_8))
+        val bytes = line.toByteArray(Charsets.UTF_8)
+        Log.i(TAG, "send payment_result commandId=${frame.commandId} orderId=${frame.orderId ?: "-"} status=${frame.status} success=${frame.success} bytes=${bytes.size}")
+        val usbComm = usb ?: return Result.failure(IllegalStateException("USB service missing"))
+        return runCatching { usbComm.send(bytes); Unit }.onFailure { Log.e(TAG, "send payment_result failed", it) }
     }
 
     suspend fun pauseTransportForPayment(): Result<Unit> = withContext(Dispatchers.IO) {

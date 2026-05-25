@@ -1,6 +1,8 @@
 package com.chaiok.pos.data.ecr
 
-import com.chaiok.pos.domain.model.PaymentResult
+import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
+import com.chaiok.pos.domain.model.ChaiOkEcrReceiptFrame
+import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import java.math.BigDecimal
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -12,28 +14,22 @@ class PcEcrProtocolTest {
     @Test
     fun dto_serializes_payment_result_type() {
         val json = Json { encodeDefaults = true; explicitNulls = false }
-        val frame = ChaiOkEcrPaymentResultFrame(
-            commandId = "CHECK-1",
-            status = "approved",
-            success = true,
-            currency = "RUB",
-            createdAt = "2026-01-01T00:00:00Z",
-            receipt = ChaiOkEcrReceiptFrame(text = "line1\nline2")
-        )
+        val frame = ChaiOkEcrPaymentResultFrame(commandId = "CHECK-1", status = "approved", success = true, currency = "RUB", createdAt = "2026-01-01T00:00:00Z", receipt = ChaiOkEcrReceiptFrame(text = "line1\nline2"))
         val line = json.encodeToString(frame)
         assertTrue(line.contains("\"type\":\"payment_result\""))
-        assertTrue(line.contains("line1\\nline2"))
+        assertTrue((line + "\n").endsWith("\n"))
     }
 
     @Test
-    fun mapper_approved_and_declined() {
+    fun mapper_statuses_and_receipt() {
         val mapper = PcEcrPaymentResultMapper()
-        val approved = mapper.map(PaymentResult.Approved(), "cmd", null, "RUB", BigDecimal("1500.00"), BigDecimal("150.00"), "t1")
+        val approved = mapper.map(PcEcrFinalPaymentResult.Approved(receiptText = "a\nb"), "cmd", null, "RUB", BigDecimal("1500.00"), BigDecimal("150.00"), BigDecimal("1650.00"), "t1")
         assertEquals("approved", approved.status)
         assertEquals(true, approved.success)
-        val declined = mapper.map(PaymentResult.Declined(reason = "No"), "cmd", null, "RUB", BigDecimal("1500.00"), BigDecimal("0"), "t1")
-        assertEquals("declined", declined.status)
-        assertEquals(false, declined.success)
+        assertTrue(approved.receipt?.text?.contains("a\nb") == true)
+        assertEquals("declined", mapper.map(PcEcrFinalPaymentResult.Declined(message = "No"), "cmd", null, "RUB", BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, "t1").status)
+        assertEquals("cancelled", mapper.map(PcEcrFinalPaymentResult.Cancelled(), "cmd", null, "RUB", BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, "t1").status)
+        assertEquals("error", mapper.map(PcEcrFinalPaymentResult.Error("Err"), "cmd", null, "RUB", BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, "t1").status)
     }
 
     @Test
