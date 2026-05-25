@@ -1,1 +1,7 @@
 *.kt text diff eol=lf
+*.java text diff eol=lf
+*.xml text diff eol=lf
+*.gradle text diff eol=lf
+*.kts text diff eol=lf
+*.properties text diff eol=lf
+*.pro text diff eol=lf

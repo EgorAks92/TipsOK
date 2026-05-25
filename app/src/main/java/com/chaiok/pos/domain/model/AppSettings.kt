@@ -25,6 +25,8 @@ data class Arcus2NewWaySettings(
     val errorRc: String = "999",
     val minimalResultMode: Boolean = true,
     val waitOkAfterEachCommand: Boolean = false,
+    val sendReceiptInMinimalMode: Boolean = true,
+    val drainOkAfterCommandMs: Long = 200L,
     val sendBeginTrOnPaymentStart: Boolean = true,
     val sendStatusOnPaymentStart: Boolean = true,
     val paymentStartStatusText: String = "Ожидание карты"

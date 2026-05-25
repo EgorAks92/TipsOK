@@ -133,7 +133,20 @@ class Arcus2CashRegisterSession(
         Log.i("Arcus2Session", "ARCUS2 OUT sent label=$label bytes=${frame.size}")
         if (!settings.waitOkAfterEachCommand) {
             Log.i("Arcus2Session", "ARCUS2 sent label=$label without waiting OK")
-            return Result.success(Unit)
+            val drained = client.receiveOnce(settings.drainOkAfterCommandMs).getOrNull()
+            val responseText = drained
+                ?.let { Arcus2BinLenCodec.decode(it).getOrNull()?.data }
+                ?.let(::decodeWin1251)
+                ?.trim('\u0000', ' ', '\n', '\r', '\t')
+
+            return when (responseText) {
+                null, "", "OK" -> Result.success(Unit)
+                "ER" -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
+                else -> {
+                    Log.w("Arcus2Session", "ARCUS2 drain unknown label=$label resp=${responseText.take(32)}")
+                    Result.success(Unit)
+                }
+            }
         }
 
         Log.i("Arcus2Session", "ARCUS2 wait OK label=$label timeoutMs=${settings.waitOkTimeoutMs}")
@@ -152,7 +165,7 @@ class Arcus2CashRegisterSession(
 }
 
 object Arcus2TagsBuilder {
-    fun buildPaymentTags(result: PcEcrFinalPaymentResult, amount: BigDecimal?, currency: String?, terminalId: String?): ByteArray = ByteArray(0)
+    fun buildPaymentTags(result: PcEcrFinalPaymentResult, amount: BigDecimal?, currency: String?, terminalId: String?, rrn: String?, authCode: String?, responseCode: String?): ByteArray = ByteArray(0)
 }
 
 data class Arcus2OutgoingCommand(val label: String, val data: ByteArray)
@@ -168,24 +181,23 @@ object Arcus2NewWayResultSequenceBuilder {
         fun addText(label: String, text: String) { commands += Arcus2OutgoingCommand(label, encodeWin1251(text)) }
 
         if (settings.minimalResultMode) {
-            return when (result) {
-                is PcEcrFinalPaymentResult.Approved -> listOf(
-                    Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:00")),
-                    Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
-                )
-                is PcEcrFinalPaymentResult.Declined -> listOf(
-                    Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${result.resultCode ?: settings.declinedDefaultRc}")),
-                    Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
-                )
-                is PcEcrFinalPaymentResult.Cancelled -> listOf(
-                    Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${settings.cancelledRc}")),
-                    Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
-                )
-                is PcEcrFinalPaymentResult.Error -> listOf(
-                    Arcus2OutgoingCommand("STORERC", encodeWin1251("STORERC:${settings.errorRc}")),
-                    Arcus2OutgoingCommand("ENDTR", encodeWin1251("ENDTR"))
-                )
+            val shouldPrintReceipt = settings.sendReceiptInMinimalMode && settings.sendPrintCommands && !receiptText.isNullOrBlank()
+            if (shouldPrintReceipt) {
+                if (settings.sendStartEndPrint) addText("STARTPRINT", "STARTPRINT:CUSTOMER")
+                splitReceiptToPrintChunks(receiptText.orEmpty(), settings.maxReceiptPrintBlockBytes).forEach { chunk ->
+                    if (chunk.isNotBlank()) addText("PRINT", "PRINT:$chunk")
+                }
+                if (settings.sendStartEndPrint) addText("ENDPRINT", "ENDPRINT:CUSTOMER")
             }
+            when (result) {
+                is PcEcrFinalPaymentResult.Approved -> addText("STORERC", "STORERC:00")
+                is PcEcrFinalPaymentResult.Declined -> addText("STORERC", "STORERC:${result.resultCode ?: settings.declinedDefaultRc}")
+                is PcEcrFinalPaymentResult.Cancelled -> addText("STORERC", "STORERC:${settings.cancelledRc}")
+                is PcEcrFinalPaymentResult.Error -> addText("STORERC", "STORERC:${settings.errorRc}")
+            }
+            addText("SETTAGS", "SETTAGS:")
+            addText("ENDTR", "ENDTR")
+            return commands
         }
 
 
@@ -203,7 +215,7 @@ object Arcus2NewWayResultSequenceBuilder {
                 if (settings.sendSetTags) {
                     commands += Arcus2OutgoingCommand(
                         "SETTAGS",
-                        encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildPaymentTags(result, sourceCommand.amount, sourceCommand.currency, null)
+                        encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildPaymentTags(result, sourceCommand.amount, sourceCommand.currency, null, null, null, null)
                     )
                 }
                 addText("ENDTR", "ENDTR")
@@ -224,11 +236,13 @@ object Arcus2NewWayResultSequenceBuilder {
             is PcEcrFinalPaymentResult.Cancelled -> {
                 if (settings.sendStatusMessages) addText("STATUS", "STATUS:Отменено")
                 addText("STORERC", "STORERC:${settings.cancelledRc}")
+                if (settings.sendSetTags) addText("SETTAGS", "SETTAGS:")
                 addText("ENDTR", "ENDTR")
             }
             is PcEcrFinalPaymentResult.Error -> {
                 if (settings.sendStatusMessages) addText("STATUS", "STATUS:Ошибка")
                 addText("STORERC", "STORERC:${settings.errorRc}")
+                if (settings.sendSetTags) addText("SETTAGS", "SETTAGS:")
                 addText("ENDTR", "ENDTR")
             }
         }
