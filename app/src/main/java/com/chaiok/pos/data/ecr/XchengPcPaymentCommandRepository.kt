@@ -173,6 +173,21 @@ class XchengPcPaymentCommandRepository(
         return sendResult
     }
 
+
+    private suspend fun sendArcus2TransactionStartedWhileListening(
+        settings: Arcus2NewWaySettings
+    ): Result<Unit> {
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        return runCatching {
+            if (settings.sendBeginTrOnPaymentStart) {
+                session.sendCommandAndWaitOk("BEGINTR:").getOrThrow()
+            }
+            if (settings.sendStatusOnPaymentStart) {
+                session.sendCommandAndWaitOk("STATUS:${settings.paymentStartStatusText}").getOrThrow()
+            }
+        }.map { Unit }
+    }
+
     private suspend fun sendArcus2SimpleSuccessWhileListening(settings: Arcus2NewWaySettings): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         return runCatching {
@@ -274,7 +289,18 @@ class XchengPcPaymentCommandRepository(
                 val adapter = Arcus2NewWayProtocolAdapter({ settings.arcus2NewWaySettings }, rawLogger)
                 when (val parsed = adapter.parseIncoming(bytes)) {
                     is EcrParseResult.Command -> when (val cmd = parsed.command) {
-                        is PcEcrCommand.Payment -> PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
+                        is PcEcrCommand.Payment -> {
+                            Log.i(TAG, "ARCUS2 IN sale command parsed commandId=${cmd.commandId ?: "-"} amount=${cmd.amount} currency=${cmd.currency}")
+                            Log.i(TAG, "ARCUS2 start sequence commandId=${cmd.commandId ?: "-"} commands=BEGINTR,STATUS waitOk=${settings.arcus2NewWaySettings.waitOkAfterEachCommand}")
+                            val startResult = sendArcus2TransactionStartedWhileListening(settings.arcus2NewWaySettings)
+                            if (startResult.isFailure) {
+                                updateArcusListeningState(startResult, "arcus2 payment start response error")
+                                null
+                            } else {
+                                Log.i(TAG, "ARCUS2 payment command accepted commandId=${cmd.commandId ?: "-"}")
+                                PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
+                            }
+                        }
                         is PcEcrCommand.Ping -> {
                             val r = sendArcus2SimpleSuccessWhileListening(settings.arcus2NewWaySettings)
                             updateArcusListeningState(r, "arcus2 ping error")

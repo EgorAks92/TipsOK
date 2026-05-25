@@ -73,4 +73,14 @@ class Arcus2NewWayResultSequenceBuilderTest {
         assertTrue(texts.any { it.startsWith("STORERC:999") })
         assertTrue(texts.last().startsWith("ENDTR"))
     }
+
+
+    @Test fun settingsDefaults() {
+        val s = Arcus2NewWaySettings()
+        assertTrue(s.sendBeginTrOnPaymentStart)
+        assertTrue(s.sendStatusOnPaymentStart)
+        assertTrue(s.paymentStartStatusText == "Ожидание карты")
+        assertTrue(s.minimalResultMode)
+        assertTrue(!s.waitOkAfterEachCommand)
+    }
 }
