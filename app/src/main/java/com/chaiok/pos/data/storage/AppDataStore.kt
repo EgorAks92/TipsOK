@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.chaiok.pos.domain.model.Arcus2NewWaySettings
+import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.TipRange
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -32,6 +34,7 @@ class AppDataStore(private val context: Context) {
         val pcIdleImages = stringPreferencesKey("pc_idle_images")
         val pcCompactServiceFeeEnabled = booleanPreferencesKey("pc_compact_service_fee_enabled")
         val showCustomTipButton = booleanPreferencesKey("show_custom_tip_button")
+        val pcEcrProtocol = stringPreferencesKey("pc_ecr_protocol")
     }
 
     val integrationModeFlow: Flow<Boolean> =
@@ -72,6 +75,16 @@ class AppDataStore(private val context: Context) {
 
     val showCustomTipButtonFlow: Flow<Boolean> =
         context.dataStore.data.map { it[Keys.showCustomTipButton] ?: true }
+
+    val pcEcrProtocolFlow: Flow<PcEcrProtocol> =
+        context.dataStore.data.map { prefs ->
+            prefs[Keys.pcEcrProtocol]
+                ?.let { runCatching { PcEcrProtocol.valueOf(it) }.getOrNull() }
+                ?: PcEcrProtocol.CHAIOK_JSON
+        }
+
+    val arcus2NewWaySettingsFlow: Flow<Arcus2NewWaySettings> =
+        context.dataStore.data.map { Arcus2NewWaySettings() }
 
     val tipRangeFlow: Flow<TipRange?> = context.dataStore.data.map { prefs ->
         val percentsRaw = prefs[Keys.tipRangePercents]
@@ -138,6 +151,10 @@ class AppDataStore(private val context: Context) {
 
     suspend fun setShowCustomTipButton(value: Boolean) = context.dataStore.edit {
         it[Keys.showCustomTipButton] = value
+    }
+
+    suspend fun setPcEcrProtocol(value: PcEcrProtocol) = context.dataStore.edit {
+        it[Keys.pcEcrProtocol] = value.name
     }
 
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {

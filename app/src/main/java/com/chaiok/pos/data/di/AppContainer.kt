@@ -51,6 +51,7 @@ import com.chaiok.pos.domain.usecase.UpdateTileBackgroundUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class AppContainer(context: Context) {
@@ -83,7 +84,11 @@ class AppContainer(context: Context) {
         BackendTipRangeRepository(terminalApi, sessionRepository, appDataStore)
     }
     val settingsRepository: SettingsRepository by lazy { DataStoreSettingsRepository(appDataStore) }
-    val pcPaymentCommandRepository by lazy { XchengPcPaymentCommandRepository(XchengWireEcrPortClient(appContext)) }
+    val pcPaymentCommandRepository by lazy { XchengPcPaymentCommandRepository(
+        client = XchengWireEcrPortClient(appContext),
+        protocolProvider = { kotlinx.coroutines.runBlocking { settingsRepository.observeSettings().first().pcEcrProtocol } },
+        arcusSettingsProvider = { kotlinx.coroutines.runBlocking { settingsRepository.observeSettings().first().arcus2NewWaySettings } }
+    ) }
     val pcEcrPaymentResultMapper by lazy { PcEcrPaymentResultMapper() }
     val pcPaymentTransactionLogRepository by lazy { PcPaymentTransactionLogRepository(appContext) }
     val reviewRepository: ReviewRepository by lazy { BackendReviewRepository(terminalApi, sessionRepository) }

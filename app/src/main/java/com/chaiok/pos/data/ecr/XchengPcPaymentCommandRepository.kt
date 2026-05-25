@@ -4,6 +4,8 @@ import android.util.Log
 import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcPaymentResponse
+import com.chaiok.pos.domain.model.PcEcrProtocol
+import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import kotlinx.coroutines.delay
@@ -14,8 +16,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class XchengPcPaymentCommandRepository(
-    private val client: XchengWireEcrPortClient
+    private val client: XchengWireEcrPortClient,
+    private val protocolProvider: () -> PcEcrProtocol = { PcEcrProtocol.CHAIOK_JSON },
+    private val arcusSettingsProvider: () -> Arcus2NewWaySettings = { Arcus2NewWaySettings() }
 ) : PcPaymentCommandRepository {
+
+    private val arcusAdapter by lazy { Arcus2NewWayProtocolAdapter({ arcusSettingsProvider() }, Arcus2RawFrameLogger()) }
 
     private enum class PcEcrLifecycleState {
         Disconnected,
@@ -198,7 +204,16 @@ class XchengPcPaymentCommandRepository(
 
         Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
 
-        val command = PcPaymentCommandParser.parse(bytes)
+        val command = when (protocolProvider()) {
+            PcEcrProtocol.CHAIOK_JSON -> PcPaymentCommandParser.parse(bytes)
+            PcEcrProtocol.ARCUS2_NEWWAY -> when (val parsed = arcusAdapter.parseIncoming(bytes)) {
+                is EcrParseResult.Command -> when (val cmd = parsed.command) {
+                    is PcEcrCommand.Payment -> PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2")
+                    else -> null
+                }
+                else -> null
+            }
+        }
         if (command != null) {
             Log.i(
                 TAG,

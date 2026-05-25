@@ -2,6 +2,7 @@ package com.chaiok.pos.presentation
 
 import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.AuthSession
+import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.repository.AuthRepository
@@ -28,6 +29,7 @@ class FakeSettingsRepo(private val settingsFlow: MutableStateFlow<AppSettings>) 
     override suspend fun setPcIdleImages(images: List<String>) = Unit
     override suspend fun setPcCompactServiceFeeEnabled(enabled: Boolean) = Unit
     override suspend fun setShowCustomTipButton(enabled: Boolean) = Unit
+    override suspend fun setPcEcrProtocol(protocol: PcEcrProtocol) = Unit
 }
 
 class FakeAuthRepo2 : AuthRepository {
