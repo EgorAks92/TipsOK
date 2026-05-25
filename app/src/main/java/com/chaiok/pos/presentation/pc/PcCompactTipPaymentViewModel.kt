@@ -164,30 +164,42 @@ class PcCompactTipPaymentViewModel(
     private fun observeSettings() {
         viewModelScope.launch {
             observeSettingsUseCase().collect { settings ->
+                var shouldRestartAfterCustomDisabled = false
+                var fallbackSelectedTip: PcCompactSelectedTip? = null
+
                 _uiState.update { current ->
-                    if (settings.showCustomTipButton || !current.isCustomTipSelected) {
-                        current.copy(
-                            showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
-                            showCustomTipButton = settings.showCustomTipButton
-                        )
-                    } else {
+                    val disablingSelectedCustom =
+                        !settings.showCustomTipButton && current.isCustomTipSelected
+
+                    if (disablingSelectedCustom) {
                         val hasPercents = current.availablePercents.isNotEmpty()
+                        shouldRestartAfterCustomDisabled = true
+                        fallbackSelectedTip = if (hasPercents) {
+                            PcCompactSelectedTip.Percent(0)
+                        } else {
+                            PcCompactSelectedTip.NoTips
+                        }
+
                         current.copy(
                             showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                             showCustomTipButton = false,
                             isCustomTipSelected = false,
                             isNoTipsSelected = !hasPercents,
-                            selectedPercentIndex = if (hasPercents) 0 else current.selectedPercentIndex
+                            selectedPercentIndex = if (hasPercents) 0 else current.selectedPercentIndex,
+                            customTipAmount = null,
+                            errorMessage = null
+                        )
+                    } else {
+                        current.copy(
+                            showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
+                            showCustomTipButton = settings.showCustomTipButton
                         )
                     }
                 }
-                if (!settings.showCustomTipButton && _uiState.value.isCustomTipSelected) {
+
+                if (shouldRestartAfterCustomDisabled) {
                     pendingSelectedIndex = null
-                    activeSelectedTip = if (_uiState.value.availablePercents.isNotEmpty()) {
-                        PcCompactSelectedTip.Percent(0)
-                    } else {
-                        PcCompactSelectedTip.NoTips
-                    }
+                    activeSelectedTip = fallbackSelectedTip ?: PcCompactSelectedTip.NoTips
                     restartPaymentWithCurrentAmount("custom tip disabled in settings")
                 }
             }

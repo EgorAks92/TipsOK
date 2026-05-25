@@ -72,6 +72,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
@@ -508,10 +509,13 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 add(PcCompactTipCardUiModel.Percent(percent = percent, percentIndex = index))
             }
         }
+        val tipCardKeys = tipCards.map { it.key }
+        val tipCardKeysSignature = tipCardKeys.joinToString("|")
 
         val middleIndex = tipCards.size / 2
         val listState = rememberLazyListState()
         var didInitialCenter by rememberSaveable { mutableStateOf(false) }
+        var lastTipCardKeysSignature by rememberSaveable { mutableStateOf("") }
 
         BoxWithConstraints(
             modifier = Modifier
@@ -526,11 +530,14 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             val cardWidthPx = with(density) { PC_COMPACT_TIP_CARD_WIDTH.toPx() }
             val centerOffsetPx = -((viewportWidthPx - cardWidthPx) / 2f).roundToInt()
 
-            LaunchedEffect(
-                tipCards.map { it.key },
-                state.availablePercents.size,
-                tipCards.size
-            ) {
+            LaunchedEffect(tipCardKeysSignature) {
+                if (lastTipCardKeysSignature != tipCardKeysSignature) {
+                    didInitialCenter = false
+                    lastTipCardKeysSignature = tipCardKeysSignature
+                }
+            }
+
+            LaunchedEffect(tipCardKeysSignature, state.availablePercents.size, tipCards.size) {
                 if (!didInitialCenter && tipCards.isNotEmpty()) {
                     listState.scrollToItem(
                         index = middleIndex,
@@ -560,7 +567,11 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                                 selected = state.isCustomTipSelected,
                                 enabled = tipsInteractive,
                                 visuallyEnabled = tipsVisuallyEnabled,
-                                onClick = { showCustomTipDialog.value = true }
+                                onClick = {
+                                    if (tipsInteractive && state.showCustomTipButton) {
+                                        showCustomTipDialog.value = true
+                                    }
+                                }
                             )
                         }
 
@@ -580,7 +591,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 }
             }
         }
-        val noTipsButtonTop = tipsRowTop + PC_COMPACT_TIP_CARD_HEIGHT + 20.dp
+        val noTipsButtonGap = if (showServiceFeeRow) 12.dp else 20.dp
+        val noTipsButtonTop = tipsRowTop + PC_COMPACT_TIP_CARD_HEIGHT + noTipsButtonGap
         PcCompactNoTipsButton(
             selected = state.isNoTipsSelected,
             enabled = tipsInteractive,
@@ -1865,7 +1877,8 @@ private fun PcCompactTipPresetCard(
                 fontFamily = MontserratFontFamily,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
-                softWrap = false,
+                softWrap = true,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
             )
 
