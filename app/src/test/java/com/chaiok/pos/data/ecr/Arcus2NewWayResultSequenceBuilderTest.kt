@@ -22,6 +22,13 @@ class Arcus2NewWayResultSequenceBuilderTest {
         assertTrue(texts.last().startsWith("ENDTR"))
     }
 
+    @Test fun approvedLongReceiptMultiplePrint() {
+        val longReceipt = (1..30).joinToString("\n") { "LINE-$it-ABCDEFGHIJ" }
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), longReceipt, Arcus2NewWaySettings(maxReceiptPrintBlockBytes = 40))
+        val printCount = seq.map { decodeWin1251(it.data) }.count { it.startsWith("PRINT:") }
+        assertTrue(printCount > 1)
+    }
+
     @Test fun approvedWithoutPrint() {
         val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Approved(), "hello", Arcus2NewWaySettings(sendPrintCommands = false))
         assertTrue(seq.map { decodeWin1251(it.data) }.none { it.startsWith("PRINT:") })

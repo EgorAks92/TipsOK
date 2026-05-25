@@ -172,19 +172,17 @@ class XchengPcPaymentCommandRepository(
         return sendResult.map { Unit }
     }
 
-    private suspend fun sendArcus2SimpleSuccess(settings: Arcus2NewWaySettings): Result<Unit> {
+    private suspend fun sendArcus2SimpleSuccessWhileListening(settings: Arcus2NewWaySettings): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         return runCatching {
-            client.resumeTransportAfterPayment().getOrThrow()
             session.sendCommandAndWaitOk("STORERC:00").getOrThrow()
             session.sendCommandAndWaitOk("ENDTR").getOrThrow()
         }.map { Unit }
     }
 
-    private suspend fun sendArcus2Unsupported(settings: Arcus2NewWaySettings, message: String): Result<Unit> {
+    private suspend fun sendArcus2UnsupportedWhileListening(settings: Arcus2NewWaySettings, message: String): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         return runCatching {
-            client.resumeTransportAfterPayment().getOrThrow()
             if (settings.sendStatusMessages) session.sendCommandAndWaitOk("STATUS:Операция не поддержана").getOrThrow()
             session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrThrow()
             session.sendCommandAndWaitOk("ENDTR").getOrThrow()
@@ -276,8 +274,32 @@ class XchengPcPaymentCommandRepository(
                 when (val parsed = adapter.parseIncoming(bytes)) {
                     is EcrParseResult.Command -> when (val cmd = parsed.command) {
                         is PcEcrCommand.Payment -> PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
-                        is PcEcrCommand.Ping -> { sendArcus2SimpleSuccess(settings.arcus2NewWaySettings); null }
-                        is PcEcrCommand.Refund, is PcEcrCommand.Reversal, is PcEcrCommand.Settlement -> { sendArcus2Unsupported(settings.arcus2NewWaySettings, "Unsupported ARCUS2 operation"); null }
+                                                is PcEcrCommand.Ping -> { 
+                            val r = sendArcus2SimpleSuccessWhileListening(settings.arcus2NewWaySettings)
+                            lifecycleMutex.withLock {
+                                if (r.isSuccess) {
+                                    lifecycleState = PcEcrLifecycleState.Listening
+                                    status.value = PcUsbConnectionStatus.WaitingForData
+                                } else {
+                                    lifecycleState = PcEcrLifecycleState.Error
+                                    status.value = PcUsbConnectionStatus.Error(r.exceptionOrNull()?.message ?: "arcus2 ping error")
+                                }
+                            }
+                            null 
+                        }
+                        is PcEcrCommand.Refund, is PcEcrCommand.Reversal, is PcEcrCommand.Settlement -> { 
+                            val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "Unsupported ARCUS2 operation")
+                            lifecycleMutex.withLock {
+                                if (r.isSuccess) {
+                                    lifecycleState = PcEcrLifecycleState.Listening
+                                    status.value = PcUsbConnectionStatus.WaitingForData
+                                } else {
+                                    lifecycleState = PcEcrLifecycleState.Error
+                                    status.value = PcUsbConnectionStatus.Error(r.exceptionOrNull()?.message ?: "arcus2 unsupported error")
+                                }
+                            }
+                            null 
+                        }
                         else -> null
                     }
                     else -> null

@@ -275,27 +275,26 @@ class XchengWireEcrPortClient(context: Context) {
             }
         }
 
-    suspend fun receiveOnce(): Result<ByteArray?> =
+    suspend fun receiveOnce(): Result<ByteArray?> = receiveOnce(RECV_TIMEOUT_MS.toLong())
+
+    suspend fun receiveOnce(timeoutMs: Long): Result<ByteArray?> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val usbComm = usb ?: error("USB service missing")
                 val device = currentUsbDevice ?: error("USB device missing")
 
                 runCatching {
-                    usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
+                    usbComm.setRecvTimeout(timeoutMs.toInt().coerceAtLeast(1))
                 }.onFailure {
                     Log.w(TAG, "setRecvTimeout before recv failed", it)
                 }
 
-                Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE")
+                Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE timeoutMs=$timeoutMs")
 
                 val bytes = usbComm.recv(RECV_BUFFER_SIZE)
 
                 if (bytes != null && bytes.isNotEmpty()) {
-                    Log.i(
-                        TAG,
-                        "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}"
-                    )
+                    Log.i(TAG, "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}")
                     return@runCatching bytes
                 }
 

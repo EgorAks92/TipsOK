@@ -668,27 +668,16 @@ fun ChaiOkNavHost(container: AppContainer) {
                                 }
 
                                 is PcCommandIdleEvent.OpenTipSelection -> {
-                                    if (deviceClass == ChaiOkDeviceClass.SquareCompact) {
-                                        navController.navigateSingleTopTo(
-                                            Routes.pcCompactTipPaymentFromPc(
-                                                value.amount,
-                                                value.commandId,
-                                                value.orderId,
-                                                value.currency,
-                                                value.sourceProtocol.name
-                                            )
+                                    // PC/ECR ARCUS2 MVP uses PcCompactTipPayment flow for all device classes
+                                    navController.navigateSingleTopTo(
+                                        Routes.pcCompactTipPaymentFromPc(
+                                            value.amount,
+                                            value.commandId,
+                                            value.orderId,
+                                            value.currency,
+                                            value.sourceProtocol.name
                                         )
-                                    } else {
-                                        navController.navigateSingleTopTo(
-                                            Routes.tipSelectionFromPc(
-                                                value.amount,
-                                                value.commandId,
-                                                value.orderId,
-                                                value.currency,
-                                                value.sourceProtocol.name
-                                            )
-                                        )
-                                    }
+                                    )
                                 }
                             }
                         }
