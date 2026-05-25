@@ -12,12 +12,13 @@ import java.io.File
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 class XchengWireEcrPortClient(context: Context) {
+
     private val appContext = context.applicationContext
 
     private var usb: IComm? = null
@@ -36,293 +37,317 @@ class XchengWireEcrPortClient(context: Context) {
 
     private val transportMutex = Mutex()
 
-    suspend fun ensureConnected(): Result<Unit> = withContext(Dispatchers.IO) {
-        val result = runCatching {
-            if (usb != null && (!USE_GS_BRIDGE || gs != null)) {
-                Log.i(
-                    TAG,
-                    "bind skipped: service already bound usbBound=${usb != null} gsBound=${gs != null}"
-                )
-                return@runCatching Unit
-            }
-
-            if (usb == null) {
-                val usbDeferred = CompletableDeferred<IComm>()
-
-                usbConn = bind(
-                    action = ACTION_USB,
-                    deferred = usbDeferred,
-                    label = "USB"
-                )
-
-                usb = withTimeout(BIND_TIMEOUT_MS) {
-                    usbDeferred.await()
-                }
-
-                Log.i(TAG, "bind USB success usbBound=${usb != null}")
-            }
-
-            if (USE_GS_BRIDGE && gs == null) {
-                val gsDeferred = CompletableDeferred<IComm>()
-
-                gsConn = bind(
-                    action = ACTION_GS,
-                    deferred = gsDeferred,
-                    label = "GS"
-                )
-
-                gs = withTimeout(BIND_TIMEOUT_MS) {
-                    gsDeferred.await()
-                }
-
-                Log.i(TAG, "bind GS success gsBound=${gs != null}")
-            }
-
-            Unit
-        }
-
-        if (result.isFailure) {
-            Log.e(TAG, "ensureConnected failed", result.exceptionOrNull())
-            closeAll()
-        }
-
-        result
-    }
-
-    suspend fun ensureTransportReady(): Result<Unit> = withContext(Dispatchers.IO) {
-        transportMutex.withLock {
-            runCatching {
-                ensureConnected().getOrThrow()
-
-                if (transportReady && !transportPausedForPayment && currentUsbDevice != null) {
-                    Log.i(TAG, "ensureTransportReady skipped: transport already ready device=$currentUsbDevice")
+    suspend fun ensureConnected(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            val result = runCatching {
+                if (usb != null && (!USE_GS_BRIDGE || gs != null)) {
+                    Log.i(
+                        TAG,
+                        "bind skipped: service already bound usbBound=${usb != null} gsBound=${gs != null}"
+                    )
                     return@runCatching Unit
                 }
 
-                Log.i(TAG, "ensureTransportReady opening transport")
-                openAndConnect().getOrThrow()
-                transportReady = true
-                transportPausedForPayment = false
-                Unit
-            }.onFailure { throwable ->
-                transportReady = false
-                currentUsbDevice = null
-                Log.e(TAG, "ensureTransportReady failed", throwable)
-            }
-        }
-    }
+                if (usb == null) {
+                    val usbDeferred = CompletableDeferred<IComm>()
 
-    suspend fun openAndConnect(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            Log.i(TAG, "openAndConnect start")
-            Log.i(TAG, "USE_GS_BRIDGE=$USE_GS_BRIDGE")
-            Log.i(TAG, "ACCEPT_TTY_GS0_WITHOUT_STATUS=$ACCEPT_TTY_GS0_WITHOUT_STATUS")
-
-            val usbComm = usb ?: error("USB service missing")
-
-            if (USE_GS_BRIDGE) {
-                prepareGsBridge()
-            }
-
-            var lastError: Throwable? = null
-
-            USB_DEVICE_CANDIDATES.forEach { device ->
-                try {
-                    logCandidateState(device)
-
-                    Log.i(TAG, "open USB port for device=$device")
-
-                    safeClosePort(
-                        comm = usbComm,
-                        reason = "before probe $device"
+                    usbConn = bind(
+                        action = ACTION_USB,
+                        deferred = usbDeferred,
+                        label = "USB"
                     )
 
-                    delay(OPEN_RESET_DELAY_MS)
-
-                    usbComm.open()
-
-                    delay(OPEN_AFTER_DELAY_MS)
-
-                    runCatching {
-                        usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
-                    }.onFailure {
-                        Log.w(TAG, "setRecvTimeout before connect failed device=$device", it)
+                    usb = withTimeout(BIND_TIMEOUT_MS) {
+                        usbDeferred.await()
                     }
 
-                    Log.i(TAG, "connect probe requested USB=$device")
-                    usbComm.connect(device)
+                    Log.i(TAG, "bind USB success usbBound=${usb != null}")
+                }
 
-                    delay(CONNECT_AFTER_DELAY_MS)
+                if (USE_GS_BRIDGE && gs == null) {
+                    val gsDeferred = CompletableDeferred<IComm>()
 
-                    val immediateStatus = readConnectStatus(
-                        comm = usbComm,
-                        device = device,
-                        prefix = "immediate status"
+                    gsConn = bind(
+                        action = ACTION_GS,
+                        deferred = gsDeferred,
+                        label = "GS"
                     )
 
-                    if (
-                        device == TTY_GS0 &&
-                        ACCEPT_TTY_GS0_WITHOUT_STATUS &&
-                        File(device).exists() &&
-                        File(device).canRead() &&
-                        File(device).canWrite()
-                    ) {
-                        currentUsbDevice = device
-                        transportReady = true
-                        transportPausedForPayment = false
+                    gs = withTimeout(BIND_TIMEOUT_MS) {
+                        gsDeferred.await()
+                    }
 
-                        runCatching {
-                            usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
-                        }.onFailure {
-                            Log.w(TAG, "setRecvTimeout after ttyGS0 accept failed", it)
-                        }
+                    Log.i(TAG, "bind GS success gsBound=${gs != null}")
+                }
 
+                Unit
+            }
+
+            if (result.isFailure) {
+                Log.e(TAG, "ensureConnected failed", result.exceptionOrNull())
+                closeAll()
+            }
+
+            result
+        }
+
+    suspend fun ensureTransportReady(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            transportMutex.withLock {
+                runCatching {
+                    ensureConnected().getOrThrow()
+
+                    if (transportReady && !transportPausedForPayment && currentUsbDevice != null) {
                         Log.i(
                             TAG,
-                            "USB accepted device=$device without status=2, " +
-                                    "demo-compatible ttyGS0 mode, immediateStatus=$immediateStatus"
+                            "ensureTransportReady skipped: transport already ready device=$currentUsbDevice"
                         )
-
                         return@runCatching Unit
                     }
 
-                    if (immediateStatus == CONNECTED_STATUS) {
-                        currentUsbDevice = device
-                        transportReady = true
-                        transportPausedForPayment = false
+                    Log.i(TAG, "ensureTransportReady opening transport")
+                    openAndConnect().getOrThrow()
 
-                        runCatching {
-                            usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
-                        }.onFailure {
-                            Log.w(TAG, "setRecvTimeout after connect failed device=$device", it)
-                        }
+                    transportReady = true
+                    transportPausedForPayment = false
 
-                        Log.i(TAG, "USB connected device=$device status=$immediateStatus")
-                        return@runCatching Unit
-                    }
-
-                    val connected = waitConnected(
-                        comm = usbComm,
-                        device = device
-                    )
-
-                    if (connected) {
-                        currentUsbDevice = device
-                        transportReady = true
-                        transportPausedForPayment = false
-
-                        runCatching {
-                            usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
-                        }.onFailure {
-                            Log.w(TAG, "setRecvTimeout after poll connect failed device=$device", it)
-                        }
-
-                        Log.i(TAG, "USB connected device=$device")
-                        return@runCatching Unit
-                    }
-
-                    Log.w(
-                        TAG,
-                        "USB probe failed device=$device lastStatus=${readStatusQuietly(usbComm)}"
-                    )
-
-                    safeClosePort(
-                        comm = usbComm,
-                        reason = "after failed probe $device"
-                    )
-
-                    delay(BETWEEN_PROBES_DELAY_MS)
-                } catch (throwable: Throwable) {
-                    lastError = throwable
-                    Log.w(TAG, "USB probe exception device=$device", throwable)
-
-                    safeClosePort(
-                        comm = usbComm,
-                        reason = "after probe exception $device"
-                    )
-
-                    delay(BETWEEN_PROBES_DELAY_MS)
+                    Unit
+                }.onFailure { throwable ->
+                    transportReady = false
+                    currentUsbDevice = null
+                    Log.e(TAG, "ensureTransportReady failed", throwable)
                 }
             }
-
-            val diagnostics = buildUsbDiagnostics()
-
-            Log.e(
-                TAG,
-                "USB connect timeout. None of candidates opened. " +
-                        "candidates=${USB_DEVICE_CANDIDATES.joinToString()} " +
-                        "lastError=${lastError?.message}\n$diagnostics"
-            )
-
-            transportReady = false
-            currentUsbDevice = null
-
-            error(
-                "USB ECR порт не найден. Проверьте режим USB/ECR или CDC на терминале, " +
-                        "кабель и наличие корректного ECR/CDC COM-порта на ПК/кассе."
-            )
-        }.onFailure { throwable ->
-            Log.e(TAG, "openAndConnect failed", throwable)
         }
-    }
 
-    suspend fun receiveOnce(): Result<ByteArray?> = withContext(Dispatchers.IO) {
-        runCatching {
-            val usbComm = usb ?: error("USB service missing")
-            val device = currentUsbDevice ?: error("USB device missing")
-
+    suspend fun openAndConnect(): Result<Unit> =
+        withContext(Dispatchers.IO) {
             runCatching {
-                usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
-            }.onFailure {
-                Log.w(TAG, "setRecvTimeout before recv failed", it)
+                Log.i(TAG, "openAndConnect start")
+                Log.i(TAG, "USE_GS_BRIDGE=$USE_GS_BRIDGE")
+                Log.i(TAG, "ACCEPT_TTY_GS0_WITHOUT_STATUS=$ACCEPT_TTY_GS0_WITHOUT_STATUS")
+
+                val usbComm = usb ?: error("USB service missing")
+
+                if (USE_GS_BRIDGE) {
+                    prepareGsBridge()
+                }
+
+                var lastError: Throwable? = null
+
+                USB_DEVICE_CANDIDATES.forEach { device ->
+                    try {
+                        logCandidateState(device)
+
+                        Log.i(TAG, "open USB port for device=$device")
+
+                        safeClosePort(
+                            comm = usbComm,
+                            reason = "before probe $device"
+                        )
+
+                        delay(OPEN_RESET_DELAY_MS)
+
+                        usbComm.open()
+
+                        delay(OPEN_AFTER_DELAY_MS)
+
+                        runCatching {
+                            usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
+                        }.onFailure {
+                            Log.w(TAG, "setRecvTimeout before connect failed device=$device", it)
+                        }
+
+                        Log.i(TAG, "connect probe requested USB=$device")
+                        usbComm.connect(device)
+
+                        delay(CONNECT_AFTER_DELAY_MS)
+
+                        val immediateStatus = readConnectStatus(
+                            comm = usbComm,
+                            device = device,
+                            prefix = "immediate status"
+                        )
+
+                        if (
+                            device == TTY_GS0 &&
+                            ACCEPT_TTY_GS0_WITHOUT_STATUS &&
+                            File(device).exists() &&
+                            File(device).canRead() &&
+                            File(device).canWrite()
+                        ) {
+                            currentUsbDevice = device
+                            transportReady = true
+                            transportPausedForPayment = false
+
+                            runCatching {
+                                usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
+                            }.onFailure {
+                                Log.w(TAG, "setRecvTimeout after ttyGS0 accept failed", it)
+                            }
+
+                            Log.i(
+                                TAG,
+                                "USB accepted device=$device without status=2, " +
+                                        "demo-compatible ttyGS0 mode, immediateStatus=$immediateStatus"
+                            )
+
+                            return@runCatching Unit
+                        }
+
+                        if (immediateStatus == CONNECTED_STATUS) {
+                            currentUsbDevice = device
+                            transportReady = true
+                            transportPausedForPayment = false
+
+                            runCatching {
+                                usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
+                            }.onFailure {
+                                Log.w(TAG, "setRecvTimeout after connect failed device=$device", it)
+                            }
+
+                            Log.i(TAG, "USB connected device=$device status=$immediateStatus")
+                            return@runCatching Unit
+                        }
+
+                        val connected = waitConnected(
+                            comm = usbComm,
+                            device = device
+                        )
+
+                        if (connected) {
+                            currentUsbDevice = device
+                            transportReady = true
+                            transportPausedForPayment = false
+
+                            runCatching {
+                                usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
+                            }.onFailure {
+                                Log.w(TAG, "setRecvTimeout after poll connect failed device=$device", it)
+                            }
+
+                            Log.i(TAG, "USB connected device=$device")
+                            return@runCatching Unit
+                        }
+
+                        Log.w(
+                            TAG,
+                            "USB probe failed device=$device lastStatus=${readStatusQuietly(usbComm)}"
+                        )
+
+                        safeClosePort(
+                            comm = usbComm,
+                            reason = "after failed probe $device"
+                        )
+
+                        delay(BETWEEN_PROBES_DELAY_MS)
+                    } catch (throwable: Throwable) {
+                        lastError = throwable
+                        Log.w(TAG, "USB probe exception device=$device", throwable)
+
+                        safeClosePort(
+                            comm = usbComm,
+                            reason = "after probe exception $device"
+                        )
+
+                        delay(BETWEEN_PROBES_DELAY_MS)
+                    }
+                }
+
+                val diagnostics = buildUsbDiagnostics()
+
+                Log.e(
+                    TAG,
+                    "USB connect timeout. None of candidates opened. " +
+                            "candidates=${USB_DEVICE_CANDIDATES.joinToString()} " +
+                            "lastError=${lastError?.message}\n$diagnostics"
+                )
+
+                transportReady = false
+                currentUsbDevice = null
+
+                error(
+                    "USB ECR порт не найден. Проверьте режим USB/ECR или CDC на терминале, " +
+                            "кабель и наличие корректного ECR/CDC COM-порта на ПК/кассе."
+                )
+            }.onFailure { throwable ->
+                Log.e(TAG, "openAndConnect failed", throwable)
             }
+        }
 
-            Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE")
+    suspend fun receiveOnce(): Result<ByteArray?> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val usbComm = usb ?: error("USB service missing")
+                val device = currentUsbDevice ?: error("USB device missing")
 
-            val bytes = usbComm.recv(RECV_BUFFER_SIZE)
+                runCatching {
+                    usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
+                }.onFailure {
+                    Log.w(TAG, "setRecvTimeout before recv failed", it)
+                }
 
-            if (bytes != null && bytes.isNotEmpty()) {
+                Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE")
+
+                val bytes = usbComm.recv(RECV_BUFFER_SIZE)
+
+                if (bytes != null && bytes.isNotEmpty()) {
+                    Log.i(
+                        TAG,
+                        "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}"
+                    )
+                    return@runCatching bytes
+                }
+
+                Log.i(TAG, "recv end empty")
+                null
+            }.onFailure { throwable ->
+                Log.e(TAG, "receiveOnce failed", throwable)
+            }
+        }
+
+    suspend fun send(bytes: ByteArray): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val usbComm = usb ?: error("USB service missing")
+
+                Log.i(TAG, "send bytes=${bytes.size} hex=${bytes.toHexPreview()}")
+
+                usbComm.send(bytes)
+
+                Unit
+            }.onFailure { throwable ->
+                Log.e(TAG, "send failed", throwable)
+            }
+        }
+
+    suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                ensureTransportReady().getOrThrow()
+
+                val bytes = ChaiOkEcrFrameEncoder.encodePaymentResultLine(frame)
+
                 Log.i(
                     TAG,
-                    "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}"
+                    "send payment_result commandId=${frame.commandId} " +
+                            "orderId=${frame.orderId ?: "-"} " +
+                            "status=${frame.status} " +
+                            "success=${frame.success} " +
+                            "bytes=${bytes.size}"
                 )
-                return@runCatching bytes
+
+                val usbComm = usb ?: error("USB service missing after ensure")
+                usbComm.send(bytes)
+
+                Unit
+            }.onFailure { throwable ->
+                Log.e(TAG, "send payment_result failed", throwable)
             }
-
-            Log.i(TAG, "recv end empty")
-            null
-        }.onFailure { throwable ->
-            Log.e(TAG, "receiveOnce failed", throwable)
         }
-    }
 
-    suspend fun send(bytes: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val usbComm = usb ?: error("USB service missing")
-
-            Log.i(TAG, "send bytes=${bytes.size} hex=${bytes.toHexPreview()}")
-
-            usbComm.send(bytes)
-
-            Unit
-        }.onFailure { throwable ->
-            Log.e(TAG, "send failed", throwable)
-        }
-    }
-
-    suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            ensureTransportReady().getOrThrow()
-            val bytes = ChaiOkEcrFrameEncoder.encodePaymentResultLine(frame)
-            Log.i(TAG, "send payment_result commandId=${frame.commandId} orderId=${frame.orderId ?: "-"} status=${frame.status} success=${frame.success} bytes=${bytes.size}")
-            val usbComm = usb ?: error("USB service missing after ensure")
-            usbComm.send(bytes)
-            Unit
-        }.onFailure { Log.e(TAG, "send payment_result failed", it) }
-    }
-
-    suspend fun pauseTransportForPayment(): Result<Unit> = withContext(Dispatchers.IO) {
-        transportMutex.withLock {
+    suspend fun pauseTransportForPayment(): Result<Unit> =
+        withContext(Dispatchers.IO) {
             runCatching {
                 Log.i(TAG, "ECR pause transport for SSP payment")
 
@@ -340,114 +365,132 @@ class XchengWireEcrPortClient(context: Context) {
                     transportReady = false
                     currentUsbDevice = null
                 }
+
                 Unit
             }.onFailure { throwable ->
                 Log.e(TAG, "pauseTransportForPayment failed", throwable)
             }
         }
-    }
 
-    suspend fun resumeTransportAfterPayment(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            Log.i(TAG, "ECR resume transport after SSP payment")
-            ensureTransportReady().getOrThrow()
-            transportReady = true
-            transportPausedForPayment = false
-            Log.i(TAG, "ECR resumed transport after SSP payment")
-            Unit
-        }
-    }
+    suspend fun resumeTransportAfterPayment(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                Log.i(TAG, "ECR resume transport after SSP payment")
 
-    suspend fun closeCompletely(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            Log.i(TAG, "ECR close transport completely")
-            closeAll()
-            transportReady = false
-            transportPausedForPayment = false
-            currentUsbDevice = null
-            Unit
-        }
-    }
+                transportPausedForPayment = false
+                ensureTransportReady().getOrThrow()
 
-    suspend fun closePortOnly() = withContext(Dispatchers.IO) {
-        Log.i(TAG, "closePortOnly start")
+                transportReady = true
+                transportPausedForPayment = false
 
-        usb?.let { comm ->
-            safeClosePort(
-                comm = comm,
-                reason = "closePortOnly USB"
-            )
+                Log.i(TAG, "ECR resumed transport after SSP payment")
+
+                Unit
+            }.onFailure { throwable ->
+                Log.e(TAG, "resumeTransportAfterPayment failed", throwable)
+            }
         }
 
-        if (USE_GS_BRIDGE) {
-            gs?.let { comm ->
+    suspend fun closeCompletely(): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                Log.i(TAG, "ECR close transport completely")
+
+                closeAll()
+
+                transportReady = false
+                transportPausedForPayment = false
+                currentUsbDevice = null
+
+                Unit
+            }.onFailure { throwable ->
+                Log.e(TAG, "closeCompletely failed", throwable)
+            }
+        }
+
+    suspend fun closePortOnly() =
+        withContext(Dispatchers.IO) {
+            Log.i(TAG, "closePortOnly start")
+
+            usb?.let { comm ->
                 safeClosePort(
                     comm = comm,
-                    reason = "closePortOnly GS"
+                    reason = "closePortOnly USB"
                 )
             }
-        }
 
-        currentUsbDevice = null
-        transportReady = false
-
-        Log.i(TAG, "closePortOnly end")
-        Unit
-    }
-
-    suspend fun closeAll() = withContext(Dispatchers.IO) {
-        Log.i(TAG, "closeAll start")
-
-        val usbComm = usb
-        val gsComm = gs
-        val usbConnection = usbConn
-        val gsConnection = gsConn
-
-        usbComm?.let { comm ->
-            safeClosePort(
-                comm = comm,
-                reason = "closeAll USB"
-            )
-        }
-
-        gsComm?.let { comm ->
-            safeClosePort(
-                comm = comm,
-                reason = "closeAll GS"
-            )
-        }
-
-        runCatching {
-            usbConnection?.let {
-                Log.i(TAG, "unbind USB service")
-                appContext.unbindService(it)
+            if (USE_GS_BRIDGE) {
+                gs?.let { comm ->
+                    safeClosePort(
+                        comm = comm,
+                        reason = "closePortOnly GS"
+                    )
+                }
             }
-        }.onFailure { throwable ->
-            Log.w(TAG, "USB unbindService failed", throwable)
+
+            currentUsbDevice = null
+            transportReady = false
+
+            Log.i(TAG, "closePortOnly end")
+
+            Unit
         }
 
-        runCatching {
-            gsConnection?.let {
-                Log.i(TAG, "unbind GS service")
-                appContext.unbindService(it)
+    suspend fun closeAll() =
+        withContext(Dispatchers.IO) {
+            Log.i(TAG, "closeAll start")
+
+            val usbComm = usb
+            val gsComm = gs
+            val usbConnection = usbConn
+            val gsConnection = gsConn
+
+            usbComm?.let { comm ->
+                safeClosePort(
+                    comm = comm,
+                    reason = "closeAll USB"
+                )
             }
-        }.onFailure { throwable ->
-            Log.w(TAG, "GS unbindService failed", throwable)
+
+            gsComm?.let { comm ->
+                safeClosePort(
+                    comm = comm,
+                    reason = "closeAll GS"
+                )
+            }
+
+            runCatching {
+                usbConnection?.let {
+                    Log.i(TAG, "unbind USB service")
+                    appContext.unbindService(it)
+                }
+            }.onFailure { throwable ->
+                Log.w(TAG, "USB unbindService failed", throwable)
+            }
+
+            runCatching {
+                gsConnection?.let {
+                    Log.i(TAG, "unbind GS service")
+                    appContext.unbindService(it)
+                }
+            }.onFailure { throwable ->
+                Log.w(TAG, "GS unbindService failed", throwable)
+            }
+
+            usb = null
+            gs = null
+            usbConn = null
+            gsConn = null
+            currentUsbDevice = null
+            transportReady = false
+            transportPausedForPayment = false
+
+            delay(AFTER_CLOSE_ALL_DELAY_MS)
+
+            Log.i(TAG, "closeAll end")
+
+            Unit
         }
-
-        usb = null
-        gs = null
-        usbConn = null
-        gsConn = null
-        currentUsbDevice = null
-        transportReady = false
-        transportPausedForPayment = false
-
-        delay(AFTER_CLOSE_ALL_DELAY_MS)
-
-        Log.i(TAG, "closeAll end")
-        Unit
-    }
 
     private suspend fun prepareGsBridge() {
         val gsComm = gs
@@ -581,12 +624,6 @@ class XchengWireEcrPortClient(context: Context) {
         val intent = Intent(action).setPackage(PKG)
 
         Log.i(TAG, "bindService start $label action=$action package=$PKG")
-
-        /*
-         * Важно:
-         * Не вызываем startService().
-         * Для WireECR используем только bindService(..., BIND_AUTO_CREATE).
-         */
 
         val connection = object : ServiceConnection {
             override fun onServiceConnected(
@@ -742,11 +779,10 @@ class XchengWireEcrPortClient(context: Context) {
         }
     }
 
-    private fun ByteArray.toHexPreview(limit: Int = 96): String {
-        return take(limit).joinToString(" ") { byte ->
+    private fun ByteArray.toHexPreview(limit: Int = 96): String =
+        take(limit).joinToString(" ") { byte ->
             "%02X".format(byte)
         }
-    }
 
     companion object {
         private const val TAG = "PcUsbEcrFlow"

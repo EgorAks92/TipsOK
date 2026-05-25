@@ -286,7 +286,7 @@ class PcCommandIdleViewModel(
 
     override fun onCleared() {
         cleanupScope.launch {
-            repository.stopCompletely()
+            repository.pauseForPayment()
             cleanupScope.cancel()
         }
 
