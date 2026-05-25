@@ -18,6 +18,21 @@ object Arcus2BinLenCodec {
         Arcus2BinLenFrame(bytes.copyOfRange(3, 3 + len))
     }
 
+    fun decodeAll(bytes: ByteArray): Result<List<Arcus2BinLenFrame>> = runCatching {
+        val frames = mutableListOf<Arcus2BinLenFrame>()
+        var offset = 0
+        while (offset < bytes.size) {
+            require(bytes.size - offset >= 3) { "Frame is too short at offset=$offset" }
+            require(bytes[offset] == SOH) { "Wrong SOH at offset=$offset" }
+            val len = ((bytes[offset + 1].toInt() and 0xFF) shl 8) or (bytes[offset + 2].toInt() and 0xFF)
+            val frameEnd = offset + 3 + len
+            require(frameEnd <= bytes.size) { "Length mismatch at offset=$offset" }
+            frames += Arcus2BinLenFrame(bytes.copyOfRange(offset + 3, frameEnd))
+            offset = frameEnd
+        }
+        frames
+    }
+
     fun encode(data: ByteArray): ByteArray {
         require(data.size <= 0xFFFF)
         return byteArrayOf(SOH, ((data.size shr 8) and 0xFF).toByte(), (data.size and 0xFF).toByte()) + data
