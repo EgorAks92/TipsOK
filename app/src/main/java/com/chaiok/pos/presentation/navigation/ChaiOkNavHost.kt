@@ -229,7 +229,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         observeSettingsUseCase = container.observeSettingsUseCase,
                         updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
                         updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase,
-                        updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase
+                        updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase,
+                        updatePcEcrProtocolUseCase = container.updatePcEcrProtocolUseCase
                     )
                 }
             )
@@ -267,7 +268,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         observeSettingsUseCase = container.observeSettingsUseCase,
                         updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
                         updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase,
-                        updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase
+                        updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase,
+                        updatePcEcrProtocolUseCase = container.updatePcEcrProtocolUseCase
                     )
                 }
             )
@@ -666,25 +668,16 @@ fun ChaiOkNavHost(container: AppContainer) {
                                 }
 
                                 is PcCommandIdleEvent.OpenTipSelection -> {
-                                    if (deviceClass == ChaiOkDeviceClass.SquareCompact) {
-                                        navController.navigateSingleTopTo(
-                                            Routes.pcCompactTipPaymentFromPc(
-                                                value.amount,
-                                                value.commandId,
-                                                value.orderId,
-                                                value.currency
-                                            )
+                                    // PC/ECR ARCUS2 MVP uses PcCompactTipPayment flow for all device classes
+                                    navController.navigateSingleTopTo(
+                                        Routes.pcCompactTipPaymentFromPc(
+                                            value.amount,
+                                            value.commandId,
+                                            value.orderId,
+                                            value.currency,
+                                            value.sourceProtocol.name
                                         )
-                                    } else {
-                                        navController.navigateSingleTopTo(
-                                            Routes.tipSelectionFromPc(
-                                                value.amount,
-                                                value.commandId,
-                                                value.orderId,
-                                                value.currency
-                                            )
-                                        )
-                                    }
+                                    )
                                 }
                             }
                         }
@@ -709,7 +702,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                 navArgument("billAmountKopecks") { type = NavType.LongType },
                 navArgument("commandId") { type = NavType.StringType; defaultValue = "" },
                 navArgument("orderId") { type = NavType.StringType; defaultValue = "" },
-                navArgument("currency") { type = NavType.StringType; defaultValue = "RUB" }
+                navArgument("currency") { type = NavType.StringType; defaultValue = "RUB" },
+                navArgument("sourceProtocol") { type = NavType.StringType; defaultValue = "CHAIOK_JSON" }
             )
         ) { backStack ->
             val currency = backStack.arguments?.getString("currency")?.ifBlank { "RUB" } ?: "RUB"
@@ -733,7 +727,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         transactionLogRepository = container.pcPaymentTransactionLogRepository,
                         sourceCommandId = backStack.arguments?.getString("commandId"),
                         sourceOrderId = backStack.arguments?.getString("orderId"),
-                        sourceCurrency = backStack.arguments?.getString("currency")
+                        sourceCurrency = backStack.arguments?.getString("currency"),
+                        sourceProtocol = backStack.arguments?.getString("sourceProtocol")
                     )
                 }
             )

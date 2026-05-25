@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PcPaymentCommand
+import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
@@ -245,7 +246,8 @@ class PcCommandIdleViewModel(
                 amount = command.amount,
                 commandId = command.commandId,
                 orderId = command.orderId,
-                currency = command.currency
+                currency = command.currency,
+                sourceProtocol = command.sourceProtocol
             )
         )
     }
@@ -307,6 +309,7 @@ sealed interface PcCommandIdleEvent {
         val amount: BigDecimal,
         val commandId: String?,
         val orderId: String?,
-        val currency: String
+        val currency: String,
+        val sourceProtocol: PcEcrProtocol
     ) : PcCommandIdleEvent
 }

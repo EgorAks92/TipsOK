@@ -1,5 +1,6 @@
 package com.chaiok.pos.data.ecr
 
+import com.chaiok.pos.domain.model.PcEcrProtocol
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -19,4 +20,8 @@ class PcPaymentCommandParserTest {
     @Test fun zeroNegativeRejected() { assertNull(PcPaymentCommandParser.parse("0".toByteArray())); assertNull(PcPaymentCommandParser.parse("-1".toByteArray())) }
     @Test fun invalidTextRejected() { assertNull(PcPaymentCommandParser.parse("hello".toByteArray())) }
     @Test fun nullPaddedPayloadValid() { assertEquals("10.00", PcPaymentCommandParser.parse("PAY 10.00\u0000\u0000".toByteArray())?.amount.toString()) }
+    @Test fun jsonSourceProtocolDefaultChaiok() {
+        val cmd = PcPaymentCommandParser.parse("{\"proto\":\"chaiok-ecr\",\"version\":1,\"type\":\"payment\",\"amount\":\"10.00\"}".toByteArray())
+        assertEquals(PcEcrProtocol.CHAIOK_JSON, cmd?.sourceProtocol)
+    }
 }

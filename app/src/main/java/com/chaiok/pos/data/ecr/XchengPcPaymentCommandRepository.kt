@@ -4,8 +4,16 @@ import android.util.Log
 import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcPaymentResponse
+import com.chaiok.pos.domain.model.PcEcrProtocol
+import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
+import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
+import com.chaiok.pos.domain.model.PcEcrCommand
+import java.math.BigDecimal
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
+import com.chaiok.pos.domain.repository.SettingsRepository
+import android.content.Context
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -14,8 +22,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class XchengPcPaymentCommandRepository(
-    private val client: XchengWireEcrPortClient
+    private val client: XchengWireEcrPortClient,
+    private val settingsRepository: SettingsRepository,
+    context: Context
 ) : PcPaymentCommandRepository {
+
+    // TODO: wire enableRawArcus2Log from AppSettings into logger creation dynamically
+    private val rawLogger = Arcus2RawFrameLogger(context)
 
     private enum class PcEcrLifecycleState {
         Disconnected,
@@ -122,6 +135,77 @@ class XchengPcPaymentCommandRepository(
             sendResult
         }
 
+    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings): Result<Unit> {
+        lifecycleMutex.withLock {
+            if (lifecycleState == PcEcrLifecycleState.Stopped) {
+                val message = "ARCUS2 result cannot be sent: repository stopped and COM session is lost"
+                lifecycleState = PcEcrLifecycleState.Error
+                status.value = PcUsbConnectionStatus.Error(message)
+                return Result.failure(IllegalStateException(message))
+            }
+        }
+
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings)
+        val resultStatus = when (result) {
+            is PcEcrFinalPaymentResult.Approved -> "approved"
+            is PcEcrFinalPaymentResult.Declined -> "declined"
+            is PcEcrFinalPaymentResult.Cancelled -> "cancelled"
+            is PcEcrFinalPaymentResult.Error -> "error"
+        }
+        Log.i(TAG, "ARCUS2 result sequence commandId=${sourceCommand.commandId ?: "-"} status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
+
+        val sendResult = runCatching {
+            sequence.forEach { cmd ->
+                session.sendDataAndWaitOk(cmd.data, cmd.label).getOrThrow()
+            }
+        }.map { Unit }
+
+        lifecycleMutex.withLock {
+            if (sendResult.isSuccess) {
+                lifecycleState = PcEcrLifecycleState.Listening
+                status.value = PcUsbConnectionStatus.WaitingForData
+            } else {
+                lifecycleState = PcEcrLifecycleState.Error
+                status.value = PcUsbConnectionStatus.Error(sendResult.exceptionOrNull()?.message ?: "arcus2 send error")
+            }
+        }
+        return sendResult
+    }
+
+
+    private suspend fun sendArcus2TransactionStartedWhileListening(
+        settings: Arcus2NewWaySettings
+    ): Result<Unit> {
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        return runCatching {
+            if (settings.sendBeginTrOnPaymentStart) {
+                session.sendCommandAndWaitOk("BEGINTR:").getOrThrow()
+            }
+            if (settings.sendStatusOnPaymentStart) {
+                session.sendCommandAndWaitOk("STATUS:${settings.paymentStartStatusText}").getOrThrow()
+            }
+        }.map { Unit }
+    }
+
+    private suspend fun sendArcus2SimpleSuccessWhileListening(settings: Arcus2NewWaySettings): Result<Unit> {
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        return runCatching {
+            session.sendCommandAndWaitOk("STORERC:00").getOrThrow()
+            session.sendCommandAndWaitOk("ENDTR").getOrThrow()
+        }.map { Unit }
+    }
+
+    private suspend fun sendArcus2UnsupportedWhileListening(settings: Arcus2NewWaySettings, message: String): Result<Unit> {
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        return runCatching {
+            if (settings.sendStatusMessages) session.sendCommandAndWaitOk("STATUS:Операция не поддержана").getOrThrow()
+            session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrThrow()
+            session.sendCommandAndWaitOk("ENDTR").getOrThrow()
+            Log.w(TAG, message)
+        }.map { Unit }
+    }
+
     override suspend fun listenOnce() {
         val ensureResult = lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {
@@ -198,7 +282,54 @@ class XchengPcPaymentCommandRepository(
 
         Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
 
-        val command = PcPaymentCommandParser.parse(bytes)
+        val settings = settingsRepository.observeSettings().first()
+        val command = when (settings.pcEcrProtocol) {
+            PcEcrProtocol.CHAIOK_JSON -> PcPaymentCommandParser.parse(bytes)
+            PcEcrProtocol.ARCUS2_NEWWAY -> {
+                val adapter = Arcus2NewWayProtocolAdapter({ settings.arcus2NewWaySettings }, rawLogger)
+                when (val parsed = adapter.parseIncoming(bytes)) {
+                    is EcrParseResult.Command -> when (val cmd = parsed.command) {
+                        is PcEcrCommand.Payment -> {
+                            Log.i(TAG, "ARCUS2 IN sale command parsed commandId=${cmd.commandId ?: "-"} amount=${cmd.amount} currency=${cmd.currency}")
+                            Log.i(TAG, "ARCUS2 start sequence commandId=${cmd.commandId ?: "-"} commands=BEGINTR,STATUS waitOk=${settings.arcus2NewWaySettings.waitOkAfterEachCommand}")
+                            val startResult = sendArcus2TransactionStartedWhileListening(settings.arcus2NewWaySettings)
+                            if (startResult.isFailure) {
+                                updateArcusListeningState(startResult, "arcus2 payment start response error")
+                                null
+                            } else {
+                                Log.i(TAG, "ARCUS2 payment command accepted commandId=${cmd.commandId ?: "-"}")
+                                PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
+                            }
+                        }
+                        is PcEcrCommand.Ping -> {
+                            val r = sendArcus2SimpleSuccessWhileListening(settings.arcus2NewWaySettings)
+                            updateArcusListeningState(r, "arcus2 ping error")
+                            null
+                        }
+                        is PcEcrCommand.Refund, is PcEcrCommand.Reversal, is PcEcrCommand.Settlement -> {
+                            val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "Unsupported ARCUS2 operation")
+                            updateArcusListeningState(r, "arcus2 unsupported error")
+                            null
+                        }
+                        else -> null
+                    }
+                    is EcrParseResult.Error -> {
+                        val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "ARCUS2 parse/protocol error: ${parsed.reason}")
+                        updateArcusListeningState(r, "arcus2 parse error")
+                        null
+                    }
+                    is EcrParseResult.Unknown -> {
+                        val r = sendArcus2UnsupportedWhileListening(
+                            settings.arcus2NewWaySettings,
+                            "ARCUS2 unknown command: ${parsed.reason}"
+                        )
+                        updateArcusListeningState(r, "arcus2 unknown error")
+                        null
+                    }
+                    else -> null
+                }
+            }
+        }
         if (command != null) {
             Log.i(
                 TAG,
@@ -210,8 +341,34 @@ class XchengPcPaymentCommandRepository(
         }
     }
 
-    override suspend fun pauseForPayment(): Result<Unit> =
+    private suspend fun updateArcusListeningState(
+        result: Result<Unit>,
+        fallbackErrorMessage: String
+    ) {
         lifecycleMutex.withLock {
+            if (result.isSuccess) {
+                lifecycleState = PcEcrLifecycleState.Listening
+                status.value = PcUsbConnectionStatus.WaitingForData
+            } else {
+                val message = result.exceptionOrNull()?.message ?: fallbackErrorMessage
+
+                lifecycleState = PcEcrLifecycleState.Error
+                status.value = PcUsbConnectionStatus.Error(message)
+
+                Log.e(
+                    TAG,
+                    "ARCUS2 immediate response failed: $message",
+                    result.exceptionOrNull()
+                )
+            }
+        }
+    }
+
+    override suspend fun pauseForPayment(): Result<Unit> {
+        val currentSettings = settingsRepository.observeSettings().first()
+        val protocol = currentSettings.pcEcrProtocol
+
+        return lifecycleMutex.withLock {
             Log.i(TAG, "ECR pause for SSP payment")
 
             if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {
@@ -221,27 +378,35 @@ class XchengPcPaymentCommandRepository(
             lifecycleState = PcEcrLifecycleState.PausedForPayment
             status.value = PcUsbConnectionStatus.Idle
 
-            val result = client.pauseTransportForPayment()
+            if (protocol == PcEcrProtocol.ARCUS2_NEWWAY) {
+                Log.i(TAG, "ARCUS2 mode: keep USB transport open during SSP payment")
+                return@withLock Result.success(Unit)
+            }
 
+            val result = client.pauseTransportForPayment()
             if (result.isSuccess) {
                 Log.i(TAG, "ECR paused for SSP payment")
             } else {
-                Log.w(
-                    TAG,
-                    "ECR pause transport failed but continue as paused",
-                    result.exceptionOrNull()
-                )
+                Log.w(TAG, "ECR pause transport failed but continue as paused", result.exceptionOrNull())
             }
-
             Result.success(Unit)
         }
+    }
 
-    override suspend fun resumeAfterPayment(): Result<Unit> =
-        lifecycleMutex.withLock {
+    override suspend fun resumeAfterPayment(): Result<Unit> {
+        val settings = settingsRepository.observeSettings().first()
+        return lifecycleMutex.withLock {
             Log.i(TAG, "ECR resume after SSP payment")
 
             if (lifecycleState == PcEcrLifecycleState.Stopped) {
                 Log.i(TAG, "Skip ECR resume: repository stopped completely")
+                return@withLock Result.success(Unit)
+            }
+
+            if (settings.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) {
+                lifecycleState = PcEcrLifecycleState.Listening
+                status.value = PcUsbConnectionStatus.WaitingForData
+                Log.i(TAG, "ARCUS2 mode: resume listening without reopening USB transport")
                 return@withLock Result.success(Unit)
             }
 
@@ -260,6 +425,7 @@ class XchengPcPaymentCommandRepository(
 
             result
         }
+    }
 
     override suspend fun stopCompletely(): Result<Unit> =
         lifecycleMutex.withLock {

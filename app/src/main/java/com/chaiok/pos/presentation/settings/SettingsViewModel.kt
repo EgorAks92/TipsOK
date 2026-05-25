@@ -6,6 +6,8 @@ import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcCompactServiceFeeEnabledUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
+import com.chaiok.pos.domain.usecase.UpdatePcEcrProtocolUseCase
+import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.usecase.UpdateShowCustomTipButtonUseCase
 import com.chaiok.pos.presentation.background.WaiterBackgroundMemoryCache
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +23,8 @@ data class SettingsUiState(
     val tileBackground: String? = WaiterBackgroundMemoryCache.currentBackground,
     val pcUsbModeEnabled: Boolean = false,
     val pcCompactServiceFeeEnabled: Boolean = true,
-    val showCustomTipButton: Boolean = true
+    val showCustomTipButton: Boolean = true,
+    val pcEcrProtocol: PcEcrProtocol = PcEcrProtocol.CHAIOK_JSON
 )
 
 class SettingsViewModel(
@@ -29,7 +32,8 @@ class SettingsViewModel(
     private val observeSettingsUseCase: ObserveSettingsUseCase,
     private val updatePcUsbModeUseCase: UpdatePcUsbModeUseCase,
     private val updatePcCompactServiceFeeEnabledUseCase: UpdatePcCompactServiceFeeEnabledUseCase,
-    private val updateShowCustomTipButtonUseCase: UpdateShowCustomTipButtonUseCase
+    private val updateShowCustomTipButtonUseCase: UpdateShowCustomTipButtonUseCase,
+    private val updatePcEcrProtocolUseCase: UpdatePcEcrProtocolUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -71,7 +75,8 @@ class SettingsViewModel(
                     tileBackground = background,
                     pcUsbModeEnabled = settings.pcUsbModeEnabled,
                     pcCompactServiceFeeEnabled = settings.pcCompactServiceFeeEnabled,
-                    showCustomTipButton = settings.showCustomTipButton
+                    showCustomTipButton = settings.showCustomTipButton,
+                    pcEcrProtocol = settings.pcEcrProtocol
                 )
             }.collect { nextState ->
                 _uiState.update { nextState }
@@ -95,5 +100,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             updateShowCustomTipButtonUseCase(enabled)
         }
+    }
+
+    fun onPcEcrProtocolChanged(protocol: PcEcrProtocol) {
+        viewModelScope.launch { updatePcEcrProtocolUseCase(protocol) }
     }
 }
