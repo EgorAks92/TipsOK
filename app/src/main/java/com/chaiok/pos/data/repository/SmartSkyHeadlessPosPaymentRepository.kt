@@ -62,17 +62,10 @@ class SmartSkyHeadlessPosPaymentRepository(
                 launch(Dispatchers.IO) {
                     runCatching {
                         trySend(PosPaymentEvent.WaitingForCard)
-                        invokeTransactionResultCancel(smartSkyPos, request, callback)
+                        invokeCancelPreviousByRrn(smartSkyPos, request, callback)
                     }.onSuccess { result ->
                         paymentCallFinished.set(true)
-                        if (result == null) {
-                            Log.w(PAYMENT_TAG, "[$operationId] TransactionResultcancel returned null")
-                            if (terminalEventDelivered.compareAndSet(false, true)) {
-                                trySend(PosPaymentEvent.Error("TransactionResultcancel returned empty result"))
-                            }
-                            close()
-                            return@onSuccess
-                        }
+                        Log.i(PAYMENT_TAG, "[$operationId] SSP cancel by RRN completed rc=${result.rc} approved=${result.isApproved}")
                         val mapped = result.toPosPaymentEvent(operationId)
                         val normalized = when (mapped) {
                             is PosPaymentEvent.Approved -> mapped.copy(message = mapped.message.ifBlank { "Отмена выполнена" })
@@ -83,7 +76,7 @@ class SmartSkyHeadlessPosPaymentRepository(
                         close()
                     }.onFailure { err ->
                         paymentCallFinished.set(true)
-                        val msg = if (err is NoSuchMethodException) "TransactionResultcancel is not available in current AAR" else (err.message ?: "Отмена не выполнена")
+                        val msg = err.message ?: "Отмена не выполнена"
                         if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error(msg))
                         close()
                     }
@@ -105,48 +98,42 @@ class SmartSkyHeadlessPosPaymentRepository(
         }
     }
 
-    private fun invokeTransactionResultCancel(
+    // SmartSkyPosLib_v1.9.18-SR.2:
+    // ISmartSkyPos.cancel(TransactionParams, TransactionCallback): TransactionResult
+    // For ARCUS2 universal reversal by RRN, pass RRN via TransactionParams.setRrn(...).
+    private fun invokeCancelPreviousByRrn(
         smartSkyPos: ISmartSkyPos,
         request: PosPaymentCancelPreviousRequest,
         callback: TransactionCallback
-    ): TransactionResult? {
-        val params = TransactionParams(normalizeAmountForCurrency(request.amount, request.currency)).apply {
-            terminalId = request.terminalId
-            currencyCode = if (request.currency.uppercase() == "RUB") CURRENCY_CODE_RUB else request.currency
-            extraTransactionData = JSONObject()
-                .put("rrn", request.rrn)
-                .put("operationType", "CANCEL_PREVIOUS")
-                .toString()
-        }
-        val names = setOf(
-            "TransactionResultcancel",
-            "TransactionResultCancel",
-            "transactionResultCancel",
-            "transactionResultcancel",
-            "resultcancel",
-            "resultCancel",
-            "cancelPreviousPayment"
+    ): TransactionResult = smartSkyPos.cancel(buildCancelPreviousParams(request), callback)
+
+    private fun buildCancelPreviousParams(
+        request: PosPaymentCancelPreviousRequest
+    ): TransactionParams {
+        val params = TransactionParams(
+            normalizeAmountForCurrency(request.amount, request.currency)
         )
-        val methods = smartSkyPos.javaClass.methods.filter { method ->
-            names.any { it.equals(method.name, ignoreCase = true) } &&
-                    method.parameterTypes.size == 2 &&
-                    method.parameterTypes[0].isAssignableFrom(TransactionParams::class.java) &&
-                    method.parameterTypes[1].isAssignableFrom(TransactionCallback::class.java)
-        }
-        for (m in methods) {
-            val raw = m.invoke(smartSkyPos, params, callback)
-            if (raw == null) return null
-            if (raw is TransactionResult) return raw
-            throw IllegalStateException("Unexpected TransactionResultcancel return type: ${raw.javaClass.name}")
-        }
-        // TODO integrate explicit AAR method when available in ISmartSkyPos sdk.
-        throw NoSuchMethodException("TransactionResultcancel method not found on ISmartSkyPos")
+        params.terminalId = request.terminalId
+        params.currencyCode = resolveSspCurrencyCode(request.currency)
+        params.rrn = request.rrn
+        params.extraTransactionData = JSONObject()
+            .put("rrn", request.rrn)
+            .put("operationType", "CANCEL_PREVIOUS")
+            .toString()
+        return params
     }
 
     private fun normalizeAmountForCurrency(amount: BigDecimal, currency: String): BigDecimal =
         when (currency.uppercase()) {
             "AMD" -> amount.setScale(0, RoundingMode.HALF_UP)
             else -> amount.setScale(2, RoundingMode.HALF_UP)
+        }
+
+    private fun resolveSspCurrencyCode(currency: String): String =
+        when (currency.uppercase()) {
+            "RUB" -> CURRENCY_CODE_RUB
+            "AMD" -> "051"
+            else -> currency.uppercase()
         }
 
     private val appContext = context.applicationContext

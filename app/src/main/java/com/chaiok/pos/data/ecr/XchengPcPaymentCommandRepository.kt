@@ -439,7 +439,17 @@ class XchengPcPaymentCommandRepository(
                         null
                     }
                     is EcrParseResult.Error -> {
-                        val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "ARCUS2 parse/protocol error: ${parsed.reason}")
+                        val r = if (parsed.reason.contains("RRN missing", ignoreCase = true)) {
+                            sendArcus2ErrorWhileListening(
+                                settings.arcus2NewWaySettings,
+                                "Не найден RRN"
+                            )
+                        } else {
+                            sendArcus2UnsupportedWhileListening(
+                                settings.arcus2NewWaySettings,
+                                "ARCUS2 parse/protocol error: ${parsed.reason}"
+                            )
+                        }
                         updateArcusListeningState(r, "arcus2 parse error")
                         null
                     }
