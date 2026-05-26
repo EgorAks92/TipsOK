@@ -1229,13 +1229,13 @@ private fun AlfaLogoMorphingPaymentIndicator(
                     color = AlfaLogoRed,
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer {
-                            alpha = logoAlpha
-                            scaleX = logoScale
-                            scaleY = logoScale
-                            rotationY = actualRotationY
+                        .graphicsLayer(
+                            alpha = logoAlpha,
+                            scaleX = logoScale,
+                            scaleY = logoScale,
+                            rotationY = actualRotationY,
                             cameraDistance = 12f * density
-                        }
+                        )
                 )
                 if (isApproved) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
