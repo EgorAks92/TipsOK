@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PosPaymentEvent
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PosPaymentRequest
@@ -55,7 +56,8 @@ data class PcCompactTipPaymentUiState(
     val paymentStage: CardPresentingStage = CardPresentingStage.Idle,
     val isRestartingPayment: Boolean = false,
     val errorMessage: String? = null,
-    val canCancel: Boolean = true
+    val canCancel: Boolean = true,
+    val designStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT
 ) {
     fun calculateTipByPercent(percent: Double): Double =
         roundMoney(billAmount * percent / 100.0)
@@ -201,6 +203,7 @@ class PcCompactTipPaymentViewModel(
                             showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                             showCustomTipButton = false,
                             tipConfigLoaded = true,
+                            designStyle = settings.pcCompactPaymentDesignStyle,
                             isCustomTipSelected = false,
                             isNoTipsSelected = !hasPercents,
                             selectedPercentIndex = if (hasPercents) 0 else current.selectedPercentIndex,
@@ -211,7 +214,8 @@ class PcCompactTipPaymentViewModel(
                         current.copy(
                             showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                             showCustomTipButton = settings.showCustomTipButton,
-                            tipConfigLoaded = true
+                            tipConfigLoaded = true,
+                            designStyle = settings.pcCompactPaymentDesignStyle
                         )
                     }
                 }

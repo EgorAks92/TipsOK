@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.delay
@@ -90,6 +91,22 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.Transition
+
+@Composable
+fun PcCompactTipPaymentScreen(
+    state: PcCompactTipPaymentUiState,
+    onSelectTip: (Int) -> Unit,
+    onSelectNoTips: () -> Unit,
+    onConfirmCustomTip: (Double) -> Unit,
+    onToggleServiceFee: (Boolean) -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit
+) {
+    when (state.designStyle) {
+        PcCompactPaymentDesignStyle.DEFAULT -> ExistingPcCompactTipPaymentScreenContent(state, onSelectTip, onSelectNoTips, onConfirmCustomTip, onToggleServiceFee, onCancel, onRetry)
+        PcCompactPaymentDesignStyle.ALFA -> AlfaPcCompactTipPaymentScreen(state, onSelectTip, onSelectNoTips, onCancel)
+    }
+}
 
 private enum class PcCompactPaymentResultVisual {
     None,
@@ -114,7 +131,7 @@ private val PC_COMPACT_TIP_CARD_HORIZONTAL_PADDING = 12.dp
 private val PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING = 8.dp
 
 @Composable
-fun PcCompactTipPaymentScreen(
+fun ExistingPcCompactTipPaymentScreenContent(
     state: PcCompactTipPaymentUiState,
     onSelectTip: (Int) -> Unit,
     onSelectNoTips: () -> Unit,
@@ -1975,3 +1992,12 @@ private fun PcCompactNoTipsButton(
         )
     }
 }
+
+
+@Composable
+private fun AlfaPcCompactTipPaymentScreen(
+    state: PcCompactTipPaymentUiState,
+    onSelectTip: (Int) -> Unit,
+    onSelectNoTips: () -> Unit,
+    onCancel: () -> Unit
+) { ExistingPcCompactTipPaymentScreenContent(state,onSelectTip,onSelectNoTips,{/* no-op */}, {}, onCancel, {}) }

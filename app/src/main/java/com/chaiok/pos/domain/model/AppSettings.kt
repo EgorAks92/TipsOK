@@ -41,6 +41,7 @@ data class AppSettings(
     val pcIdleImages: List<String> = emptyList(),
     val pcCompactServiceFeeEnabled: Boolean = true,
     val showCustomTipButton: Boolean = true,
+    val pcCompactPaymentDesignStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
     val pcEcrProtocol: PcEcrProtocol = PcEcrProtocol.CHAIOK_JSON,
     val arcus2NewWaySettings: Arcus2NewWaySettings = Arcus2NewWaySettings()
 )

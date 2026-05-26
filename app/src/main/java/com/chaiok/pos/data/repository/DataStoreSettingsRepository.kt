@@ -3,6 +3,7 @@ package com.chaiok.pos.data.repository
 import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
@@ -33,9 +34,10 @@ class DataStoreSettingsRepository(
             baseSettingsFlow,
             dataStore.pcCompactServiceFeeEnabledFlow,
             dataStore.showCustomTipButtonFlow,
+            dataStore.pcCompactPaymentDesignStyleFlow,
             dataStore.pcEcrProtocolFlow,
             dataStore.arcus2NewWaySettingsFlow
-        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcEcrProtocol, arcus2NewWaySettings ->
+        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcCompactPaymentDesignStyle, pcEcrProtocol, arcus2NewWaySettings ->
             AppSettings(
                 integrationModeEnabled = base.integration,
                 tableModeEnabled = base.table,
@@ -44,6 +46,7 @@ class DataStoreSettingsRepository(
                 pcIdleImages = base.pcIdleImages,
                 pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled,
                 showCustomTipButton = showCustomTipButton,
+                pcCompactPaymentDesignStyle = pcCompactPaymentDesignStyle,
                 pcEcrProtocol = pcEcrProtocol,
                 arcus2NewWaySettings = arcus2NewWaySettings
             )
@@ -89,6 +92,12 @@ class DataStoreSettingsRepository(
     override suspend fun setShowCustomTipButton(enabled: Boolean) {
         runCatching {
             dataStore.setShowCustomTipButton(enabled)
+        }
+    }
+
+    override suspend fun setPcCompactPaymentDesignStyle(style: PcCompactPaymentDesignStyle) {
+        runCatching {
+            dataStore.setPcCompactPaymentDesignStyle(style)
         }
     }
 

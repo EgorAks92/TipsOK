@@ -45,6 +45,7 @@ import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.model.PcEcrProtocol
 
 private val SettingsBackgroundColor = Color.White
@@ -139,7 +140,8 @@ fun SettingsRoute(
         onTogglePcUsbMode = viewModel::togglePcUsbMode,
         onTogglePcCompactServiceFee = viewModel::togglePcCompactServiceFeeEnabled,
         onToggleShowCustomTipButton = viewModel::onShowCustomTipButtonChanged,
-        onPcEcrProtocolChanged = viewModel::onPcEcrProtocolChanged
+        onPcEcrProtocolChanged = viewModel::onPcEcrProtocolChanged,
+        onPcCompactPaymentDesignStyleChanged = viewModel::onPcCompactPaymentDesignStyleChanged
     )
 }
 
@@ -154,7 +156,8 @@ fun SettingsScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit
+    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit,
+    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
 ) {
     when (rememberChaiOkDeviceClass()) {
         ChaiOkDeviceClass.SquareCompact -> {
@@ -168,7 +171,8 @@ fun SettingsScreen(
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
                 onToggleShowCustomTipButton = onToggleShowCustomTipButton,
-                onPcEcrProtocolChanged = onPcEcrProtocolChanged
+                onPcEcrProtocolChanged = onPcEcrProtocolChanged,
+                onPcCompactPaymentDesignStyleChanged = onPcCompactPaymentDesignStyleChanged
             )
         }
 
@@ -183,7 +187,8 @@ fun SettingsScreen(
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
                 onToggleShowCustomTipButton = onToggleShowCustomTipButton,
-                onPcEcrProtocolChanged = onPcEcrProtocolChanged
+                onPcEcrProtocolChanged = onPcEcrProtocolChanged,
+                onPcCompactPaymentDesignStyleChanged = onPcCompactPaymentDesignStyleChanged
             )
         }
     }
@@ -200,7 +205,8 @@ private fun SettingsRegularScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit
+    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit,
+    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -265,6 +271,18 @@ private fun SettingsRegularScreen(
                     onClick = { onPcEcrProtocolChanged(if (state.pcEcrProtocol == PcEcrProtocol.CHAIOK_JSON) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON) }
                 )
 
+
+                SettingsRegularItem(
+                    title = "Дизайн экрана оплаты",
+                    subtitle = if (state.pcCompactPaymentDesignStyle == PcCompactPaymentDesignStyle.ALFA) "Альфа стиль" else "Стандартный",
+                    iconRes = R.drawable.ic_settings_card,
+                    onClick = {
+                        onPcCompactPaymentDesignStyleChanged(
+                            if (state.pcCompactPaymentDesignStyle == PcCompactPaymentDesignStyle.DEFAULT) PcCompactPaymentDesignStyle.ALFA else PcCompactPaymentDesignStyle.DEFAULT
+                        )
+                    }
+                )
+
                 SettingsRegularToggleItem(
                     title = "Режим работы с кассой",
                     subtitle = if (state.pcUsbModeEnabled) "Включено" else "Выключено",
@@ -303,7 +321,8 @@ private fun SettingsSquarePremiumScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit
+    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit,
+    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
 ) {
     val metrics = squarePremiumSettingsMetrics()
     val scrollState = rememberScrollState()
@@ -377,6 +396,20 @@ private fun SettingsSquarePremiumScreen(
                         metrics = metrics,
                         onClick = { onPcEcrProtocolChanged(if (state.pcEcrProtocol == PcEcrProtocol.CHAIOK_JSON) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON) }
                     )
+
+
+                SettingsPremiumItem(
+                    title = "Дизайн экрана оплаты",
+                    subtitle = if (state.pcCompactPaymentDesignStyle == PcCompactPaymentDesignStyle.ALFA) "Альфа стиль" else "Стандартный",
+                    iconRes = R.drawable.ic_settings_card,
+                    metrics = metrics,
+                    metrics = metrics,
+                    onClick = {
+                        onPcCompactPaymentDesignStyleChanged(
+                            if (state.pcCompactPaymentDesignStyle == PcCompactPaymentDesignStyle.DEFAULT) PcCompactPaymentDesignStyle.ALFA else PcCompactPaymentDesignStyle.DEFAULT
+                        )
+                    }
+                )
 
                     SettingsPremiumToggleItem(
                         title = "Режим работы с кассой",
