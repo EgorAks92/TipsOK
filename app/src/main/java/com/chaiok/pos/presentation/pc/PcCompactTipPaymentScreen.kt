@@ -31,18 +31,21 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,6 +89,7 @@ import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.delay
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -104,7 +108,7 @@ fun PcCompactTipPaymentScreen(
 ) {
     when (state.designStyle) {
         PcCompactPaymentDesignStyle.DEFAULT -> ExistingPcCompactTipPaymentScreenContent(state, onSelectTip, onSelectNoTips, onConfirmCustomTip, onToggleServiceFee, onCancel, onRetry)
-        PcCompactPaymentDesignStyle.ALFA -> AlfaPcCompactTipPaymentScreen(state, onSelectTip, onSelectNoTips, onCancel)
+        PcCompactPaymentDesignStyle.ALFA -> AlfaPcCompactTipPaymentScreen(state, onSelectTip, onSelectNoTips, onConfirmCustomTip, onToggleServiceFee, onCancel, onRetry)
     }
 }
 
@@ -1999,5 +2003,176 @@ private fun AlfaPcCompactTipPaymentScreen(
     state: PcCompactTipPaymentUiState,
     onSelectTip: (Int) -> Unit,
     onSelectNoTips: () -> Unit,
-    onCancel: () -> Unit
-) { ExistingPcCompactTipPaymentScreenContent(state,onSelectTip,onSelectNoTips,{/* no-op */}, {}, onCancel, {}) }
+    onConfirmCustomTip: (Double) -> Unit,
+    onToggleServiceFee: (Boolean) -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit
+) {
+    val metrics = rememberAlfaPaymentMetrics()
+    val phase = resolveAlfaPhase(state)
+    val amountText = if (phase == PcCompactPaymentScreenPhase.TipSelection) {
+        formatAlfaMoney(state.billAmount)
+    } else {
+        state.amountText
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AlfaBg)
+            .padding(horizontal = metrics.horizontalPadding, vertical = metrics.verticalPadding)
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            if (phase == PcCompactPaymentScreenPhase.TipSelection) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    IconButton(onClick = onCancel) {
+                        Text("×", color = AlfaText, fontSize = 32.sp, fontFamily = MontserratFontFamily)
+                    }
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text("оплата", color = AlfaSubText, fontSize = metrics.labelSize, fontFamily = MontserratFontFamily)
+                Text(amountText, color = AlfaText, fontSize = metrics.amountSize, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
+            }
+            when (phase) {
+                PcCompactPaymentScreenPhase.TipSelection -> {
+                    Spacer(Modifier.height(8.dp))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
+                        // TODO replace with R.drawable.pc_alt_bank_card when PNG is added to drawable-nodpi.
+                        Image(
+                            painter = painterResource(R.drawable.ic_pc_alt_bank_card_placeholder),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .width(metrics.cardWidth)
+                                .graphicsLayer { rotationZ = 11f }
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        itemsIndexed(state.availablePercents) { index, percent ->
+                            val selected = !state.isNoTipsSelected && !state.isCustomTipSelected && index == state.selectedPercentIndex
+                            AlfaTipButton(
+                                text = formatAlfaMoney(state.calculateTipByPercent(percent)),
+                                selected = selected,
+                                width = metrics.tipWidth
+                            ) { onSelectTip(index) }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    AlfaTipButton(
+                        text = "Без чаевых",
+                        selected = state.isNoTipsSelected,
+                        width = null,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { onSelectNoTips() }
+                }
+                PcCompactPaymentScreenPhase.Processing -> {
+                    Spacer(Modifier.weight(1f))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AlfaGlowLoadingRing(Modifier.size(160.dp)) }
+                    Spacer(Modifier.weight(1f))
+                }
+                PcCompactPaymentScreenPhase.Approved -> {
+                    Spacer(Modifier.weight(1f))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AlfaGlowCheck(Modifier.size(170.dp)) }
+                    Spacer(Modifier.weight(1f))
+                    Text("Одобрено", color = AlfaText, fontSize = metrics.resultSize, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily, modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
+                PcCompactPaymentScreenPhase.Declined -> {
+                    Spacer(Modifier.weight(1f))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AlfaGlowCross(Modifier.size(170.dp)) }
+                    Spacer(Modifier.weight(1f))
+                    Text("Отказано", color = AlfaText, fontSize = metrics.resultSize, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    if (!state.isRestartingPayment) {
+                        Spacer(Modifier.height(10.dp))
+                        AlfaTipButton("Повторить", selected = false, width = null, modifier = Modifier.fillMaxWidth()) { onRetry() }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun resolveAlfaPhase(state: PcCompactTipPaymentUiState): PcCompactPaymentScreenPhase = when {
+    state.paymentStage == CardPresentingStage.Approved -> PcCompactPaymentScreenPhase.Approved
+    state.paymentStage == CardPresentingStage.Declined ||
+            state.paymentStage == CardPresentingStage.Error ||
+            state.paymentStage == CardPresentingStage.Cancelled -> PcCompactPaymentScreenPhase.Declined
+    !state.canChangeTips ||
+            state.paymentStage == CardPresentingStage.CardDetected ||
+            state.paymentStage == CardPresentingStage.Processing ||
+            state.paymentStage == CardPresentingStage.PinRequired ||
+            state.paymentStage == CardPresentingStage.Cancelling -> PcCompactPaymentScreenPhase.Processing
+    else -> PcCompactPaymentScreenPhase.TipSelection
+}
+
+private data class AlfaPaymentMetrics(
+    val horizontalPadding: Dp,
+    val verticalPadding: Dp,
+    val labelSize: TextUnit,
+    val amountSize: TextUnit,
+    val resultSize: TextUnit,
+    val tipWidth: Dp,
+    val cardWidth: Dp
+)
+
+@Composable
+private fun rememberAlfaPaymentMetrics(): AlfaPaymentMetrics = AlfaPaymentMetrics(24.dp, 20.dp, 28.sp, 64.sp, 44.sp, 180.dp, 360.dp)
+
+@Composable
+private fun AlfaTipButton(text: String, selected: Boolean, width: Dp?, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .then(if (width != null) Modifier.size(width, 90.dp) else Modifier.height(90.dp))
+            .clip(RoundedCornerShape(30.dp))
+            .background(if (selected) AlfaRed else AlfaPaleBlue)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = if (selected) Color.White else AlfaText, fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
+    }
+}
+
+@Composable
+private fun AlfaGlowCheck(modifier: Modifier) = Canvas(modifier) {
+    val stroke = size.minDimension * 0.12f
+    repeat(2) { drawLine(AlfaGreenSoft.copy(alpha = 0.25f), Offset(size.width * 0.23f, size.height * 0.58f), Offset(size.width * 0.46f, size.height * 0.78f), strokeWidth = stroke * (2.3f - it), cap = StrokeCap.Round); drawLine(AlfaGreenSoft.copy(alpha = 0.25f), Offset(size.width * 0.46f, size.height * 0.78f), Offset(size.width * 0.8f, size.height * 0.38f), strokeWidth = stroke * (2.3f - it), cap = StrokeCap.Round) }
+    drawLine(AlfaGreen, Offset(size.width * 0.23f, size.height * 0.58f), Offset(size.width * 0.46f, size.height * 0.78f), strokeWidth = stroke, cap = StrokeCap.Round)
+    drawLine(AlfaGreen, Offset(size.width * 0.46f, size.height * 0.78f), Offset(size.width * 0.8f, size.height * 0.38f), strokeWidth = stroke, cap = StrokeCap.Round)
+}
+
+@Composable
+private fun AlfaGlowCross(modifier: Modifier) = Canvas(modifier) {
+    val stroke = size.minDimension * 0.12f
+    repeat(2) { drawLine(AlfaDeclineRed.copy(alpha = 0.25f), Offset(size.width * 0.28f, size.height * 0.28f), Offset(size.width * 0.72f, size.height * 0.72f), strokeWidth = stroke * (2.3f - it), cap = StrokeCap.Round); drawLine(AlfaDeclineRed.copy(alpha = 0.25f), Offset(size.width * 0.72f, size.height * 0.28f), Offset(size.width * 0.28f, size.height * 0.72f), strokeWidth = stroke * (2.3f - it), cap = StrokeCap.Round) }
+    drawLine(AlfaDeclineRed, Offset(size.width * 0.28f, size.height * 0.28f), Offset(size.width * 0.72f, size.height * 0.72f), strokeWidth = stroke, cap = StrokeCap.Round)
+    drawLine(AlfaDeclineRed, Offset(size.width * 0.72f, size.height * 0.28f), Offset(size.width * 0.28f, size.height * 0.72f), strokeWidth = stroke, cap = StrokeCap.Round)
+}
+
+@Composable
+private fun AlfaGlowLoadingRing(modifier: Modifier) {
+    val transition = rememberInfiniteTransition(label = "alfa_ring")
+    val rotation by transition.animateFloat(0f, 360f, animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "alfa_rotation")
+    Canvas(modifier.graphicsLayer { rotationZ = rotation }) {
+        val stroke = size.minDimension * 0.11f
+        repeat(2) {
+            drawArc(AlfaGreenSoft.copy(alpha = 0.24f), 18f, 290f, false, topLeft = Offset(stroke, stroke), size = Size(size.width - stroke * 2, size.height - stroke * 2), style = Stroke(stroke * (2.2f - it), cap = StrokeCap.Round))
+        }
+        drawArc(AlfaGreen, 18f, 290f, false, topLeft = Offset(stroke, stroke), size = Size(size.width - stroke * 2, size.height - stroke * 2), style = Stroke(stroke, cap = StrokeCap.Round))
+    }
+}
+
+private fun formatAlfaMoney(value: Double, currency: String = "RUB"): String {
+    val rounded = value.roundToInt()
+    val grouped = "%,d".format(Locale("ru", "RU"), rounded).replace(',', ' ')
+    return if (currency == "RUB") "$grouped ₽" else "$grouped $currency"
+}
+
+private val AlfaBg = Color.White
+private val AlfaText = Color(0xFF121820)
+private val AlfaSubText = Color(0xFF2B3037)
+private val AlfaRed = Color(0xFFE31B23)
+private val AlfaRedDark = Color(0xFFC81720)
+private val AlfaPaleBlue = Color(0xFFE8F2FF)
+private val AlfaGreen = Color(0xFF23B26D)
+private val AlfaGreenSoft = Color(0xFF7AD7A8)
+private val AlfaDeclineRed = Color(0xFFE94545)

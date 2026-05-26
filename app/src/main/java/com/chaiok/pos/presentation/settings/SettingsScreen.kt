@@ -275,7 +275,7 @@ private fun SettingsRegularScreen(
                 SettingsRegularItem(
                     title = "Дизайн экрана оплаты",
                     subtitle = if (state.pcCompactPaymentDesignStyle == PcCompactPaymentDesignStyle.ALFA) "Альфа стиль" else "Стандартный",
-                    iconRes = R.drawable.ic_settings_card,
+                    iconRes = R.drawable.ic_cash,
                     onClick = {
                         onPcCompactPaymentDesignStyleChanged(
                             if (state.pcCompactPaymentDesignStyle == PcCompactPaymentDesignStyle.DEFAULT) PcCompactPaymentDesignStyle.ALFA else PcCompactPaymentDesignStyle.DEFAULT
@@ -401,8 +401,7 @@ private fun SettingsSquarePremiumScreen(
                 SettingsPremiumItem(
                     title = "Дизайн экрана оплаты",
                     subtitle = if (state.pcCompactPaymentDesignStyle == PcCompactPaymentDesignStyle.ALFA) "Альфа стиль" else "Стандартный",
-                    iconRes = R.drawable.ic_settings_card,
-                    metrics = metrics,
+                    iconRes = R.drawable.ic_cash,
                     metrics = metrics,
                     onClick = {
                         onPcCompactPaymentDesignStyleChanged(
