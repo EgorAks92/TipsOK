@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PosPaymentEvent
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
+import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.PcPaymentCommand
+import com.chaiok.pos.domain.model.PosPaymentCancelPreviousRequest
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
 import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
@@ -17,6 +19,7 @@ import com.chaiok.pos.domain.usecase.CancelPosPaymentUseCase
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
+import com.chaiok.pos.domain.usecase.StartPosPaymentCancelPreviousUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import java.math.BigDecimal
@@ -58,6 +61,8 @@ data class PcCompactTipPaymentUiState(
     val isRestartingPayment: Boolean = false,
     val errorMessage: String? = null,
     val canCancel: Boolean = true,
+    val operationType: PcEcrOperationType = PcEcrOperationType.SALE,
+    val operationTitle: String = "Оплата",
     val designStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
     val visualSettingsLoaded: Boolean = false,
     val currency: String = "RUB"
@@ -67,6 +72,7 @@ data class PcCompactTipPaymentUiState(
 
     val selectedTipAmount: Double
         get() = when {
+            operationType == PcEcrOperationType.CANCEL_PREVIOUS -> 0.0
             isNoTipsSelected -> 0.0
             isCustomTipSelected -> roundMoney(customTipAmount ?: 0.0)
             else -> availablePercents
@@ -76,10 +82,11 @@ data class PcCompactTipPaymentUiState(
         }
 
     val serviceFeeAmount: Double
-        get() = if (showServiceFeeToggle && isServiceFeeEnabled && serviceFeePercent > 0.0) roundMoney(selectedTipAmount * serviceFeePercent / 100.0) else 0.0
+        get() = if (operationType == PcEcrOperationType.CANCEL_PREVIOUS) 0.0
+        else if (showServiceFeeToggle && isServiceFeeEnabled && serviceFeePercent > 0.0) roundMoney(selectedTipAmount * serviceFeePercent / 100.0) else 0.0
 
     val totalAmount: Double
-        get() = billAmount + selectedTipAmount + serviceFeeAmount
+        get() = if (operationType == PcEcrOperationType.CANCEL_PREVIOUS) billAmount else billAmount + selectedTipAmount + serviceFeeAmount
 
     val amountText: String
         get() = formatRubles(totalAmount)
@@ -103,6 +110,7 @@ sealed interface PcCompactTipPaymentEvent {
 class PcCompactTipPaymentViewModel(
     private val billAmount: Double,
     private val startPosPaymentUseCase: StartPosPaymentUseCase,
+    private val startPosPaymentCancelPreviousUseCase: StartPosPaymentCancelPreviousUseCase,
     private val cancelPosPaymentUseCase: CancelPosPaymentUseCase,
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
     private val observeSettingsUseCase: ObserveSettingsUseCase,
@@ -114,7 +122,9 @@ class PcCompactTipPaymentViewModel(
     private val sourceCommandId: String?,
     private val sourceOrderId: String?,
     private val sourceCurrency: String?,
-    private val sourceProtocol: String?
+    private val sourceProtocol: String?,
+    private val sourceOperationType: String?,
+    private val sourceRrn: String?
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PcCompactTipPaymentUiState(billAmount = billAmount))
     val uiState = _uiState.asStateFlow()
@@ -145,6 +155,11 @@ class PcCompactTipPaymentViewModel(
     private var waiterId: String = ""
     private var activePaymentServiceFeeEnabled: Boolean = false
     private var terminalId: String = ""
+    private val operationType: PcEcrOperationType =
+        runCatching {
+            PcEcrOperationType.valueOf(sourceOperationType?.ifBlank { "SALE" } ?: "SALE")
+        }.getOrDefault(PcEcrOperationType.SALE)
+    private val sourceRrnNormalized: String? = sourceRrn?.trim()?.ifBlank { null }
 
     init {
         viewModelScope.launch { initStateAndStart() }
@@ -158,11 +173,14 @@ class PcCompactTipPaymentViewModel(
 
         _uiState.update {
             it.copy(
-                showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
-                showCustomTipButton = settings.showCustomTipButton,
+                showServiceFeeToggle = if (isCancelPreviousOperation()) false else settings.pcCompactServiceFeeEnabled,
+                showCustomTipButton = if (isCancelPreviousOperation()) false else settings.showCustomTipButton,
                 designStyle = settings.pcCompactPaymentDesignStyle,
                 visualSettingsLoaded = true,
-                currency = commandCurrency
+                currency = commandCurrency,
+                operationType = operationType,
+                operationTitle = if (isCancelPreviousOperation()) "Отмена" else "Оплата",
+                isServiceFeeEnabled = false
             )
         }
 
@@ -178,8 +196,8 @@ class PcCompactTipPaymentViewModel(
                 availablePercents = percents,
                 selectedPercentIndex = selected,
                 serviceFeePercent = profile.serviceFeePercent.coerceAtLeast(0.0),
-                showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
-                showCustomTipButton = settings.showCustomTipButton,
+                showServiceFeeToggle = if (isCancelPreviousOperation()) false else settings.pcCompactServiceFeeEnabled,
+                showCustomTipButton = if (isCancelPreviousOperation()) false else settings.showCustomTipButton,
                 tipConfigLoaded = true,
                 designStyle = settings.pcCompactPaymentDesignStyle,
                 visualSettingsLoaded = true,
@@ -196,7 +214,11 @@ class PcCompactTipPaymentViewModel(
         }
 
         generation += 1
-        val started = startPaymentCurrentAmount("initial", generation)
+        val started = if (isCancelPreviousOperation()) {
+            startCancelPreviousPayment("initial", generation)
+        } else {
+            startPaymentCurrentAmount("initial", generation)
+        }
         if (started) {
             activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
             activeSelectedTip = _uiState.value.currentSelectedTip()
@@ -263,6 +285,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun selectTipPreset(index: Int) {
+        if (isCancelPreviousOperation()) return
         val state = _uiState.value
         if (index !in state.availablePercents.indices) return
         if (!state.isCustomTipSelected && !state.isNoTipsSelected && index == state.selectedPercentIndex) return
@@ -292,6 +315,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun selectNoTips() {
+        if (isCancelPreviousOperation()) return
         val state = _uiState.value
         if (state.isNoTipsSelected || !state.canChangeTips) return
         tipSelectionDebounceJob?.cancel()
@@ -309,6 +333,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun applyCustomTipAmount(amount: Double) {
+        if (isCancelPreviousOperation()) return
         val normalized = amount.coerceAtLeast(0.0)
         val state = _uiState.value
         if (!state.showCustomTipButton) return
@@ -330,6 +355,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun toggleServiceFee(enabled: Boolean) {
+        if (isCancelPreviousOperation()) return
         if (!_uiState.value.showServiceFeeToggle) return
         if (_uiState.value.isServiceFeeEnabled == enabled || !_uiState.value.canChangeTips) return
         cancelDeclinedAutoClose()
@@ -397,6 +423,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     private suspend fun restartPaymentWithCurrentAmount(reason: String) {
+        if (isCancelPreviousOperation()) return
         operationMutex.withLock {
             val before = _uiState.value
             if (!before.canChangeTips || userCancelInProgress) return
@@ -470,6 +497,34 @@ class PcCompactTipPaymentViewModel(
             }
         }
 
+        return true
+    }
+
+    private suspend fun startCancelPreviousPayment(reason: String, expectedGeneration: Long = generation): Boolean {
+        if (terminalId.isBlank()) return false
+        val rrn = sourceRrnNormalized
+        if (rrn.isNullOrBlank()) {
+            Log.e(TAG, "Cancel previous operation requested without RRN")
+            sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Error("RRN missing"))
+            resumePcEcrAfterPayment("cancel_previous_rrn_missing")
+            _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+            return false
+        }
+        val request = PosPaymentCancelPreviousRequest(
+            rrn = rrn,
+            amount = toMoneyAmount(_uiState.value.billAmount, commandCurrency),
+            currency = commandCurrency,
+            terminalId = terminalId
+        )
+        Log.i(TAG, "Start cancel previous SSP op rrn=***${rrn.takeLast(4)} reason=$reason generation=$expectedGeneration")
+        paymentJob?.cancel()
+        _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true, errorMessage = null) }
+        paymentJob = viewModelScope.launch {
+            startPosPaymentCancelPreviousUseCase(request).collect { event ->
+                if (expectedGeneration != generation) return@collect
+                onPaymentEvent(event)
+            }
+        }
         return true
     }
 
@@ -672,7 +727,13 @@ class PcCompactTipPaymentViewModel(
         (sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name
 
     private fun statusTextForStage(stage: CardPresentingStage, settings: com.chaiok.pos.domain.model.Arcus2NewWaySettings): String =
-        when (stage) {
+        if (isCancelPreviousOperation()) when (stage) {
+            CardPresentingStage.Preparing, CardPresentingStage.WaitingForCard, CardPresentingStage.Cancelling -> settings.cancellingStatusText
+            CardPresentingStage.CardDetected -> settings.cardDetectedStatusText
+            CardPresentingStage.Processing -> settings.processingStatusText
+            CardPresentingStage.PinRequired -> settings.pinRequiredStatusText
+            else -> settings.cancellingStatusText
+        } else when (stage) {
             CardPresentingStage.WaitingForCard,
             CardPresentingStage.Preparing -> settings.cardWaitingStatusText
             CardPresentingStage.CardDetected -> settings.cardDetectedStatusText
@@ -681,6 +742,9 @@ class PcCompactTipPaymentViewModel(
             CardPresentingStage.Cancelling -> settings.cancellingStatusText
             else -> settings.cardWaitingStatusText
         }
+
+    private fun isCancelPreviousOperation(): Boolean =
+        operationType == PcEcrOperationType.CANCEL_PREVIOUS
 
     private fun startArcus2StatusKeepAlive() {
         if (!isArcus2Source()) return

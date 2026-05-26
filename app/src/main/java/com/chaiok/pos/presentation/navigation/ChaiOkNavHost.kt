@@ -677,7 +677,9 @@ fun ChaiOkNavHost(container: AppContainer) {
                                             value.commandId,
                                             value.orderId,
                                             value.currency,
-                                            value.sourceProtocol.name
+                                            value.sourceProtocol.name,
+                                            value.operationType.name,
+                                            value.rrn
                                         )
                                     )
                                 }
@@ -705,7 +707,9 @@ fun ChaiOkNavHost(container: AppContainer) {
                 navArgument("commandId") { type = NavType.StringType; defaultValue = "" },
                 navArgument("orderId") { type = NavType.StringType; defaultValue = "" },
                 navArgument("currency") { type = NavType.StringType; defaultValue = "RUB" },
-                navArgument("sourceProtocol") { type = NavType.StringType; defaultValue = "CHAIOK_JSON" }
+                navArgument("sourceProtocol") { type = NavType.StringType; defaultValue = "CHAIOK_JSON" },
+                navArgument("operationType") { type = NavType.StringType; defaultValue = "SALE" },
+                navArgument("rrn") { type = NavType.StringType; defaultValue = "" }
             )
         ) { backStack ->
             val currency = backStack.arguments?.getString("currency")?.ifBlank { "RUB" } ?: "RUB"
@@ -719,6 +723,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                     PcCompactTipPaymentViewModel(
                         billAmount = billAmount,
                         startPosPaymentUseCase = container.startPosPaymentUseCase,
+                        startPosPaymentCancelPreviousUseCase = container.startPosPaymentCancelPreviousUseCase,
                         cancelPosPaymentUseCase = container.cancelPosPaymentUseCase,
                         getTransactionRangeUseCase = container.getTransactionRangeUseCase,
                         observeSettingsUseCase = container.observeSettingsUseCase,
@@ -730,7 +735,9 @@ fun ChaiOkNavHost(container: AppContainer) {
                         sourceCommandId = backStack.arguments?.getString("commandId"),
                         sourceOrderId = backStack.arguments?.getString("orderId"),
                         sourceCurrency = backStack.arguments?.getString("currency"),
-                        sourceProtocol = backStack.arguments?.getString("sourceProtocol")
+                        sourceProtocol = backStack.arguments?.getString("sourceProtocol"),
+                        sourceOperationType = backStack.arguments?.getString("operationType"),
+                        sourceRrn = backStack.arguments?.getString("rrn")
                     )
                 }
             )

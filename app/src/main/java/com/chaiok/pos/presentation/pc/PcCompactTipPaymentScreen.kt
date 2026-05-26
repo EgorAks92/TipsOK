@@ -85,6 +85,7 @@ import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
+import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.delay
@@ -104,6 +105,7 @@ fun PcCompactTipPaymentScreen(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
+    val isCancelPrevious = state.operationType == PcEcrOperationType.CANCEL_PREVIOUS
     if (!state.visualSettingsLoaded) {
         Box(
             modifier = Modifier
@@ -419,7 +421,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "оплата",
+                text = state.operationTitle.lowercase(),
                 color = theme.secondaryTextColor,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Medium,
@@ -548,11 +550,11 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 .offset(x = 26.dp)
         )
 
-        val showServiceFeeRow = state.showServiceFeeToggle && state.serviceFeePercent > 0.0
+        val showServiceFeeRow = !isCancelPrevious && state.showServiceFeeToggle && state.serviceFeePercent > 0.0
         val tipsTitleTop = if (showServiceFeeRow) 214.dp else 262.dp
         val tipsRowTop = if (showServiceFeeRow) 244.dp else 302.dp
 
-        Text(
+        if (!isCancelPrevious) Text(
             text = "чаевые",
             color = theme.secondaryTextColor,
             fontSize = 20.sp,
@@ -568,6 +570,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         val tipsVisuallyEnabled = true
 
         val tipCards = buildList {
+            if (isCancelPrevious) return@buildList
             if (state.tipConfigLoaded && state.showCustomTipButton) {
                 add(PcCompactTipCardUiModel.CustomAmount)
             }
@@ -680,7 +683,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         }
         val noTipsButtonGap = if (showServiceFeeRow) 10.dp else 20.dp
         val noTipsButtonTop = tipsRowTop + PC_COMPACT_TIP_CARD_HEIGHT + noTipsButtonGap
-        PcCompactNoTipsButton(
+        if (!isCancelPrevious) PcCompactNoTipsButton(
             theme = theme,
             selected = state.isNoTipsSelected,
             enabled = tipsInteractive,
@@ -690,7 +693,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 .align(Alignment.TopCenter)
                 .padding(top = noTipsButtonTop)
         )
-        if (showServiceFeeRow) {
+        if (!isCancelPrevious && showServiceFeeRow) {
             PcCompactServiceFeeGlassRow(
                 theme = theme,
                 modifier = Modifier
@@ -717,6 +720,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
     }
 
     if (
+        !isCancelPrevious &&
         showCustomTipDialog.value &&
         phase == PcCompactPaymentScreenPhase.TipSelection &&
         state.tipConfigLoaded &&

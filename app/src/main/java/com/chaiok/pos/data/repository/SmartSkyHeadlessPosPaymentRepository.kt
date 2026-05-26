@@ -8,6 +8,7 @@ import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
 import com.chaiok.pos.domain.model.PosPaymentEvent
+import com.chaiok.pos.domain.model.PosPaymentCancelPreviousRequest
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.domain.repository.PosPaymentRepository
 import com.skytech.smartskyposlib.ISmartSkyPos
@@ -30,6 +31,13 @@ import org.json.JSONObject
 class SmartSkyHeadlessPosPaymentRepository(
     context: Context
 ) : PosPaymentRepository {
+    override fun cancelPreviousPayment(request: PosPaymentCancelPreviousRequest): Flow<PosPaymentEvent> = callbackFlow {
+        trySend(PosPaymentEvent.Preparing)
+        trySend(PosPaymentEvent.Error("TransactionResultcancel is not implemented"))
+        // TODO ARCUS2 CANCEL_PREVIOUS: integrate SSP/AAR TransactionResultcancel call here using request.rrn.
+        close()
+        awaitClose { }
+    }
 
     private val appContext = context.applicationContext
     private val activeService = AtomicReference<ISmartSkyPos?>(null)

@@ -287,6 +287,18 @@ class XchengPcPaymentCommandRepository(
         }.map { Unit }
     }
 
+    private suspend fun sendArcus2ErrorWhileListening(
+        settings: Arcus2NewWaySettings,
+        statusText: String
+    ): Result<Unit> {
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        return runCatching {
+            session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
+            session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrThrow()
+            session.sendCommandAndWaitOk("ENDTR").getOrThrow()
+        }.map { Unit }
+    }
+
     override suspend fun listenOnce() {
         val ensureResult = lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {
@@ -396,7 +408,7 @@ class XchengPcPaymentCommandRepository(
                         }
                         is PcEcrCommand.Reversal -> {
                             if (cmd.rrn.isNullOrBlank()) {
-                                val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "Не найден RRN")
+                                val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найден RRN")
                                 updateArcusListeningState(r, "arcus2 reversal rrn missing")
                                 null
                             } else {

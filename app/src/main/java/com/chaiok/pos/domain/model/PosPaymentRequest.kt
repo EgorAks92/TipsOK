@@ -18,22 +18,3 @@ data class PosPaymentCancelPreviousRequest(
     val currency: String,
     val terminalId: String
 )
-
-sealed interface PosPaymentCancelPreviousResult {
-    data class Success(
-        val message: String?,
-        val receiptText: String?,
-        val rrn: String?
-    ) : PosPaymentCancelPreviousResult
-
-    data class Declined(
-        val resultCode: String?,
-        val message: String?,
-        val receiptText: String?
-    ) : PosPaymentCancelPreviousResult
-
-    data class Error(
-        val message: String?,
-        val receiptText: String? = null
-    ) : PosPaymentCancelPreviousResult
-}
