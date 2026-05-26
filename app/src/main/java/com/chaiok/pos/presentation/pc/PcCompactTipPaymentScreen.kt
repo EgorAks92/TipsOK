@@ -45,7 +45,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -89,7 +88,6 @@ import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.delay
-import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -106,10 +104,8 @@ fun PcCompactTipPaymentScreen(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
-    when (state.designStyle) {
-        PcCompactPaymentDesignStyle.DEFAULT -> ExistingPcCompactTipPaymentScreenContent(state, onSelectTip, onSelectNoTips, onConfirmCustomTip, onToggleServiceFee, onCancel, onRetry)
-        PcCompactPaymentDesignStyle.ALFA -> AlfaPcCompactTipPaymentScreen(state, onSelectTip, onSelectNoTips, onConfirmCustomTip, onToggleServiceFee, onCancel, onRetry)
-    }
+    val theme = rememberPcCompactPaymentVisualTheme(state.designStyle)
+    ExistingPcCompactTipPaymentScreenContent(state, theme, onSelectTip, onSelectNoTips, onConfirmCustomTip, onToggleServiceFee, onCancel, onRetry)
 }
 
 private enum class PcCompactPaymentResultVisual {
@@ -137,6 +133,7 @@ private val PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING = 8.dp
 @Composable
 fun ExistingPcCompactTipPaymentScreenContent(
     state: PcCompactTipPaymentUiState,
+    theme: PcCompactPaymentVisualTheme,
     onSelectTip: (Int) -> Unit,
     onSelectNoTips: () -> Unit,
     onConfirmCustomTip: (Double) -> Unit,
@@ -226,6 +223,7 @@ fun ExistingPcCompactTipPaymentScreenContent(
 
     PcCompactPaymentAnimatedRoot(
         state = state,
+        theme = theme,
         transition = phaseTransition,
         onSelectTip = onSelectTip,
         onSelectNoTips = onSelectNoTips,
@@ -239,6 +237,7 @@ fun ExistingPcCompactTipPaymentScreenContent(
 @Composable
 private fun PcCompactPaymentAnimatedRoot(
     state: PcCompactTipPaymentUiState,
+    theme: PcCompactPaymentVisualTheme,
     transition: Transition<PcCompactPaymentScreenPhase>,
     onSelectTip: (Int) -> Unit,
     onSelectNoTips: () -> Unit,
@@ -248,9 +247,10 @@ private fun PcCompactPaymentAnimatedRoot(
     onRetry: () -> Unit
 ) {
     val phase = transition.targetState
-    PcCompactPaymentBackground(error = phase == PcCompactPaymentScreenPhase.Declined) {
+    PcCompactPaymentBackground(error = phase == PcCompactPaymentScreenPhase.Declined, theme = theme) {
         PcCompactTipSelectionLayer(
             state = state,
+            theme = theme,
             transition = transition,
             onSelectTip = onSelectTip,
             onSelectNoTips = onSelectNoTips,
@@ -261,10 +261,12 @@ private fun PcCompactPaymentAnimatedRoot(
         )
         PcCompactAnimatedStatusHeader(
             amountText = state.amountText,
-            transition = transition
+            transition = transition,
+            theme = theme
         )
         PcCompactPaymentStatusOverlay(
-            transition = transition
+            transition = transition,
+            theme = theme
         )
     }
 }
@@ -272,6 +274,7 @@ private fun PcCompactPaymentAnimatedRoot(
 @Composable
 private fun PcCompactPaymentBackground(
     error: Boolean = false,
+    theme: PcCompactPaymentVisualTheme,
     content: @Composable BoxScope.() -> Unit
 ) {
     val backgroundEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
@@ -332,7 +335,8 @@ private fun PcCompactPaymentBackground(
 @Composable
 private fun BoxScope.PcCompactAnimatedStatusHeader(
     amountText: String,
-    transition: Transition<PcCompactPaymentScreenPhase>
+    transition: Transition<PcCompactPaymentScreenPhase>,
+    theme: PcCompactPaymentVisualTheme
 ) {
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
     val density = LocalDensity.current
@@ -383,7 +387,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
         ) {
             Text(
                 text = "оплата",
-                color = Color.White.copy(alpha = 0.78f),
+                color = theme.secondaryTextColor,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = MontserratFontFamily,
@@ -397,7 +401,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
 
             PcCompactAnimatedAmountText(
                 text = amountText,
-                color = Color.White,
+                color = theme.primaryTextColor,
                 fontSize = 40.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -408,6 +412,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
 @Composable
 private fun BoxScope.PcCompactTipSelectionLayer(
     state: PcCompactTipPaymentUiState,
+    theme: PcCompactPaymentVisualTheme,
     transition: Transition<PcCompactPaymentScreenPhase>,
     onSelectTip: (Int) -> Unit,
     onSelectNoTips: () -> Unit,
@@ -465,7 +470,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 scaleY = tipsContentScale
             }
     ) {
-        PcCompactTipSelectionWavesLayer(transition = transition)
+        PcCompactTipSelectionWavesLayer(transition = transition, theme = theme)
 
         Box(
             modifier = Modifier
@@ -488,7 +493,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         ) {
             Text(
                 text = "оплата",
-                color = Color.White.copy(alpha = 0.78f),
+                color = theme.secondaryTextColor,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = MontserratFontFamily
@@ -496,13 +501,14 @@ private fun BoxScope.PcCompactTipSelectionLayer(
 
             PcCompactAnimatedAmountText(
                 text = state.amountText,
-                color = Color.White,
+                color = theme.primaryTextColor,
                 fontSize = 40.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
         PcCompactDecorativeBankCard(
+            theme = theme,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 78.dp)
@@ -515,7 +521,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
 
         Text(
             text = "чаевые",
-            color = Color.White.copy(alpha = 0.86f),
+            color = theme.secondaryTextColor,
             fontSize = 20.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = MontserratFontFamily,
@@ -606,6 +612,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                     when (card) {
                         PcCompactTipCardUiModel.CustomAmount -> {
                             PcCompactTipPresetCard(
+                                theme = theme,
                                 percentText = primaryText,
                                 amountText = null,
                                 selected = state.isCustomTipSelected,
@@ -622,6 +629,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
 
                         is PcCompactTipCardUiModel.Percent -> {
                             PcCompactTipPresetCard(
+                                theme = theme,
                                 percentText = primaryText,
                                 amountText = null,
                                 selected = !state.isCustomTipSelected &&
@@ -640,6 +648,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         val noTipsButtonGap = if (showServiceFeeRow) 10.dp else 20.dp
         val noTipsButtonTop = tipsRowTop + PC_COMPACT_TIP_CARD_HEIGHT + noTipsButtonGap
         PcCompactNoTipsButton(
+            theme = theme,
             selected = state.isNoTipsSelected,
             enabled = tipsInteractive,
             visuallyEnabled = tipsVisuallyEnabled,
@@ -650,6 +659,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         )
         if (showServiceFeeRow) {
             PcCompactServiceFeeGlassRow(
+                theme = theme,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
@@ -664,7 +674,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         if (state.errorMessage != null) {
             Text(
                 text = "Повторить",
-                color = Color.White.copy(alpha = 0.9f),
+                color = theme.primaryTextColor.copy(alpha = 0.9f),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
@@ -692,7 +702,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
 
 @Composable
 private fun BoxScope.PcCompactTipSelectionWavesLayer(
-    transition: Transition<PcCompactPaymentScreenPhase>
+    transition: Transition<PcCompactPaymentScreenPhase>,
+    theme: PcCompactPaymentVisualTheme
 ) {
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
     val wavesAlpha by transition.animateFloat(
@@ -708,7 +719,7 @@ private fun BoxScope.PcCompactTipSelectionWavesLayer(
                 .fillMaxSize()
                 .graphicsLayer { alpha = wavesAlpha }
         ) {
-            PcCompactTopRings(alpha = wavesAlpha)
+            PcCompactTopRings(alpha = wavesAlpha, theme = theme)
         }
     }
 }
@@ -877,7 +888,8 @@ private fun customTipInputValue(amount: Double?): String {
 
 @Composable
 private fun BoxScope.PcCompactPaymentStatusOverlay(
-    transition: Transition<PcCompactPaymentScreenPhase>
+    transition: Transition<PcCompactPaymentScreenPhase>,
+    theme: PcCompactPaymentVisualTheme
 ) {
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
     val overlayAlpha by transition.animateFloat(
@@ -910,6 +922,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
 
     PcCompactMorphingPaymentIndicator(
         result = resultVisual,
+        theme = theme,
         modifier = Modifier
             .align(Alignment.Center)
             .graphicsLayer {
@@ -935,7 +948,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
             PcCompactPaymentResultVisual.Approved -> {
                 Text(
                     text = "Одобрено",
-                    color = Color.White,
+                    color = theme.primaryTextColor,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
@@ -946,7 +959,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
             PcCompactPaymentResultVisual.Declined -> {
                 Text(
                     text = "Отказано",
-                    color = Color.White,
+                    color = theme.primaryTextColor,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
@@ -962,6 +975,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
 @Composable
 private fun PcCompactMorphingPaymentIndicator(
     result: PcCompactPaymentResultVisual,
+    theme: PcCompactPaymentVisualTheme,
     modifier: Modifier = Modifier
 ) {
     val transition = rememberInfiniteTransition(label = "neon_payment_indicator")
@@ -1585,7 +1599,7 @@ private fun neonIntervalProgress(
 }
 
 @Composable
-private fun PcCompactTopRings(alpha: Float = 1f) {
+private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTheme) {
     val ringAlpha = alpha.coerceIn(0f, 1f)
     if (ringAlpha <= 0f) return
 
@@ -1698,6 +1712,7 @@ private fun PcCompactTopRings(alpha: Float = 1f) {
 
 @Composable
 private fun PcCompactDecorativeBankCard(
+    theme: PcCompactPaymentVisualTheme,
     modifier: Modifier = Modifier
 ) {
     val enterProgress = remember { Animatable(0f) }
@@ -1718,7 +1733,7 @@ private fun PcCompactDecorativeBankCard(
     val hidden = 1f - progress
 
     Image(
-        painter = painterResource(id = R.drawable.pc_compact_bank_card),
+        painter = painterResource(id = theme.decorativeCardDrawable ?: R.drawable.pc_compact_bank_card),
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = modifier
@@ -1738,6 +1753,7 @@ private fun PcCompactDecorativeBankCard(
 
 @Composable
 private fun PcCompactServiceFeeGlassRow(
+    theme: PcCompactPaymentVisualTheme,
     modifier: Modifier,
     text: String,
     checked: Boolean,
@@ -1748,7 +1764,7 @@ private fun PcCompactServiceFeeGlassRow(
         modifier = modifier
             .height(48.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(Color.White.copy(alpha = 0.2f))
+            .background(theme.noTipsBrush)
             .border(
                 width = 1.dp,
                 color = Color.White.copy(alpha = 0.25f),
@@ -1760,7 +1776,7 @@ private fun PcCompactServiceFeeGlassRow(
     ) {
         Text(
             text = text,
-            color = Color.White.copy(alpha = 0.92f),
+            color = theme.primaryTextColor.copy(alpha = 0.92f),
             fontSize = 14.sp,
             fontFamily = MontserratFontFamily
         )
@@ -1770,21 +1786,7 @@ private fun PcCompactServiceFeeGlassRow(
                 .size(width = 54.dp, height = 30.dp)
                 .clip(RoundedCornerShape(15.dp))
                 .background(
-                    if (checked) {
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color(0xFF20D6D2),
-                                Color(0xFF126CA4)
-                            )
-                        )
-                    } else {
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.18f),
-                                Color.White.copy(alpha = 0.18f)
-                            )
-                        )
-                    }
+                    if (checked) theme.cardBrush else theme.serviceFeeBrush
                 )
                 .clickable(enabled = enabled) {
                     onToggle(!checked)
@@ -1861,6 +1863,7 @@ private fun PcCompactAnimatedAmountText(
 
 @Composable
 private fun PcCompactTipPresetCard(
+    theme: PcCompactPaymentVisualTheme,
     percentText: String,
     amountText: String? = null,
     selected: Boolean,
@@ -1873,21 +1876,7 @@ private fun PcCompactTipPresetCard(
     val shape = RoundedCornerShape(28.dp)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
 
-    val backgroundBrush = if (selected) {
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFF74E8E1).copy(alpha = visualAlpha),
-                Color(0xFF20B8C8).copy(alpha = visualAlpha)
-            )
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.24f * visualAlpha),
-                Color.White.copy(alpha = 0.12f * visualAlpha)
-            )
-        )
-    }
+    val backgroundBrush = if (selected) theme.selectedTipBrush else theme.unselectedTipBrush
 
     Box(
         modifier = Modifier
@@ -1896,9 +1885,7 @@ private fun PcCompactTipPresetCard(
             .background(backgroundBrush)
             .border(
                 width = 1.dp,
-                color = Color.White.copy(
-                    alpha = if (selected) 0.48f * visualAlpha else 0.34f * visualAlpha
-                ),
+                color = theme.borderColor.copy(alpha = if (selected) 0.9f * visualAlpha else 0.7f * visualAlpha),
                 shape = shape
             )
             .clickable(
@@ -1917,7 +1904,7 @@ private fun PcCompactTipPresetCard(
         ) {
             Text(
                 text = percentText,
-                color = Color.White.copy(alpha = visualAlpha),
+                color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
                 fontSize = 20.sp,
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Bold,
@@ -1949,6 +1936,7 @@ private fun PcCompactTipPresetCard(
 
 @Composable
 private fun PcCompactNoTipsButton(
+    theme: PcCompactPaymentVisualTheme,
     selected: Boolean,
     enabled: Boolean,
     visuallyEnabled: Boolean = true,
@@ -1957,21 +1945,7 @@ private fun PcCompactNoTipsButton(
 ) {
     val shape = RoundedCornerShape(20.dp)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
-    val backgroundBrush = if (selected) {
-        Brush.verticalGradient(
-            listOf(
-                Color(0xFF74E8E1).copy(alpha = visualAlpha),
-                Color(0xFF20B8C8).copy(alpha = visualAlpha)
-            )
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.22f * visualAlpha),
-                Color.White.copy(alpha = 0.10f * visualAlpha)
-            )
-        )
-    }
+    val backgroundBrush = if (selected) theme.selectedTipBrush else theme.noTipsBrush
     Box(
         modifier = modifier
             .size(width = 448.dp, height = 56.dp)
@@ -1979,9 +1953,7 @@ private fun PcCompactNoTipsButton(
             .background(backgroundBrush)
             .border(
                 1.dp,
-                Color.White.copy(
-                    alpha = if (selected) 0.45f * visualAlpha else 0.3f * visualAlpha
-                ),
+                theme.borderColor.copy(alpha = if (selected) 0.9f * visualAlpha else 0.7f * visualAlpha),
                 shape
             )
             .clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
@@ -1989,7 +1961,7 @@ private fun PcCompactNoTipsButton(
     ) {
         Text(
             text = "Без чаевых",
-            color = Color.White.copy(alpha = visualAlpha),
+            color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = MontserratFontFamily
@@ -1998,244 +1970,42 @@ private fun PcCompactNoTipsButton(
 }
 
 
-@Composable
-private fun AlfaPcCompactTipPaymentScreen(
-    state: PcCompactTipPaymentUiState,
-    onSelectTip: (Int) -> Unit,
-    onSelectNoTips: () -> Unit,
-    onConfirmCustomTip: (Double) -> Unit,
-    onToggleServiceFee: (Boolean) -> Unit,
-    onCancel: () -> Unit,
-    onRetry: () -> Unit
-) {
-    var showCustomTipDialog by remember { mutableStateOf(false) }
-    var customInput by remember { mutableStateOf("") }
-    BoxWithConstraints(Modifier.fillMaxSize().background(AlfaBg)) {
-        val metrics = rememberAlfaPaymentMetrics(maxWidth, maxHeight)
-        when (resolveAlfaPhase(state)) {
-            PcCompactPaymentScreenPhase.TipSelection -> AlfaTipSelectionContent(state, metrics, onSelectTip, onSelectNoTips, onToggleServiceFee, onCancel) { showCustomTipDialog = true }
-            PcCompactPaymentScreenPhase.Processing -> AlfaProcessingContent(state, metrics)
-            PcCompactPaymentScreenPhase.Approved -> AlfaApprovedContent(state, metrics)
-            PcCompactPaymentScreenPhase.Declined -> AlfaDeclinedContent(state, metrics, onRetry)
-        }
-    }
-    if (showCustomTipDialog) {
-        AlfaCustomTipDialog(
-            input = customInput,
-            onInputChange = { customInput = it },
-            onDismiss = {
-                showCustomTipDialog = false
-                customInput = ""
-            },
-            onConfirm = { value ->
-                onConfirmCustomTip(value)
-                showCustomTipDialog = false
-                customInput = ""
-            }
-        )
-    }
-}
 
-private fun resolveAlfaPhase(state: PcCompactTipPaymentUiState): PcCompactPaymentScreenPhase = when {
-    state.paymentStage == CardPresentingStage.Approved -> PcCompactPaymentScreenPhase.Approved
-    state.paymentStage == CardPresentingStage.Declined -> PcCompactPaymentScreenPhase.Declined
-    !state.errorMessage.isNullOrBlank() -> PcCompactPaymentScreenPhase.Declined
-    !state.canChangeTips ||
-            state.paymentStage == CardPresentingStage.CardDetected ||
-            state.paymentStage == CardPresentingStage.Processing ||
-            state.paymentStage == CardPresentingStage.PinRequired ||
-            state.paymentStage == CardPresentingStage.Cancelling -> PcCompactPaymentScreenPhase.Processing
-    else -> PcCompactPaymentScreenPhase.TipSelection
-}
-
-@Composable
-private fun AlfaPaymentHeader(amountText: String, metrics: AlfaPaymentMetrics, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("оплата", color = AlfaSubText, fontSize = metrics.labelSize, fontFamily = MontserratFontFamily)
-        Text(amountText, color = AlfaText, fontSize = metrics.amountSize, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
-    }
-}
-
-@Composable
-private fun AlfaTipSelectionContent(
-    state: PcCompactTipPaymentUiState,
-    metrics: AlfaPaymentMetrics,
-    onSelectTip: (Int) -> Unit,
-    onSelectNoTips: () -> Unit,
-    onToggleServiceFee: (Boolean) -> Unit,
-    onCancel: () -> Unit,
-    onOpenCustomTip: () -> Unit
-) {
-    Box(Modifier.fillMaxSize().padding(horizontal = metrics.horizontalPadding, vertical = metrics.verticalPadding)) {
-        IconButton(onClick = onCancel, modifier = Modifier.align(Alignment.TopEnd)) { Text("×", color = AlfaText, fontSize = 30.sp, fontFamily = MontserratFontFamily) }
-        AlfaPaymentHeader(formatAlfaMoney(state.billAmount, state.currency), metrics, Modifier.align(Alignment.TopStart).padding(top = 18.dp))
-        Image(painterResource(AlfaBankCardDrawable), null, contentScale = ContentScale.Fit, modifier = Modifier.align(Alignment.TopEnd).padding(top = metrics.cardTopSpacing).width(metrics.cardWidth).graphicsLayer { rotationZ = 11f })
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(metrics.optionsSpacing)) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(metrics.optionsSpacing)) {
-                itemsIndexed(state.availablePercents) { index, percent ->
-                    val selected = !state.isNoTipsSelected && !state.isCustomTipSelected && index == state.selectedPercentIndex
-                    AlfaTipButton(formatAlfaMoney(state.calculateTipByPercent(percent), state.currency), selected, metrics.tipWidth, metrics.tipHeight, metrics.tipTextSize) { onSelectTip(index) }
-                }
-            }
-            AlfaTipButton("Без чаевых", state.isNoTipsSelected, null, metrics.noTipsHeight, metrics.tipTextSize, Modifier.fillMaxWidth()) { onSelectNoTips() }
-            if (state.showCustomTipButton) {
-                AlfaTipButton("Своя сумма", state.isCustomTipSelected, null, metrics.customTipHeight, metrics.secondaryButtonTextSize, Modifier.fillMaxWidth()) { onOpenCustomTip() }
-            }
-            if (state.showServiceFeeToggle && state.serviceFeePercent > 0 && state.selectedTipAmount > 0) {
-                AlfaServiceFeePill(state, metrics) { onToggleServiceFee(!state.isServiceFeeEnabled) }
-            }
-        }
-    }
-}
-
-@Composable private fun AlfaProcessingContent(state: PcCompactTipPaymentUiState, metrics: AlfaPaymentMetrics) =
-    Box(Modifier.fillMaxSize().padding(horizontal = metrics.horizontalPadding, vertical = metrics.verticalPadding)) {
-        AlfaPaymentHeader(formatAlfaMoney(state.totalAmount, state.currency), metrics, Modifier.align(Alignment.TopCenter).padding(top = metrics.resultHeaderTop))
-        AlfaGlowLoadingRing(Modifier.align(Alignment.Center).size(metrics.iconSize))
-    }
-@Composable private fun AlfaApprovedContent(state: PcCompactTipPaymentUiState, metrics: AlfaPaymentMetrics) =
-    Box(Modifier.fillMaxSize().padding(horizontal = metrics.horizontalPadding, vertical = metrics.verticalPadding)) {
-        AlfaPaymentHeader(formatAlfaMoney(state.totalAmount, state.currency), metrics, Modifier.align(Alignment.TopCenter).padding(top = metrics.resultHeaderTop))
-        AlfaGlowCheck(Modifier.align(Alignment.Center).size(metrics.iconSize))
-        Text("Одобрено", Modifier.align(Alignment.BottomCenter).padding(bottom = metrics.resultBottomPadding), color = AlfaText, fontSize = metrics.resultSize, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
-    }
-@Composable private fun AlfaDeclinedContent(state: PcCompactTipPaymentUiState, metrics: AlfaPaymentMetrics, onRetry: () -> Unit) =
-    Box(Modifier.fillMaxSize().padding(horizontal = metrics.horizontalPadding, vertical = metrics.verticalPadding)) {
-        AlfaPaymentHeader(formatAlfaMoney(state.totalAmount, state.currency), metrics, Modifier.align(Alignment.TopCenter).padding(top = metrics.resultHeaderTop))
-        AlfaGlowCross(Modifier.align(Alignment.Center).size(metrics.iconSize))
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = metrics.resultBottomPadding), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Отказано", color = AlfaText, fontSize = metrics.resultSize, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
-            Spacer(Modifier.height(8.dp))
-            AlfaTipButton("Повторить", false, null, 54.dp, 22.sp, Modifier.fillMaxWidth(0.75f), onRetry)
-        }
-    }
-
-private data class AlfaPaymentMetrics(
-    val horizontalPadding: Dp,
-    val verticalPadding: Dp,
-    val labelSize: TextUnit,
-    val amountSize: TextUnit,
-    val resultSize: TextUnit,
-    val tipWidth: Dp,
-    val tipHeight: Dp,
-    val noTipsHeight: Dp,
-    val customTipHeight: Dp,
-    val serviceFeeHeight: Dp,
-    val cardWidth: Dp,
-    val cardTopSpacing: Dp,
-    val optionsSpacing: Dp,
-    val iconSize: Dp,
-    val resultBottomPadding: Dp,
-    val resultHeaderTop: Dp,
-    val tipTextSize: TextUnit,
-    val secondaryButtonTextSize: TextUnit
+private data class PcCompactPaymentVisualTheme(
+    val backgroundBrush: Brush,
+    val primaryTextColor: Color,
+    val secondaryTextColor: Color,
+    val accentColor: Color,
+    val selectedTipBrush: Brush,
+    val unselectedTipBrush: Brush,
+    val noTipsBrush: Brush,
+    val cardBrush: Brush,
+    val serviceFeeBrush: Brush,
+    val approvedColor: Color,
+    val declinedColor: Color,
+    val processingColor: Color,
+    val borderColor: Color,
+    val decorativeCardDrawable: Int? = null
 )
 
 @Composable
-private fun rememberAlfaPaymentMetrics(maxWidth: Dp, maxHeight: Dp): AlfaPaymentMetrics {
-    val compact = maxHeight <= 520.dp || maxWidth <= 520.dp
-    return if (compact) AlfaPaymentMetrics(14.dp,10.dp,18.sp,40.sp,30.sp,124.dp,58.dp,52.dp,50.dp,38.dp,210.dp,54.dp,6.dp,118.dp,20.dp,12.dp,24.sp,18.sp)
-    else AlfaPaymentMetrics(28.dp,22.dp,28.sp,64.sp,44.sp,180.dp,90.dp,82.dp,70.dp,48.dp,360.dp,70.dp,12.dp,170.dp,40.dp,28.dp,34.sp,24.sp)
+private fun rememberPcCompactPaymentVisualTheme(style: PcCompactPaymentDesignStyle): PcCompactPaymentVisualTheme = when (style) {
+    PcCompactPaymentDesignStyle.DEFAULT -> defaultPcCompactPaymentTheme()
+    PcCompactPaymentDesignStyle.ALFA -> alfaPcCompactPaymentTheme()
 }
 
-@Composable
-private fun AlfaTipButton(text: String, selected: Boolean, width: Dp?, height: Dp, textSize: TextUnit, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .then(if (width != null) Modifier.size(width, height) else Modifier.height(height))
-            .clip(RoundedCornerShape(30.dp))
-            .background(if (selected) AlfaRedDark else AlfaPaleBlue)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text, color = if (selected) Color.White else AlfaText, fontSize = textSize, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
-    }
-}
-
-@Composable
-private fun AlfaCustomTipDialog(
-    input: String,
-    onInputChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onConfirm: (Double) -> Unit
-) {
-    val value = input.toDoubleOrNull() ?: 0.0
-    val confirmEnabled = value > 0.0
-    Dialog(onDismissRequest = onDismiss) {
-        Box(Modifier.clip(RoundedCornerShape(24.dp)).background(Color.White).padding(16.dp)) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Своя сумма", color = AlfaText, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily, fontSize = 24.sp)
-                Spacer(Modifier.height(8.dp))
-                Text(if (input.isBlank()) "0 ₽" else "${input.toIntOrNull() ?: 0} ₽", color = AlfaText, fontFamily = MontserratFontFamily, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                TiplyNumericKeypad(
-                    digitColor = AlfaText,
-                    touchSize = 40.dp,
-                    digitFontSize = 20.sp,
-                    iconSize = 20.dp,
-                    onDigit = { d -> onInputChange((input + d).take(6)) },
-                    onDelete = { onInputChange(input.dropLast(1)) },
-                    onConfirm = { if (confirmEnabled) onConfirm(value) },
-                    confirmEnabled = confirmEnabled,
-                    isLoading = false,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AlfaServiceFeePill(state: PcCompactTipPaymentUiState, metrics: AlfaPaymentMetrics, onClick: () -> Unit) {
-    val feeAmount = formatAlfaMoney(state.serviceFeeAmount, state.currency)
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(metrics.serviceFeeHeight)
-            .clip(RoundedCornerShape(23.dp))
-            .background(if (state.isServiceFeeEnabled) AlfaRed.copy(alpha = 0.12f) else AlfaPaleBlue)
-            .border(1.dp, if (state.isServiceFeeEnabled) AlfaRed else AlfaPaleBlue, RoundedCornerShape(23.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Возместить комиссию +$feeAmount", color = AlfaText, fontSize = metrics.secondaryButtonTextSize, fontFamily = MontserratFontFamily, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun AlfaGlowCheck(modifier: Modifier) = Canvas(modifier) {
-    val stroke = size.minDimension * 0.12f
-    repeat(2) { drawLine(AlfaGreenSoft.copy(alpha = 0.25f), Offset(size.width * 0.23f, size.height * 0.58f), Offset(size.width * 0.46f, size.height * 0.78f), strokeWidth = stroke * (2.3f - it), cap = StrokeCap.Round); drawLine(AlfaGreenSoft.copy(alpha = 0.25f), Offset(size.width * 0.46f, size.height * 0.78f), Offset(size.width * 0.8f, size.height * 0.38f), strokeWidth = stroke * (2.3f - it), cap = StrokeCap.Round) }
-    drawLine(AlfaGreen, Offset(size.width * 0.23f, size.height * 0.58f), Offset(size.width * 0.46f, size.height * 0.78f), strokeWidth = stroke, cap = StrokeCap.Round)
-    drawLine(AlfaGreen, Offset(size.width * 0.46f, size.height * 0.78f), Offset(size.width * 0.8f, size.height * 0.38f), strokeWidth = stroke, cap = StrokeCap.Round)
-}
-
-@Composable
-private fun AlfaGlowCross(modifier: Modifier) = Canvas(modifier) {
-    val stroke = size.minDimension * 0.12f
-    repeat(2) { drawLine(AlfaDeclineRed.copy(alpha = 0.25f), Offset(size.width * 0.28f, size.height * 0.28f), Offset(size.width * 0.72f, size.height * 0.72f), strokeWidth = stroke * (2.3f - it), cap = StrokeCap.Round); drawLine(AlfaDeclineRed.copy(alpha = 0.25f), Offset(size.width * 0.72f, size.height * 0.28f), Offset(size.width * 0.28f, size.height * 0.72f), strokeWidth = stroke * (2.3f - it), cap = StrokeCap.Round) }
-    drawLine(AlfaDeclineRed, Offset(size.width * 0.28f, size.height * 0.28f), Offset(size.width * 0.72f, size.height * 0.72f), strokeWidth = stroke, cap = StrokeCap.Round)
-    drawLine(AlfaDeclineRed, Offset(size.width * 0.72f, size.height * 0.28f), Offset(size.width * 0.28f, size.height * 0.72f), strokeWidth = stroke, cap = StrokeCap.Round)
-}
-
-@Composable
-private fun AlfaGlowLoadingRing(modifier: Modifier) {
-    val transition = rememberInfiniteTransition(label = "alfa_ring")
-    val rotation by transition.animateFloat(0f, 360f, animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "alfa_rotation")
-    Canvas(modifier.graphicsLayer { rotationZ = rotation }) {
-        val stroke = size.minDimension * 0.11f
-        repeat(2) {
-            drawArc(AlfaGreenSoft.copy(alpha = 0.24f), 18f, 290f, false, topLeft = Offset(stroke, stroke), size = Size(size.width - stroke * 2, size.height - stroke * 2), style = Stroke(stroke * (2.2f - it), cap = StrokeCap.Round))
-        }
-        drawArc(AlfaGreen, 18f, 290f, false, topLeft = Offset(stroke, stroke), size = Size(size.width - stroke * 2, size.height - stroke * 2), style = Stroke(stroke, cap = StrokeCap.Round))
-    }
-}
-
-private fun formatAlfaMoney(value: Double, currency: String = "RUB"): String {
-    val rounded = value.roundToInt()
-    val grouped = "%,d".format(Locale("ru", "RU"), rounded).replace(',', ' ')
-    return if (currency == "RUB") "$grouped ₽" else "$grouped $currency"
-}
+private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
+    backgroundBrush = Brush.linearGradient(listOf(Color(0xFF151D25), Color(0xFF0E5C91), Color(0xFF1B222A))),
+    primaryTextColor = Color.White,
+    secondaryTextColor = Color.White.copy(alpha = 0.78f),
+    accentColor = Color(0xFF20D6D2),
+    selectedTipBrush = Brush.verticalGradient(listOf(Color(0xFF74E8E1), Color(0xFF20B8C8))),
+    unselectedTipBrush = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.12f))),
+    noTipsBrush = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.10f))),
+    cardBrush = Brush.horizontalGradient(listOf(Color(0xFF20D6D2), Color(0xFF126CA4))),
+    serviceFeeBrush = Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.18f))),
+    approvedColor = Color(0xFF23B26D), declinedColor = Color(0xFFE94545), processingColor = Color(0xFF20D6D2), borderColor = Color.White.copy(alpha = 0.3f)
+)
 
 private val AlfaBg = Color.White
 private val AlfaText = Color(0xFF121820)
@@ -2244,10 +2014,24 @@ private val AlfaRed = Color(0xFFE31B23)
 private val AlfaRedDark = Color(0xFFC81720)
 private val AlfaPaleBlue = Color(0xFFE8F2FF)
 private val AlfaGreen = Color(0xFF23B26D)
-private val AlfaGreenSoft = Color(0xFF7AD7A8)
 private val AlfaDeclineRed = Color(0xFFE94545)
-// User asset target:
-// app/src/main/res/drawable-nodpi/pc_alt_bank_card.png
-// After adding PNG, replace with:
-// private val AlfaBankCardDrawable = R.drawable.pc_alt_bank_card
+
+// TODO: After adding app/src/main/res/drawable-nodpi/pc_alt_bank_card.png, replace with R.drawable.pc_alt_bank_card.
 private val AlfaBankCardDrawable = R.drawable.ic_pc_alt_bank_card_placeholder
+
+private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
+    backgroundBrush = Brush.verticalGradient(listOf(AlfaBg, Color(0xFFF8FAFD))),
+    primaryTextColor = AlfaText,
+    secondaryTextColor = AlfaSubText,
+    accentColor = AlfaRed,
+    selectedTipBrush = Brush.verticalGradient(listOf(AlfaRed, AlfaRedDark)),
+    unselectedTipBrush = Brush.verticalGradient(listOf(AlfaPaleBlue, AlfaPaleBlue)),
+    noTipsBrush = Brush.verticalGradient(listOf(AlfaPaleBlue, AlfaPaleBlue)),
+    cardBrush = Brush.horizontalGradient(listOf(AlfaRed, AlfaRedDark)),
+    serviceFeeBrush = Brush.horizontalGradient(listOf(AlfaPaleBlue, AlfaPaleBlue)),
+    approvedColor = AlfaGreen,
+    declinedColor = AlfaDeclineRed,
+    processingColor = AlfaGreen,
+    borderColor = Color(0xFFD7E5F7),
+    decorativeCardDrawable = AlfaBankCardDrawable
+)
