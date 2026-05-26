@@ -497,9 +497,9 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 .padding(horizontal = 24.dp, vertical = 24.dp)
         ) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_payment_close),
+                painter = painterResource(id = theme.closeIconDrawable),
                 contentDescription = null,
-                tint = Color.Unspecified,
+                tint = theme.closeIconTint,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .size(24.dp)
@@ -1770,7 +1770,10 @@ private fun PcCompactDecorativeBankCard(
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = modifier
-            .size(width = 190.dp, height = 122.dp)
+            .size(
+                width = theme.decorativeCardWidth,
+                height = theme.decorativeCardHeight
+            )
             .offset(
                 x = (22f * hidden).dp,
                 y = (-6f * hidden).dp
@@ -2037,7 +2040,11 @@ private data class PcCompactPaymentVisualTheme(
     val approvedColor: Color,
     val declinedColor: Color,
     val processingColor: Color,
-    val decorativeCardDrawable: Int? = null
+    val closeIconDrawable: Int,
+    val closeIconTint: Color,
+    val decorativeCardDrawable: Int? = null,
+    val decorativeCardWidth: Dp = 190.dp,
+    val decorativeCardHeight: Dp = 122.dp
 )
 
 @Composable
@@ -2052,6 +2059,8 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     glowColor = Color(0xFF126CA4),
     primaryTextColor = Color.White,
     secondaryTextColor = Color.White.copy(alpha = 0.78f),
+    closeIconDrawable = R.drawable.ic_payment_close,
+    closeIconTint = Color.Unspecified,
     accentColor = Color(0xFF20D6D2),
     selectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
     unselectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f * alpha), Color.White.copy(alpha = 0.12f * alpha))) },
@@ -2066,7 +2075,9 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     unselectedBorderColor = Color.White.copy(alpha = 0.34f),
     noTipsSelectedBorderColor = Color.White.copy(alpha = 0.45f),
     noTipsUnselectedBorderColor = Color.White.copy(alpha = 0.30f),
-    approvedColor = Color(0xFF19F1D4), declinedColor = Color(0xFFFF3030), processingColor = Color(0xFF16E8D3)
+    approvedColor = Color(0xFF19F1D4), declinedColor = Color(0xFFFF3030), processingColor = Color(0xFF16E8D3),
+    decorativeCardWidth = 190.dp,
+    decorativeCardHeight = 122.dp
 )
 
 private val AlfaBg = Color.White
@@ -2079,16 +2090,28 @@ private val AlfaGreen = Color(0xFF23B26D)
 private val AlfaDeclineRed = Color(0xFFE94545)
 
 // TODO: After adding app/src/main/res/drawable-nodpi/pc_alt_bank_card.png, replace with R.drawable.pc_alt_bank_card.
-private val AlfaBankCardDrawable = R.drawable.ic_pc_alt_bank_card_placeholder
+private val AlfaBankCardDrawable = R.drawable.pc_alt_bank_card
 
 private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
-    backgroundBrush = Brush.verticalGradient(listOf(AlfaBg, Color(0xFFF8FAFD))),
-    errorBackgroundBrush = Brush.verticalGradient(listOf(AlfaBg, Color(0xFFFFF6F6))),
+    backgroundBrush = Brush.verticalGradient(
+        listOf(
+            Color.White,
+            Color.White
+        )
+    ),
+    errorBackgroundBrush = Brush.verticalGradient(
+        listOf(
+            Color.White,
+            Color.White
+        )
+    ),
     useAnimatedDefaultBackground = false,
-    glowColor = AlfaRed,
+    glowColor = Color.White,
     primaryTextColor = AlfaText,
     secondaryTextColor = AlfaSubText,
     accentColor = AlfaRed,
+    closeIconDrawable = R.drawable.ic_alfa_payment_close,
+    closeIconTint = Color.Unspecified,
     selectedTipBrush = { alpha -> Brush.verticalGradient(listOf(AlfaRed.copy(alpha = alpha), AlfaRedDark.copy(alpha = alpha))) },
     unselectedTipBrush = { alpha -> Brush.verticalGradient(listOf(AlfaPaleBlue.copy(alpha = alpha), AlfaPaleBlue.copy(alpha = alpha))) },
     noTipsSelectedBrush = { alpha -> Brush.verticalGradient(listOf(AlfaRed.copy(alpha = alpha), AlfaRedDark.copy(alpha = alpha))) },
@@ -2105,5 +2128,7 @@ private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     approvedColor = AlfaGreen,
     declinedColor = AlfaDeclineRed,
     processingColor = AlfaGreen,
-    decorativeCardDrawable = AlfaBankCardDrawable
+    decorativeCardDrawable = AlfaBankCardDrawable,
+    decorativeCardWidth = 260.dp,
+    decorativeCardHeight = 166.dp
 )
