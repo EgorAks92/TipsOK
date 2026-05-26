@@ -58,6 +58,7 @@ data class PcCompactTipPaymentUiState(
     val errorMessage: String? = null,
     val canCancel: Boolean = true,
     val designStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
+    val visualSettingsLoaded: Boolean = false,
     val currency: String = "RUB"
 ) {
     fun calculateTipByPercent(percent: Double): Double =
@@ -149,11 +150,23 @@ class PcCompactTipPaymentViewModel(
     private suspend fun initStateAndStart() {
         terminalId = sessionRepository.terminalId.first().orEmpty()
         commandCurrency = sourceCurrency?.ifBlank { null } ?: "RUB"
+
+        val settings = observeSettingsUseCase().first()
+
+        _uiState.update {
+            it.copy(
+                showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
+                showCustomTipButton = settings.showCustomTipButton,
+                designStyle = settings.pcCompactPaymentDesignStyle,
+                visualSettingsLoaded = true,
+                currency = commandCurrency
+            )
+        }
+
         val profile = observeProfileUseCase().filterNotNull().first()
         waiterId = profile.id
 
         val range = getTransactionRangeUseCase.observe().first()
-        val settings = observeSettingsUseCase().first()
         val percents = range?.percents?.takeIf { it.isNotEmpty() } ?: listOf(5.0, 10.0, 15.0)
         val selected = resolveDefaultIndex(percents, range?.defaultIndex)
 
@@ -165,6 +178,8 @@ class PcCompactTipPaymentViewModel(
                 showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                 showCustomTipButton = settings.showCustomTipButton,
                 tipConfigLoaded = true,
+                designStyle = settings.pcCompactPaymentDesignStyle,
+                visualSettingsLoaded = true,
                 isServiceFeeEnabled = false,
                 paymentStage = CardPresentingStage.Preparing,
                 currency = commandCurrency
@@ -206,6 +221,7 @@ class PcCompactTipPaymentViewModel(
                             showCustomTipButton = false,
                             tipConfigLoaded = true,
                             designStyle = settings.pcCompactPaymentDesignStyle,
+                            visualSettingsLoaded = true,
                             isCustomTipSelected = false,
                             isNoTipsSelected = !hasPercents,
                             selectedPercentIndex = if (hasPercents) 0 else current.selectedPercentIndex,
@@ -217,7 +233,8 @@ class PcCompactTipPaymentViewModel(
                             showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                             showCustomTipButton = settings.showCustomTipButton,
                             tipConfigLoaded = true,
-                            designStyle = settings.pcCompactPaymentDesignStyle
+                            designStyle = settings.pcCompactPaymentDesignStyle,
+                            visualSettingsLoaded = true
                         )
                     }
                 }
