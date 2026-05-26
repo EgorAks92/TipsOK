@@ -1202,13 +1202,13 @@ private fun DrawScope.drawMorphBridgeStroke(
         start = Offset(size.width * 0.30f, size.height * 0.55f)
         end = Offset(size.width * 0.43f, size.height * 0.67f)
         glowColor = theme.approvedGlowColor
-        edgeColor = theme.approvedEdgeColor
+        edgeColor = theme.approvedLineEdgeColor
         coreColor = theme.approvedCoreColor
     } else {
         start = Offset(size.width * 0.32f, size.height * 0.32f)
         end = Offset(size.width * 0.68f, size.height * 0.68f)
         glowColor = theme.declinedGlowColor
-        edgeColor = theme.declinedEdgeColor
+        edgeColor = theme.declinedLineEdgeColor
         coreColor = theme.declinedCoreColor
     } 
 
@@ -1243,7 +1243,7 @@ private fun DrawScope.drawNeonCheck(
         brush = Brush.radialGradient(
             colors = listOf(
                 theme.approvedGlowColor.copy(alpha = 0.10f * p),
-                theme.approvedEdgeColor.copy(alpha = 0.04f * p),
+                theme.approvedLineEdgeColor.copy(alpha = 0.04f * p),
                 Color.Transparent
             ),
             center = Offset(size.width * 0.52f, size.height * 0.52f),
@@ -1261,7 +1261,7 @@ private fun DrawScope.drawNeonCheck(
         alpha = p,
         settle = settle,
         glowColor = theme.approvedGlowColor,
-        edgeColor = theme.approvedEdgeColor,
+        edgeColor = theme.approvedLineEdgeColor,
         coreColor = theme.approvedCoreColor,
         highlightColor = theme.resultHighlightColor
     )
@@ -1273,7 +1273,7 @@ private fun DrawScope.drawNeonCheck(
         alpha = p,
         settle = settle,
         glowColor = theme.approvedGlowColor,
-        edgeColor = theme.approvedEdgeColor,
+        edgeColor = theme.approvedLineEdgeColor,
         coreColor = theme.approvedCoreColor,
         highlightColor = theme.resultHighlightColor
     )
@@ -1292,7 +1292,7 @@ private fun DrawScope.drawNeonCheck(
         // Дальнее свечение
         drawPath(
             path = checkPath,
-            color = theme.approvedEdgeColor.copy(alpha = 0.040f * unifiedAlpha),
+            color = theme.approvedUnifiedEdgeColor.copy(alpha = 0.040f * unifiedAlpha),
             style = Stroke(
                 width = 52.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1375,7 +1375,7 @@ private fun DrawScope.drawNeonCross(
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                theme.declinedColor.copy(alpha = 0.10f * p),
+                theme.declinedGlowColor.copy(alpha = 0.10f * p),
                 Color.Transparent
             ),
             center = Offset(size.width * 0.50f, size.height * 0.50f),
@@ -1392,7 +1392,7 @@ private fun DrawScope.drawNeonCross(
         alpha = p,
         settle = settle,
         glowColor = theme.declinedGlowColor,
-        edgeColor = theme.declinedEdgeColor,
+        edgeColor = theme.declinedLineEdgeColor,
         coreColor = theme.declinedCoreColor,
         highlightColor = theme.resultHighlightColor
     )
@@ -1404,7 +1404,7 @@ private fun DrawScope.drawNeonCross(
         alpha = p,
         settle = settle,
         glowColor = theme.declinedGlowColor,
-        edgeColor = theme.declinedEdgeColor,
+        edgeColor = theme.declinedLineEdgeColor,
         coreColor = theme.declinedCoreColor,
         highlightColor = theme.resultHighlightColor
     )
@@ -1422,7 +1422,7 @@ private fun DrawScope.drawNeonCross(
 
         drawPath(
             path = crossPath,
-            color = theme.declinedEdgeColor.copy(alpha = 0.040f * unifiedAlpha),
+            color = theme.declinedUnifiedEdgeColor.copy(alpha = 0.040f * unifiedAlpha),
             style = Stroke(
                 width = 52.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -2060,10 +2060,12 @@ private data class PcCompactPaymentVisualTheme(
     val processingEdgeColor: Color,
     val approvedCoreColor: Color,
     val approvedGlowColor: Color,
-    val approvedEdgeColor: Color,
+    val approvedLineEdgeColor: Color,
+    val approvedUnifiedEdgeColor: Color,
     val declinedCoreColor: Color,
     val declinedGlowColor: Color,
-    val declinedEdgeColor: Color,
+    val declinedLineEdgeColor: Color,
+    val declinedUnifiedEdgeColor: Color,
     val resultHighlightColor: Color,
     val closeIconDrawable: Int,
     val closeIconTint: Color,
@@ -2106,10 +2108,12 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     processingEdgeColor = Color(0xFF20D6D2),
     approvedCoreColor = Color(0xFFCFFFF8),
     approvedGlowColor = Color(0xFF19F1D4),
-    approvedEdgeColor = Color(0xFF118BD7),
+    approvedLineEdgeColor = Color(0xFF20D6D2),
+    approvedUnifiedEdgeColor = Color(0xFF118BD7),
     declinedCoreColor = Color(0xFFFFA0A0),
     declinedGlowColor = Color(0xFFFF3030),
-    declinedEdgeColor = Color(0xFFFF1F1F),
+    declinedLineEdgeColor = Color(0xFFFF3030),
+    declinedUnifiedEdgeColor = Color(0xFFFF1F1F),
     resultHighlightColor = Color.White,
     decorativeCardWidth = 190.dp,
     decorativeCardHeight = 122.dp
@@ -2168,10 +2172,12 @@ private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     processingEdgeColor = Color(0xFF0F8F52),
     approvedCoreColor = Color(0xFF9BE7B9),
     approvedGlowColor = AlfaGreen,
-    approvedEdgeColor = Color(0xFF0F8F52),
+    approvedLineEdgeColor = Color(0xFF0F8F52),
+    approvedUnifiedEdgeColor = Color(0xFF0F8F52),
     declinedCoreColor = Color(0xFFFF8E8E),
     declinedGlowColor = AlfaDeclineRed,
-    declinedEdgeColor = Color(0xFFD82929),
+    declinedLineEdgeColor = Color(0xFFD82929),
+    declinedUnifiedEdgeColor = Color(0xFFD82929),
     resultHighlightColor = Color.White,
     decorativeCardDrawable = AlfaBankCardDrawable,
     decorativeCardWidth = 260.dp,
