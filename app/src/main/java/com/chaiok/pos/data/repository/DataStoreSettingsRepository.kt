@@ -30,14 +30,23 @@ class DataStoreSettingsRepository(
             )
         }
 
+        val pcEcrSettingsFlow = combine(
+            dataStore.pcEcrProtocolFlow,
+            dataStore.arcus2NewWaySettingsFlow
+        ) { pcEcrProtocol, arcus2NewWaySettings ->
+            PcEcrSettingsBundle(
+                protocol = pcEcrProtocol,
+                arcus2NewWaySettings = arcus2NewWaySettings
+            )
+        }
+
         return combine(
             baseSettingsFlow,
             dataStore.pcCompactServiceFeeEnabledFlow,
             dataStore.showCustomTipButtonFlow,
             dataStore.pcCompactPaymentDesignStyleFlow,
-            dataStore.pcEcrProtocolFlow,
-            dataStore.arcus2NewWaySettingsFlow
-        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcCompactPaymentDesignStyle, pcEcrProtocol, arcus2NewWaySettings ->
+            pcEcrSettingsFlow
+        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcCompactPaymentDesignStyle, pcEcrSettings ->
             AppSettings(
                 integrationModeEnabled = base.integration,
                 tableModeEnabled = base.table,
@@ -47,8 +56,8 @@ class DataStoreSettingsRepository(
                 pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled,
                 showCustomTipButton = showCustomTipButton,
                 pcCompactPaymentDesignStyle = pcCompactPaymentDesignStyle,
-                pcEcrProtocol = pcEcrProtocol,
-                arcus2NewWaySettings = arcus2NewWaySettings
+                pcEcrProtocol = pcEcrSettings.protocol,
+                arcus2NewWaySettings = pcEcrSettings.arcus2NewWaySettings
             )
         }
     }
@@ -120,5 +129,10 @@ class DataStoreSettingsRepository(
         val background: String,
         val pcUsb: Boolean,
         val pcIdleImages: List<String>
+    )
+
+    private data class PcEcrSettingsBundle(
+        val protocol: PcEcrProtocol,
+        val arcus2NewWaySettings: Arcus2NewWaySettings
     )
 }

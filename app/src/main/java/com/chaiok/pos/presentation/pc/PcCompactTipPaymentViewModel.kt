@@ -57,7 +57,8 @@ data class PcCompactTipPaymentUiState(
     val isRestartingPayment: Boolean = false,
     val errorMessage: String? = null,
     val canCancel: Boolean = true,
-    val designStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT
+    val designStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
+    val currency: String = "RUB"
 ) {
     fun calculateTipByPercent(percent: Double): Double =
         roundMoney(billAmount * percent / 100.0)
@@ -165,7 +166,8 @@ class PcCompactTipPaymentViewModel(
                 showCustomTipButton = settings.showCustomTipButton,
                 tipConfigLoaded = true,
                 isServiceFeeEnabled = false,
-                paymentStage = CardPresentingStage.Preparing
+                paymentStage = CardPresentingStage.Preparing,
+                currency = commandCurrency
             )
         }
         observeSettings()
