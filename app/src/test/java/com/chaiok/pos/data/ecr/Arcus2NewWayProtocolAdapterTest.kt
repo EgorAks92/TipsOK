@@ -19,6 +19,45 @@ class Arcus2NewWayProtocolAdapterTest {
         assertEquals("RUB", cmd.currency)
     }
 
+    @Test fun parseSaleCustomOp() {
+        val s = Arcus2NewWaySettings(saleClass = "7", saleOp = "77")
+        val adapter = Arcus2NewWayProtocolAdapter({ s }, logger)
+        val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("7\u001B77\u001B643\u001B12.00")))
+        assertTrue(r is EcrParseResult.Command)
+    }
+
+    @Test fun parseSettlement() {
+        val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
+        val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("2\u001B1")))
+        val cmd = (r as EcrParseResult.Command).command
+        assertTrue(cmd is PcEcrCommand.Settlement)
+    }
+
+    @Test fun parsePing() {
+        val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
+        val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("9\u001B6")))
+        val cmd = (r as EcrParseResult.Command).command
+        assertTrue(cmd is PcEcrCommand.Ping)
+    }
+
+    @Test fun unknownUnipay() {
+        val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
+        val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("UNIPAY\u001BSALE")))
+        assertTrue(r is EcrParseResult.Unknown)
+    }
+
+    @Test fun unsupportedEnc() {
+        val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
+        val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("ENC:payload")))
+        assertTrue(r is EcrParseResult.Error)
+    }
+
+    @Test fun unsupportedChunk() {
+        val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
+        val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("CHUNK:1/2")))
+        assertTrue(r is EcrParseResult.Error)
+    }
+
     @Test fun standaloneControlResponses() {
         val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
         assertTrue(adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("OK"))) is EcrParseResult.Ack)

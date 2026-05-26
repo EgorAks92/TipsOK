@@ -141,7 +141,7 @@ class XchengPcPaymentCommandRepository(
             sendResult
         }
 
-    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings): Result<Unit> {
+    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> {
         lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.Stopped && !activeArcus2Transaction) {
                 val message = "ARCUS2 result cannot be sent: repository stopped and COM session is lost"
@@ -161,7 +161,7 @@ class XchengPcPaymentCommandRepository(
         }
 
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
-        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings)
+        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings, terminalId)
         val resultStatus = when (result) {
             is PcEcrFinalPaymentResult.Approved -> "approved"
             is PcEcrFinalPaymentResult.Declined -> "declined"

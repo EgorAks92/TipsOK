@@ -156,21 +156,74 @@ class Arcus2CashRegisterSession(
         val response = client.receiveOnce(settings.waitOkTimeoutMs)
             .getOrElse { return Result.failure(it) }
             ?: return Result.failure(IllegalStateException("ARCUS2 cash register OK timeout for $label").also { Log.w("Arcus2Session", "ARCUS2 OK timeout label=$label") })
-        val responseText = decodeWin1251(Arcus2BinLenCodec.decode(response).getOrElse { return Result.failure(it) }.data)
-            .trim('\u0000', ' ', '\n', '\r', '\t')
+        val responses = Arcus2BinLenCodec.decodeAll(response).getOrElse { return Result.failure(it) }
+            .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
 
-        return when (responseText) {
-            "OK" -> { Log.i("Arcus2Session", "ARCUS2 OK label=$label"); Result.success(Unit) }
-            "ER" -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
-            "NAK" -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
-            else -> Result.failure(IllegalStateException("Unexpected ARCUS2 response for $label: ${responseText.take(32)}"))
+        return when {
+            responses.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
+            responses.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
+            responses.any { it == "OK" } -> { Log.i("Arcus2Session", "ARCUS2 OK label=$label"); Result.success(Unit) }
+            else -> Result.failure(IllegalStateException("Unexpected ARCUS2 response for $label: ${responses.joinToString("|").take(32)}"))
         }
     }
 }
 
 object Arcus2TagsBuilder {
-    fun buildPaymentTags(result: PcEcrFinalPaymentResult, amount: BigDecimal?, currency: String?, terminalId: String?, rrn: String?, authCode: String?, responseCode: String?): ByteArray = ByteArray(0)
+    private const val ESC = '\u001B'
+
+    fun buildPaymentTags(data: Arcus2PaymentTagData): ByteArray {
+        val amount = formatAmount(data.amount, data.currency)
+        val pairs = linkedMapOf(
+            "RC" to data.responseCode,
+            "RRN" to data.rrn,
+            "AUTH" to data.authCode,
+            "TERM" to data.terminalId,
+            "EXTID" to data.externalTransactionId,
+            "RECEIPT" to data.receiptNumber,
+            "AMOUNT" to amount,
+            "CURRENCY" to data.currency,
+            "STATUS" to data.status
+        )
+        val sanitizedPairs = pairs
+            .mapNotNull { (key, value) ->
+                val sanitized = sanitizeTagValue(value)
+                if (sanitized.isNullOrBlank()) null else key to sanitized
+            }
+        val payload = sanitizedPairs.joinToString(ESC.toString()) { "${it.first}=${it.second}" }
+        Log.i("Arcus2Tags", "SETTAGS built keys=${sanitizedPairs.joinToString(",") { it.first }} bytes=${payload.toByteArray(Charsets.UTF_8).size}")
+        return if (payload.isBlank()) ByteArray(0) else encodeWin1251(payload)
+    }
+
+    private fun formatAmount(amount: BigDecimal?, currency: String?): String? {
+        if (amount == null) return null
+        val scale = if (currency.equals("AMD", true)) 0 else 2
+        return amount.setScale(scale, java.math.RoundingMode.HALF_UP).toPlainString()
+    }
+
+    private fun sanitizeTagValue(value: String?): String? {
+        if (value == null) return null
+        val compact = value.trim()
+            .replace(ESC, ' ')
+            .replace('\r', ' ')
+            .replace('\n', ' ')
+            .replace('\t', ' ')
+            .replace(Regex("\\s+"), " ")
+            .take(64)
+        return compact.replace(Regex("\\b(\\d{6})(\\d{3,9})(\\d{4})\\b"), "$1******$3")
+    }
 }
+
+data class Arcus2PaymentTagData(
+    val responseCode: String?,
+    val rrn: String?,
+    val authCode: String?,
+    val terminalId: String?,
+    val externalTransactionId: String?,
+    val receiptNumber: String?,
+    val amount: BigDecimal?,
+    val currency: String?,
+    val status: String
+)
 
 data class Arcus2OutgoingCommand(val label: String, val data: ByteArray, val critical: Boolean = true)
 
@@ -179,7 +232,8 @@ object Arcus2NewWayResultSequenceBuilder {
         sourceCommand: PcPaymentCommand,
         result: PcEcrFinalPaymentResult,
         receiptText: String?,
-        settings: Arcus2NewWaySettings
+        settings: Arcus2NewWaySettings,
+        terminalId: String? = null
     ): List<Arcus2OutgoingCommand> {
         val commands = mutableListOf<Arcus2OutgoingCommand>()
         fun addText(label: String, text: String, critical: Boolean = true) { commands += Arcus2OutgoingCommand(label, encodeWin1251(text), critical) }
@@ -199,7 +253,8 @@ object Arcus2NewWayResultSequenceBuilder {
                 is PcEcrFinalPaymentResult.Cancelled -> addText("STORERC", "STORERC:${settings.cancelledRc}")
                 is PcEcrFinalPaymentResult.Error -> addText("STORERC", "STORERC:${settings.errorRc}")
             }
-            addText("SETTAGS", "SETTAGS:")
+            val tagData = buildTagData(sourceCommand, result, settings, terminalId)
+            commands += Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildPaymentTags(tagData))
             addText("ENDTR", "ENDTR")
             return commands
         }
@@ -217,10 +272,8 @@ object Arcus2NewWayResultSequenceBuilder {
                 }
                 addText("STORERC", "STORERC:00")
                 if (settings.sendSetTags) {
-                    commands += Arcus2OutgoingCommand(
-                        "SETTAGS",
-                        encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildPaymentTags(result, sourceCommand.amount, sourceCommand.currency, null, null, null, null)
-                    )
+                    val tagData = buildTagData(sourceCommand, result, settings, terminalId)
+                    commands += Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildPaymentTags(tagData))
                 }
                 addText("ENDTR", "ENDTR")
             }
@@ -234,23 +287,54 @@ object Arcus2NewWayResultSequenceBuilder {
                     if (settings.sendStartEndPrint) addText("ENDPRINT", "ENDPRINT:CUSTOMER", critical = false)
                 }
                 addText("STORERC", "STORERC:${result.resultCode ?: settings.declinedDefaultRc}")
-                if (settings.sendSetTags) addText("SETTAGS", "SETTAGS:")
+                if (settings.sendSetTags) {
+                    val tagData = buildTagData(sourceCommand, result, settings, terminalId)
+                    commands += Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildPaymentTags(tagData))
+                }
                 addText("ENDTR", "ENDTR")
             }
             is PcEcrFinalPaymentResult.Cancelled -> {
                 if (settings.sendStatusMessages) addText("STATUS", "STATUS:Отменено")
                 addText("STORERC", "STORERC:${settings.cancelledRc}")
-                if (settings.sendSetTags) addText("SETTAGS", "SETTAGS:")
+                if (settings.sendSetTags) {
+                    val tagData = buildTagData(sourceCommand, result, settings, terminalId)
+                    commands += Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildPaymentTags(tagData))
+                }
                 addText("ENDTR", "ENDTR")
             }
             is PcEcrFinalPaymentResult.Error -> {
                 if (settings.sendStatusMessages) addText("STATUS", "STATUS:Ошибка")
                 addText("STORERC", "STORERC:${settings.errorRc}")
-                if (settings.sendSetTags) addText("SETTAGS", "SETTAGS:")
+                if (settings.sendSetTags) {
+                    val tagData = buildTagData(sourceCommand, result, settings, terminalId)
+                    commands += Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildPaymentTags(tagData))
+                }
                 addText("ENDTR", "ENDTR")
             }
         }
         return commands
+    }
+
+    private fun buildTagData(
+        sourceCommand: PcPaymentCommand,
+        result: PcEcrFinalPaymentResult,
+        settings: Arcus2NewWaySettings,
+        terminalId: String?
+    ): Arcus2PaymentTagData = when (result) {
+        is PcEcrFinalPaymentResult.Approved -> Arcus2PaymentTagData(
+            responseCode = result.resultCode ?: "00",
+            rrn = result.rrn,
+            authCode = result.authCode,
+            terminalId = terminalId,
+            externalTransactionId = result.externalTransactionId,
+            receiptNumber = sourceCommand.orderId,
+            amount = sourceCommand.amount,
+            currency = sourceCommand.currency,
+            status = "approved"
+        )
+        is PcEcrFinalPaymentResult.Declined -> Arcus2PaymentTagData(result.resultCode ?: "05", null, null, terminalId, null, sourceCommand.orderId, sourceCommand.amount, sourceCommand.currency, "declined")
+        is PcEcrFinalPaymentResult.Cancelled -> Arcus2PaymentTagData(settings.cancelledRc, null, null, terminalId, null, sourceCommand.orderId, sourceCommand.amount, sourceCommand.currency, "cancelled")
+        is PcEcrFinalPaymentResult.Error -> Arcus2PaymentTagData(settings.errorRc, null, null, terminalId, null, sourceCommand.orderId, sourceCommand.amount, sourceCommand.currency, "error")
     }
 
     private fun splitReceiptToPrintChunks(receipt: String, maxBytes: Int): List<String> {
