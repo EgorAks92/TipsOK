@@ -141,7 +141,7 @@ class XchengPcPaymentCommandRepository(
             sendResult
         }
 
-    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings): Result<Unit> {
+    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> {
         lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.Stopped && !activeArcus2Transaction) {
                 val message = "ARCUS2 result cannot be sent: repository stopped and COM session is lost"
@@ -161,7 +161,7 @@ class XchengPcPaymentCommandRepository(
         }
 
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
-        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings)
+        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings, terminalId)
         val resultStatus = when (result) {
             is PcEcrFinalPaymentResult.Approved -> "approved"
             is PcEcrFinalPaymentResult.Declined -> "declined"
@@ -176,10 +176,17 @@ class XchengPcPaymentCommandRepository(
                 if (r.isFailure) {
                     val ex = r.exceptionOrNull()
                     val message = ex?.message.orEmpty()
-                    val transportFailure = message.contains("USB service missing", ignoreCase = true) ||
-                        message.contains("USB device missing", ignoreCase = true) ||
-                        message.contains("send failed", ignoreCase = true) ||
-                        message.contains("transport", ignoreCase = true)
+                    val transportFailure = isTransportFailure(message)
+                    if (cmd.label == "SETTAGS" && !transportFailure && isCashRegisterRejection(message)) {
+                        Log.w(TAG, "ARCUS2 SETTAGS payload rejected; retry empty SETTAGS: $message")
+                        val fallback = session.sendCommandAndWaitOk("SETTAGS:")
+                        if (fallback.isSuccess) {
+                            Log.i(TAG, "ARCUS2 empty SETTAGS fallback accepted")
+                            return@forEach
+                        }
+                        throw fallback.exceptionOrNull()
+                            ?: IllegalStateException("ARCUS2 empty SETTAGS fallback failed")
+                    }
                     if (cmd.critical || transportFailure) {
                         throw ex ?: IllegalStateException("ARCUS2 critical command failed: ${cmd.label}")
                     } else {
@@ -515,3 +522,13 @@ class XchengPcPaymentCommandRepository(
         private const val ERROR_VISIBLE_DELAY_MS = 2_500L
     }
 }
+    private fun isTransportFailure(message: String): Boolean =
+        message.contains("USB service missing", ignoreCase = true) ||
+            message.contains("USB device missing", ignoreCase = true) ||
+            message.contains("send failed", ignoreCase = true) ||
+            message.contains("transport", ignoreCase = true)
+
+    private fun isCashRegisterRejection(message: String): Boolean =
+        message.contains("Cash register returned ER", ignoreCase = true) ||
+            message.contains("Cash register returned NAK", ignoreCase = true) ||
+            message.contains("Unexpected ARCUS2 response", ignoreCase = true)
