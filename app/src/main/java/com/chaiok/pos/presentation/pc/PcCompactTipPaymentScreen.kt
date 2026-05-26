@@ -69,7 +69,8 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -1256,19 +1257,18 @@ private fun AlfaLogoCanvas(
     val barPath = remember { PathParser().parsePathString(ALFA_LOGO_BAR_PATH).toPath() }
     val aPath = remember { PathParser().parsePathString(ALFA_LOGO_A_PATH).toPath() }
     Canvas(modifier = modifier) {
-        val logoScale = minOf(size.width / 150f, size.height / 150f)
-        val tx = (size.width - 150f * logoScale) / 2f
-        val ty = (size.height - 150f * logoScale) / 2f
-        withTransform({
-            translate(left = tx, top = ty)
-            scale(logoScale, logoScale, pivot = Offset.Zero)
-        }) {
-            val barProgress = (drawProgress / 0.35f).coerceIn(0f, 1f)
-            val aProgress = ((drawProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
-            drawPath(barPath.partial(barProgress), color, style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawPath(aPath.partial(aProgress), color, style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawPath(barPath, color.copy(alpha = fillAlpha.coerceIn(0f, 1f)))
-            drawPath(aPath, color.copy(alpha = fillAlpha.coerceIn(0f, 1f)))
+        val logoScaleFactor = minOf(size.width / 150f, size.height / 150f)
+        val tx = (size.width - 150f * logoScaleFactor) / 2f
+        val ty = (size.height - 150f * logoScaleFactor) / 2f
+        translate(tx, ty) {
+            scale(logoScaleFactor, logoScaleFactor, Offset.Zero) {
+                val barProgress = (drawProgress / 0.35f).coerceIn(0f, 1f)
+                val aProgress = ((drawProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
+                drawPath(barPath.partial(barProgress), color, style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(aPath.partial(aProgress), color, style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(barPath, color.copy(alpha = fillAlpha.coerceIn(0f, 1f)))
+                drawPath(aPath, color.copy(alpha = fillAlpha.coerceIn(0f, 1f)))
+            }
         }
     }
 }
