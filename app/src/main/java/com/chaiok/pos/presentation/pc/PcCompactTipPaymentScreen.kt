@@ -2020,33 +2020,19 @@ private fun AlfaPcCompactTipPaymentScreen(
         }
     }
     if (showCustomTipDialog) {
-        Dialog(onDismissRequest = { showCustomTipDialog = false }) {
-            Box(Modifier.clip(RoundedCornerShape(24.dp)).background(Color.White).padding(16.dp)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Своя сумма", color = AlfaText, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily, fontSize = 24.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text(if (customInput.isBlank()) "0 ₽" else "${customInput.toIntOrNull() ?: 0} ₽", color = AlfaText, fontFamily = MontserratFontFamily, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    TiplyNumericKeypad(
-                        digitColor = AlfaText,
-                        touchSize = 40.dp,
-                        digitFontSize = 20.sp,
-                        iconSize = 20.dp,
-                        onDigit = { d -> customInput = (customInput + d).take(6) },
-                        onDelete = { customInput = customInput.dropLast(1) },
-                        onConfirm = {
-                            val value = customInput.toDoubleOrNull() ?: 0.0
-                            if (value > 0.0) onConfirmCustomTip(value) else onSelectNoTips()
-                            showCustomTipDialog = false
-                            customInput = ""
-                        },
-                        confirmEnabled = customInput.toDoubleOrNull()?.let { it > 0.0 } == true,
-                        isLoading = false,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+        AlfaCustomTipDialog(
+            input = customInput,
+            onInputChange = { customInput = it },
+            onDismiss = {
+                showCustomTipDialog = false
+                customInput = ""
+            },
+            onConfirm = { value ->
+                onConfirmCustomTip(value)
+                showCustomTipDialog = false
+                customInput = ""
             }
-        }
+        )
     }
 }
 
@@ -2161,6 +2147,39 @@ private fun AlfaTipButton(text: String, selected: Boolean, width: Dp?, height: D
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = if (selected) Color.White else AlfaText, fontSize = textSize, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily)
+    }
+}
+
+@Composable
+private fun AlfaCustomTipDialog(
+    input: String,
+    onInputChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    val value = input.toDoubleOrNull() ?: 0.0
+    val confirmEnabled = value > 0.0
+    Dialog(onDismissRequest = onDismiss) {
+        Box(Modifier.clip(RoundedCornerShape(24.dp)).background(Color.White).padding(16.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Своя сумма", color = AlfaText, fontWeight = FontWeight.Bold, fontFamily = MontserratFontFamily, fontSize = 24.sp)
+                Spacer(Modifier.height(8.dp))
+                Text(if (input.isBlank()) "0 ₽" else "${input.toIntOrNull() ?: 0} ₽", color = AlfaText, fontFamily = MontserratFontFamily, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                TiplyNumericKeypad(
+                    digitColor = AlfaText,
+                    touchSize = 40.dp,
+                    digitFontSize = 20.sp,
+                    iconSize = 20.dp,
+                    onDigit = { d -> onInputChange((input + d).take(6)) },
+                    onDelete = { onInputChange(input.dropLast(1)) },
+                    onConfirm = { if (confirmEnabled) onConfirm(value) },
+                    confirmEnabled = confirmEnabled,
+                    isLoading = false,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }
 
