@@ -104,6 +104,15 @@ fun PcCompactTipPaymentScreen(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
+    if (!state.visualSettingsLoaded) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+        )
+        return
+    }
+
     val theme = rememberPcCompactPaymentVisualTheme(state.designStyle)
     ExistingPcCompactTipPaymentScreenContent(state, theme, onSelectTip, onSelectNoTips, onConfirmCustomTip, onToggleServiceFee, onCancel, onRetry)
 }
