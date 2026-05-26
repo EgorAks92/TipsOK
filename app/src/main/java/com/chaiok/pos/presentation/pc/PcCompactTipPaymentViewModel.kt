@@ -150,11 +150,23 @@ class PcCompactTipPaymentViewModel(
     private suspend fun initStateAndStart() {
         terminalId = sessionRepository.terminalId.first().orEmpty()
         commandCurrency = sourceCurrency?.ifBlank { null } ?: "RUB"
+
+        val settings = observeSettingsUseCase().first()
+
+        _uiState.update {
+            it.copy(
+                showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
+                showCustomTipButton = settings.showCustomTipButton,
+                designStyle = settings.pcCompactPaymentDesignStyle,
+                visualSettingsLoaded = true,
+                currency = commandCurrency
+            )
+        }
+
         val profile = observeProfileUseCase().filterNotNull().first()
         waiterId = profile.id
 
         val range = getTransactionRangeUseCase.observe().first()
-        val settings = observeSettingsUseCase().first()
         val percents = range?.percents?.takeIf { it.isNotEmpty() } ?: listOf(5.0, 10.0, 15.0)
         val selected = resolveDefaultIndex(percents, range?.defaultIndex)
 
