@@ -398,6 +398,7 @@ class PcCompactTipPaymentViewModel(
     fun cancelPayment() {
         val state = _uiState.value
         if (!state.canCancel || userCancelInProgress) return
+        Log.i(TAG, "User cancel requested operationType=$operationType")
 
         userCancelInProgress = true
         cancelEventSent = false
@@ -580,37 +581,48 @@ class PcCompactTipPaymentViewModel(
             }
             is PosPaymentEvent.Declined -> {
                 Log.i(TAG, "Payment declined")
+                val fallbackDeclinedText = if (isCancelPreviousOperation()) {
+                    "Отмена не выполнена"
+                } else {
+                    "Оплата отклонена"
+                }
                 _uiState.update {
                     it.copy(
                         paymentStage = CardPresentingStage.Declined,
                         canCancel = true,
                         isRestartingPayment = false,
-                        errorMessage = event.reason ?: "Оплата отклонена"
+                        errorMessage = event.reason?.ifBlank { fallbackDeclinedText } ?: fallbackDeclinedText
                     )
                 }
                 pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Declined(
                     resultCode = event.code,
-                    message = if (isCancelPreviousOperation()) (event.reason ?: "Отмена не выполнена") else (event.reason ?: event.rawMessage),
+                    message = if (isCancelPreviousOperation()) {
+                        event.reason?.ifBlank { "Отмена не выполнена" } ?: "Отмена не выполнена"
+                    } else {
+                        event.reason ?: event.rawMessage
+                    },
                     receiptText = event.receiptText
                 )
                 scheduleDeclinedAutoClose()
             }
             is PosPaymentEvent.Error -> {
                 Log.i(TAG, "Payment error")
+                val fallbackErrorText = if (isCancelPreviousOperation()) {
+                    "Ошибка отмены"
+                } else {
+                    "Ошибка оплаты"
+                }
+                val errorText = event.message.ifBlank { fallbackErrorText }
                 _uiState.update {
                     it.copy(
                         paymentStage = CardPresentingStage.Error,
                         canCancel = true,
                         isRestartingPayment = false,
-                        errorMessage = event.message.ifBlank { "Ошибка оплаты" }
+                        errorMessage = errorText
                     )
                 }
                 pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Error(
-                    message = if (isCancelPreviousOperation()) {
-                        event.message.ifBlank { "Отмена не выполнена" }
-                    } else {
-                        event.message.ifBlank { "Ошибка оплаты" }
-                    },
+                    message = errorText,
                     receiptText = event.receiptText
                 )
                 scheduleDeclinedAutoClose()
@@ -630,14 +642,24 @@ class PcCompactTipPaymentViewModel(
                     return
                 }
                 _uiState.update {
+                    val cancelledText = if (isCancelPreviousOperation()) {
+                        "Отмена операции прервана"
+                    } else {
+                        "Оплата отменена"
+                    }
                     it.copy(
                         paymentStage = CardPresentingStage.Cancelled,
                         canCancel = true,
                         isRestartingPayment = false,
-                        errorMessage = "Оплата отменена"
+                        errorMessage = cancelledText
                     )
                 }
-                sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled"))
+                val cancelledText = if (isCancelPreviousOperation()) {
+                    "Отмена операции прервана"
+                } else {
+                    "Cancelled"
+                }
+                sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = cancelledText))
                 resumePcEcrAfterPayment("cancelled")
                 _events.send(PcCompactTipPaymentEvent.CancelledByUser)
             }

@@ -163,12 +163,15 @@ private fun ExistingPcCompactTipPaymentScreenContent(
 
     val processingRequested =
         !state.isRestartingPayment &&
-                state.paymentStage in setOf(
-            CardPresentingStage.CardDetected,
-            CardPresentingStage.Processing,
-            CardPresentingStage.PinRequired,
-            CardPresentingStage.Cancelling
-        )
+                (
+                        isCancelPrevious ||
+                                state.paymentStage in setOf(
+                            CardPresentingStage.CardDetected,
+                            CardPresentingStage.Processing,
+                            CardPresentingStage.PinRequired,
+                            CardPresentingStage.Cancelling
+                        )
+                        )
 
     val realResultVisual = when {
         state.paymentStage == CardPresentingStage.Approved -> {

@@ -65,11 +65,18 @@ class SmartSkyHeadlessPosPaymentRepository(
                         invokeCancelPreviousByRrn(smartSkyPos, request, callback)
                     }.onSuccess { result ->
                         paymentCallFinished.set(true)
-                        Log.i(PAYMENT_TAG, "[$operationId] SSP cancel by RRN completed rc=${result.rc} approved=${result.isApproved}")
+                        Log.i(PAYMENT_TAG, "[$operationId] SSP cancel by RRN completed")
                         val mapped = result.toPosPaymentEvent(operationId)
                         val normalized = when (mapped) {
-                            is PosPaymentEvent.Approved -> mapped.copy(message = mapped.message.ifBlank { "Отмена выполнена" })
-                            is PosPaymentEvent.Declined -> mapped.copy(reason = mapped.reason ?: "Отмена не выполнена")
+                            is PosPaymentEvent.Approved -> mapped.copy(
+                                message = mapped.message?.ifBlank { "Отмена выполнена" } ?: "Отмена выполнена"
+                            )
+                            is PosPaymentEvent.Declined -> mapped.copy(
+                                reason = mapped.reason?.ifBlank { "Отмена не выполнена" } ?: "Отмена не выполнена"
+                            )
+                            is PosPaymentEvent.Error -> mapped.copy(
+                                message = mapped.message.ifBlank { "Отмена не выполнена" }
+                            )
                             else -> mapped
                         }
                         if (terminalEventDelivered.compareAndSet(false, true)) trySend(normalized)

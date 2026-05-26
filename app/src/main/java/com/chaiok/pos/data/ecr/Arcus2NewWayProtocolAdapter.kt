@@ -136,6 +136,16 @@ private fun parseArcus2Rrn(fields: List<String>, currencyCode: String?, amountRa
         if (lower.startsWith("rrn=") || lower.startsWith("r=")) {
             return trimmed.substringAfter('=').trim().takeIf { it.matches(Regex("\\d{6,12}")) }
         }
+        if (lower.startsWith("/r")) {
+            val candidate = trimmed
+                .drop(2)
+                .trim()
+                .trim('[', ']')
+                .filter { it.isDigit() }
+            if (candidate.matches(Regex("\\d{6,12}"))) {
+                return candidate
+            }
+        }
     }
     return fields
         .drop(2)
@@ -152,7 +162,16 @@ private fun maskRrn(rrn: String?): String =
     rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
 
 private fun maskArcusField(value: String): String =
-    if (value.matches(Regex("\\d{6,19}"))) value.takeLast(4).padStart(value.length, '*') else value.take(32)
+    run {
+        val trimmed = value.trim()
+        val rrnSlash = Regex("(?i)/r\\d{6,12}").find(trimmed)?.value
+        if (rrnSlash != null) {
+            val rrn = rrnSlash.drop(2)
+            return@run trimmed.replace(rrnSlash, "/r${maskRrn(rrn)}")
+        }
+        if (trimmed.matches(Regex("\\d{6,19}"))) trimmed.takeLast(4).padStart(trimmed.length, '*')
+        else trimmed.take(32)
+    }
 
 private fun parseArcus2ReversalAmount(raw: String?, currency: String?): BigDecimal? {
     val n = raw?.trim()?.toBigDecimalOrNull() ?: return null
