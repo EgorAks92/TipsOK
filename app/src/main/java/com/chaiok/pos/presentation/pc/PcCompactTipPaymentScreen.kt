@@ -93,7 +93,9 @@ import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -1174,15 +1176,30 @@ private fun AlfaLogoMorphingPaymentIndicator(
         animationSpec = infiniteRepeatable(animation = tween(2000, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
         label = "alfa_logo_breathing"
     )
-    val loadingCycle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "alfa_logo_loading_cycle"
-    )
+    val logoDrawProgress = remember { Animatable(0f) }
+    val logoHoldProgress = remember { Animatable(0f) }
+    LaunchedEffect(phase) {
+        if (phase == PcCompactPaymentScreenPhase.Processing) {
+            while (currentCoroutineContext().isActive) {
+                logoHoldProgress.snapTo(0f)
+                logoDrawProgress.snapTo(0f)
+                logoDrawProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 1250,
+                        easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                    )
+                )
+                logoHoldProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 450, easing = LinearEasing)
+                )
+            }
+        } else {
+            logoDrawProgress.snapTo(if (phase == PcCompactPaymentScreenPhase.Approved) 1f else 0f)
+            logoHoldProgress.snapTo(0f)
+        }
+    }
 
     val isApproved = phase == PcCompactPaymentScreenPhase.Approved || resultVisual == PcCompactPaymentResultVisual.Approved
     val approvedProgress by animateFloatAsState(
@@ -1192,25 +1209,23 @@ private fun AlfaLogoMorphingPaymentIndicator(
     )
 
     val approvedEase = FastOutSlowInEasing.transform(approvedProgress.coerceIn(0f, 1f))
-    val cycleDrawProgress = (loadingCycle / 0.72f).coerceIn(0f, 1f)
-    val holdProgress = ((loadingCycle - 0.72f) / 0.28f).coerceIn(0f, 1f)
     val activeLogoDrawProgress = when (phase) {
-        PcCompactPaymentScreenPhase.Processing -> cycleDrawProgress
+        PcCompactPaymentScreenPhase.Processing -> logoDrawProgress.value
         PcCompactPaymentScreenPhase.Approved -> 1f
         PcCompactPaymentScreenPhase.Declined,
         PcCompactPaymentScreenPhase.TipSelection -> 0f
     }
     val activeFillAlpha = when (phase) {
-        PcCompactPaymentScreenPhase.Processing -> ((cycleDrawProgress - 0.76f) / 0.24f).coerceIn(0f, 1f)
+        PcCompactPaymentScreenPhase.Processing -> ((logoDrawProgress.value - 0.82f) / 0.18f).coerceIn(0f, 1f)
         PcCompactPaymentScreenPhase.Approved -> 1f
         PcCompactPaymentScreenPhase.Declined,
         PcCompactPaymentScreenPhase.TipSelection -> 0f
     }
-    val logoAlpha = if (isApproved) 1f - approvedEase else 1f
-    val logoScale = if (isApproved) 1f - 0.36f * approvedEase else breathingScale + 0.005f * holdProgress
+    val logoAlpha = if (isApproved) 1f - FastOutSlowInEasing.transform((approvedProgress * 1.15f).coerceIn(0f, 1f)) else 1f
+    val logoScale = if (isApproved) 1f - 0.36f * approvedEase else breathingScale
     val logoOffsetX = if (isApproved) (-10f * approvedEase).dp else 0.dp
     val logoOffsetY = if (isApproved) (8f * approvedEase).dp else 0.dp
-    val checkProgress = ((approvedProgress - 0.28f) / 0.72f).coerceIn(0f, 1f)
+    val checkProgress = ((approvedProgress - 0.30f) / 0.70f).coerceIn(0f, 1f)
 
     Box(modifier = modifier.size(144.dp), contentAlignment = Alignment.Center) {
         when (phase) {
@@ -1259,18 +1274,19 @@ private fun AlfaLogoCanvas(
                 val safeProgress = drawProgress.coerceIn(0f, 1f)
                 val safeFillAlpha = fillAlpha.coerceIn(0f, 1f)
                 val barProgress = intervalProgress(safeProgress, 0.00f, 0.22f)
-                val aProgress = intervalProgress(safeProgress, 0.12f, 0.88f)
+                val aProgress = intervalProgress(safeProgress, 0.10f, 0.92f)
                 val barLeft = 46.3296f
                 val barTop = 104.898f
                 val barRight = 103.67f
                 val barBottom = 116.813f
                 val visibleBarRight = barLeft + (barRight - barLeft) * barProgress
                 val revealTop = 150f - 150f * aProgress
+                val revealRight = 150f * aProgress
 
                 clipRect(left = barLeft, top = barTop, right = visibleBarRight, bottom = barBottom) {
                     drawPath(path = barPath, color = color)
                 }
-                clipRect(left = 0f, top = revealTop, right = 150f, bottom = 150f) {
+                clipRect(left = 0f, top = revealTop, right = revealRight.coerceAtLeast(1f), bottom = 150f) {
                     drawPath(path = aPath, color = color)
                 }
 
