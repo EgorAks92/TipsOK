@@ -1261,7 +1261,7 @@ private fun AlfaLogoCanvas(
         val ty = (size.height - 150f * logoScale) / 2f
         withTransform({
             translate(left = tx, top = ty)
-            this.scale(scaleX = logoScale, scaleY = logoScale)
+            scale(logoScale, logoScale, pivot = Offset.Zero)
         }) {
             val barProgress = (drawProgress / 0.35f).coerceIn(0f, 1f)
             val aProgress = ((drawProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
