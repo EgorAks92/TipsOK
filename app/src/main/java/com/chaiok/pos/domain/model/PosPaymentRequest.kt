@@ -11,3 +11,29 @@ data class PosPaymentRequest(
     val serviceFee: Double,
     val feesCovered: Boolean
 ) : Serializable
+
+data class PosPaymentCancelPreviousRequest(
+    val rrn: String,
+    val amount: BigDecimal,
+    val currency: String,
+    val terminalId: String
+)
+
+sealed interface PosPaymentCancelPreviousResult {
+    data class Success(
+        val message: String?,
+        val receiptText: String?,
+        val rrn: String?
+    ) : PosPaymentCancelPreviousResult
+
+    data class Declined(
+        val resultCode: String?,
+        val message: String?,
+        val receiptText: String?
+    ) : PosPaymentCancelPreviousResult
+
+    data class Error(
+        val message: String?,
+        val receiptText: String? = null
+    ) : PosPaymentCancelPreviousResult
+}

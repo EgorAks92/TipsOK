@@ -4,6 +4,7 @@ import android.util.Log
 import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcPaymentResponse
+import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
@@ -254,7 +255,8 @@ class XchengPcPaymentCommandRepository(
 
 
     private suspend fun sendArcus2TransactionStartedWhileListening(
-        settings: Arcus2NewWaySettings
+        settings: Arcus2NewWaySettings,
+        statusText: String = settings.paymentStartStatusText
     ): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         return runCatching {
@@ -262,7 +264,7 @@ class XchengPcPaymentCommandRepository(
                 session.sendCommandAndWaitOk("BEGINTR:").getOrThrow()
             }
             if (settings.sendStatusOnPaymentStart) {
-                session.sendCommandAndWaitOk("STATUS:${settings.paymentStartStatusText}").getOrThrow()
+                session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
             }
         }.map { Unit }
     }
@@ -392,7 +394,28 @@ class XchengPcPaymentCommandRepository(
                             updateArcusListeningState(r, "arcus2 ping error")
                             null
                         }
-                        is PcEcrCommand.Refund, is PcEcrCommand.Reversal, is PcEcrCommand.Settlement -> {
+                        is PcEcrCommand.Reversal -> {
+                            if (cmd.rrn.isNullOrBlank()) {
+                                val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "Не найден RRN")
+                                updateArcusListeningState(r, "arcus2 reversal rrn missing")
+                                null
+                            } else {
+                                val startResult = sendArcus2TransactionStartedWhileListening(settings.arcus2NewWaySettings, statusText = "Отмена")
+                                if (startResult.isFailure) {
+                                    updateArcusListeningState(startResult, "arcus2 reversal start response error")
+                                    null
+                                } else {
+                                    lifecycleMutex.withLock {
+                                        activeArcus2Transaction = true
+                                        activeArcus2CommandId = cmd.commandId
+                                        lifecycleState = PcEcrLifecycleState.PausedForPayment
+                                        status.value = PcUsbConnectionStatus.Idle
+                                    }
+                                    PcPaymentCommand(amount = cmd.amount ?: BigDecimal.ZERO, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=****", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = cmd.rrn)
+                                }
+                            }
+                        }
+                        is PcEcrCommand.Refund, is PcEcrCommand.Settlement -> {
                             val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "Unsupported ARCUS2 operation")
                             updateArcusListeningState(r, "arcus2 unsupported error")
                             null

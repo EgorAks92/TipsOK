@@ -113,7 +113,15 @@ class Arcus2NewWayProtocolAdapter(
             }
             cls == s.pingClass && op == s.pingOp -> EcrParseResult.Command(PcEcrCommand.Ping(null, protocol))
             cls == s.settlementClass && op == s.settlementOp -> EcrParseResult.Command(PcEcrCommand.Settlement(null, protocol))
-            cls == s.universalReversalClass && op == s.universalReversalOp -> EcrParseResult.Command(PcEcrCommand.Reversal(null, protocol, null, null, amountRaw?.toBigDecimalOrNull(), currency))
+            cls == s.universalReversalClass && op == s.universalReversalOp -> {
+                val rrn = fields
+                    .drop(2)
+                    .map { it.trim() }
+                    .firstOrNull { it.matches(Regex("\\d{8,16}")) && it != currencyCode && it != amountRaw }
+                Log.i("Arcus2Adapter", "reversal fieldsCount=${fields.size} rrnMasked=${rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"}")
+                if (rrn.isNullOrBlank()) EcrParseResult.Error("ARCUS2 reversal RRN missing")
+                else EcrParseResult.Command(PcEcrCommand.Reversal(null, protocol, null, rrn, amountRaw?.toBigDecimalOrNull(), currency))
+            }
             cls == s.refundClass && op == s.refundOp -> EcrParseResult.Command(PcEcrCommand.Refund(null, protocol, amountRaw?.toBigDecimalOrNull(), currency))
             else -> EcrParseResult.Unknown("Unsupported class/op", bytes.toHexPreview())
         }
