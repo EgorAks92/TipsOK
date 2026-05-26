@@ -67,6 +67,13 @@ class AppDataStore(private val context: Context) {
         val arcus2SendBeginTrOnPaymentStart = booleanPreferencesKey("arcus2_send_begin_tr_on_payment_start")
         val arcus2SendStatusOnPaymentStart = booleanPreferencesKey("arcus2_send_status_on_payment_start")
         val arcus2PaymentStartStatusText = stringPreferencesKey("arcus2_payment_start_status_text")
+        val arcus2PaymentStatusKeepAliveEnabled = booleanPreferencesKey("arcus2_payment_status_keep_alive_enabled")
+        val arcus2PaymentStatusKeepAliveIntervalMs = longPreferencesKey("arcus2_payment_status_keep_alive_interval_ms")
+        val arcus2CardWaitingStatusText = stringPreferencesKey("arcus2_card_waiting_status_text")
+        val arcus2CardDetectedStatusText = stringPreferencesKey("arcus2_card_detected_status_text")
+        val arcus2ProcessingStatusText = stringPreferencesKey("arcus2_processing_status_text")
+        val arcus2PinRequiredStatusText = stringPreferencesKey("arcus2_pin_required_status_text")
+        val arcus2CancellingStatusText = stringPreferencesKey("arcus2_cancelling_status_text")
     }
 
     val integrationModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.integrationMode] ?: false }
@@ -119,7 +126,14 @@ class AppDataStore(private val context: Context) {
             drainOkAfterCommandMs = p[Keys.arcus2DrainOkAfterCommandMs] ?: d.drainOkAfterCommandMs,
             sendBeginTrOnPaymentStart = p[Keys.arcus2SendBeginTrOnPaymentStart] ?: d.sendBeginTrOnPaymentStart,
             sendStatusOnPaymentStart = p[Keys.arcus2SendStatusOnPaymentStart] ?: d.sendStatusOnPaymentStart,
-            paymentStartStatusText = p[Keys.arcus2PaymentStartStatusText] ?: d.paymentStartStatusText
+            paymentStartStatusText = p[Keys.arcus2PaymentStartStatusText] ?: d.paymentStartStatusText,
+            paymentStatusKeepAliveEnabled = p[Keys.arcus2PaymentStatusKeepAliveEnabled] ?: d.paymentStatusKeepAliveEnabled,
+            paymentStatusKeepAliveIntervalMs = p[Keys.arcus2PaymentStatusKeepAliveIntervalMs] ?: d.paymentStatusKeepAliveIntervalMs,
+            cardWaitingStatusText = p[Keys.arcus2CardWaitingStatusText] ?: d.cardWaitingStatusText,
+            cardDetectedStatusText = p[Keys.arcus2CardDetectedStatusText] ?: d.cardDetectedStatusText,
+            processingStatusText = p[Keys.arcus2ProcessingStatusText] ?: d.processingStatusText,
+            pinRequiredStatusText = p[Keys.arcus2PinRequiredStatusText] ?: d.pinRequiredStatusText,
+            cancellingStatusText = p[Keys.arcus2CancellingStatusText] ?: d.cancellingStatusText
         )
     }
 
@@ -160,6 +174,13 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2DrainOkAfterCommandMs] = value.drainOkAfterCommandMs
         it[Keys.arcus2SendBeginTrOnPaymentStart] = value.sendBeginTrOnPaymentStart; it[Keys.arcus2SendStatusOnPaymentStart] = value.sendStatusOnPaymentStart
         it[Keys.arcus2PaymentStartStatusText] = value.paymentStartStatusText
+        it[Keys.arcus2PaymentStatusKeepAliveEnabled] = value.paymentStatusKeepAliveEnabled
+        it[Keys.arcus2PaymentStatusKeepAliveIntervalMs] = value.paymentStatusKeepAliveIntervalMs
+        it[Keys.arcus2CardWaitingStatusText] = value.cardWaitingStatusText
+        it[Keys.arcus2CardDetectedStatusText] = value.cardDetectedStatusText
+        it[Keys.arcus2ProcessingStatusText] = value.processingStatusText
+        it[Keys.arcus2PinRequiredStatusText] = value.pinRequiredStatusText
+        it[Keys.arcus2CancellingStatusText] = value.cancellingStatusText
     }
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {
         it[Keys.tipRangePercents] = value.percents.joinToString(",")

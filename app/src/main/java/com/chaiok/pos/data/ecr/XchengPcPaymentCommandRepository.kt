@@ -216,6 +216,42 @@ class XchengPcPaymentCommandRepository(
         return sendResult
     }
 
+    override suspend fun sendArcus2StatusIfActive(
+        statusText: String,
+        settings: Arcus2NewWaySettings
+    ): Result<Unit> {
+        if (!settings.paymentStatusKeepAliveEnabled) {
+            return Result.success(Unit)
+        }
+
+        val commandId = lifecycleMutex.withLock {
+            val isActive = activeArcus2Transaction &&
+                (lifecycleState == PcEcrLifecycleState.PausedForPayment ||
+                    lifecycleState == PcEcrLifecycleState.Listening)
+            if (!isActive) return@withLock "__NOT_ACTIVE__"
+            activeArcus2CommandId
+        }
+
+        if (commandId == "__NOT_ACTIVE__") {
+            return Result.success(Unit)
+        }
+        val safeCommandId = commandId?.ifBlank { "-" } ?: "-"
+
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        Log.i(TAG, "ARCUS2 keep-alive STATUS send text=$statusText commandId=$safeCommandId")
+        val result = runCatching {
+            session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
+        }.map { Unit }
+        if (result.isFailure) {
+            Log.w(
+                TAG,
+                "ARCUS2 keep-alive STATUS failed text=$statusText commandId=$safeCommandId error=${result.exceptionOrNull()?.message}",
+                result.exceptionOrNull()
+            )
+        }
+        return result
+    }
+
 
     private suspend fun sendArcus2TransactionStartedWhileListening(
         settings: Arcus2NewWaySettings
@@ -516,12 +552,6 @@ class XchengPcPaymentCommandRepository(
     private fun ByteArray.toHexPreview(limit: Int = 96): String =
         take(limit).joinToString(" ") { "%02X".format(it) }
 
-    private companion object {
-        private const val TAG = "PcUsbEcrFlow"
-        private const val LISTEN_LOOP_DELAY_MS = 300L
-        private const val ERROR_VISIBLE_DELAY_MS = 2_500L
-    }
-}
     private fun isTransportFailure(message: String): Boolean =
         message.contains("USB service missing", ignoreCase = true) ||
             message.contains("USB device missing", ignoreCase = true) ||
@@ -532,3 +562,10 @@ class XchengPcPaymentCommandRepository(
         message.contains("Cash register returned ER", ignoreCase = true) ||
             message.contains("Cash register returned NAK", ignoreCase = true) ||
             message.contains("Unexpected ARCUS2 response", ignoreCase = true)
+
+    private companion object {
+        private const val TAG = "PcUsbEcrFlow"
+        private const val LISTEN_LOOP_DELAY_MS = 300L
+        private const val ERROR_VISIBLE_DELAY_MS = 2_500L
+    }
+}
