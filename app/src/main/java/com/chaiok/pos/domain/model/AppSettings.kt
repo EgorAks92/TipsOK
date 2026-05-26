@@ -32,7 +32,7 @@ data class Arcus2NewWaySettings(
     val sendStatusOnPaymentStart: Boolean = true,
     val paymentStartStatusText: String = "Ожидание карты",
     val paymentStatusKeepAliveEnabled: Boolean = true,
-    val paymentStatusKeepAliveIntervalMs: Long = 10_000L,
+    val paymentStatusKeepAliveIntervalMs: Long = 5_000L,
     val cardWaitingStatusText: String = "Ожидание карты",
     val cardDetectedStatusText: String = "Карта считана",
     val processingStatusText: String = "Обработка",

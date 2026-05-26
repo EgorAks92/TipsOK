@@ -380,9 +380,13 @@ class PcCompactTipPaymentViewModel(
 
         viewModelScope.launch {
             if (isArcus2Source()) {
-                sendArcus2StatusNow(observeSettingsUseCase().first().arcus2NewWaySettings.cancellingStatusText)
+                val settings = observeSettingsUseCase().first().arcus2NewWaySettings
+                sendArcus2StatusNowAwait(
+                    statusText = settings.cancellingStatusText,
+                    force = true
+                )
             }
-            val cancelResult = withTimeoutOrNull(2_500L) { runCatching { cancelPosPaymentUseCase() } }
+            val cancelResult = withTimeoutOrNull(USER_CANCEL_TERMINAL_TIMEOUT_MS) { runCatching { cancelPosPaymentUseCase() } }
             if (cancelResult == null) {
                 Log.w(TAG, "User cancel timed out, sending final cancelled result anyway")
             } else if (cancelResult.isFailure) {
@@ -652,8 +656,10 @@ class PcCompactTipPaymentViewModel(
     private suspend fun sendCancelledByUserOnce() {
         if (cancelEventSent) return
         cancelDeclinedAutoClose()
+        stopArcus2StatusKeepAlive()
         if (isArcus2Source()) {
-            sendArcus2StatusNow(observeSettingsUseCase().first().arcus2NewWaySettings.cancellingStatusText)
+            val settings = observeSettingsUseCase().first().arcus2NewWaySettings
+            sendArcus2StatusNowAwait(settings.cancellingStatusText, force = true)
         }
         cancelEventSent = true
         sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"))
@@ -710,6 +716,20 @@ class PcCompactTipPaymentViewModel(
         viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
             pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+        }
+    }
+
+    private suspend fun sendArcus2StatusNowAwait(
+        statusText: String,
+        force: Boolean = false
+    ) {
+        if (!isArcus2Source()) return
+        if (!force && lastArcus2StatusText == statusText) return
+        lastArcus2StatusText = statusText
+        val settings = observeSettingsUseCase().first().arcus2NewWaySettings
+        val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+        result.onFailure {
+            Log.w(TAG, "ARCUS2 immediate STATUS failed text=$statusText error=${it.message}", it)
         }
     }
 
@@ -792,6 +812,7 @@ class PcCompactTipPaymentViewModel(
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
         private const val APPROVED_VISIBLE_MS = 1200L
         private const val DECLINED_AUTO_CLOSE_DELAY_MS = 10_000L
+        private const val USER_CANCEL_TERMINAL_TIMEOUT_MS = 2_500L
     }
 }
 

@@ -219,25 +219,37 @@ class XchengPcPaymentCommandRepository(
     override suspend fun sendArcus2StatusIfActive(
         statusText: String,
         settings: Arcus2NewWaySettings
-    ): Result<Unit> = lifecycleMutex.withLock {
-        if (!settings.paymentStatusKeepAliveEnabled || !settings.sendStatusMessages) {
-            return@withLock Result.success(Unit)
+    ): Result<Unit> {
+        if (!settings.paymentStatusKeepAliveEnabled) {
+            return Result.success(Unit)
         }
-        if (!activeArcus2Transaction) {
-            return@withLock Result.success(Unit)
+
+        val commandId = lifecycleMutex.withLock {
+            val isActive = activeArcus2Transaction &&
+                (lifecycleState == PcEcrLifecycleState.PausedForPayment ||
+                    lifecycleState == PcEcrLifecycleState.Listening)
+            if (!isActive) return@withLock "__NOT_ACTIVE__"
+            activeArcus2CommandId
         }
-        if (lifecycleState != PcEcrLifecycleState.PausedForPayment && lifecycleState != PcEcrLifecycleState.Listening) {
-            return@withLock Result.success(Unit)
+
+        if (commandId == "__NOT_ACTIVE__") {
+            return Result.success(Unit)
         }
+        val safeCommandId = commandId?.ifBlank { "-" } ?: "-"
+
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
-        Log.i(TAG, "ARCUS2 keep-alive STATUS send text=$statusText commandId=${activeArcus2CommandId ?: "-"}")
+        Log.i(TAG, "ARCUS2 keep-alive STATUS send text=$statusText commandId=$safeCommandId")
         val result = runCatching {
             session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
         }.map { Unit }
         if (result.isFailure) {
-            Log.w(TAG, "ARCUS2 keep-alive STATUS failed text=$statusText commandId=${activeArcus2CommandId ?: "-"} error=${result.exceptionOrNull()?.message}")
+            Log.w(
+                TAG,
+                "ARCUS2 keep-alive STATUS failed text=$statusText commandId=$safeCommandId error=${result.exceptionOrNull()?.message}",
+                result.exceptionOrNull()
+            )
         }
-        result
+        return result
     }
 
 
