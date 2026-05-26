@@ -92,7 +92,8 @@ data class PcCompactTipPaymentUiState(
         get() = formatRubles(totalAmount)
 
     val canChangeTips: Boolean
-        get() = !isRestartingPayment && paymentStage in setOf(
+        get() = operationType != PcEcrOperationType.CANCEL_PREVIOUS &&
+                !isRestartingPayment && paymentStage in setOf(
             CardPresentingStage.Idle,
             CardPresentingStage.Preparing,
             CardPresentingStage.WaitingForCard
@@ -376,10 +377,19 @@ class PcCompactTipPaymentViewModel(
         viewModelScope.launch {
             operationMutex.withLock {
                 generation += 1
-                val started = startPaymentCurrentAmount("retry", generation)
+                val started = if (isCancelPreviousOperation()) {
+                    startCancelPreviousPayment("retry", generation)
+                } else {
+                    startPaymentCurrentAmount("retry", generation)
+                }
                 if (started) {
-                    activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
-                    activeSelectedTip = _uiState.value.currentSelectedTip()
+                    if (isCancelPreviousOperation()) {
+                        activePaymentServiceFeeEnabled = false
+                        activeSelectedTip = PcCompactSelectedTip.NoTips
+                    } else {
+                        activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+                        activeSelectedTip = _uiState.value.currentSelectedTip()
+                    }
                 }
             }
         }
@@ -552,7 +562,7 @@ class PcCompactTipPaymentViewModel(
                 delay(APPROVED_VISIBLE_MS)
                 sendPcEcrFinalResultOnce(
                     PcEcrFinalPaymentResult.Approved(
-                        message = event.message,
+                        message = if (isCancelPreviousOperation()) (event.message ?: "Отмена выполнена") else event.message,
                         externalTransactionId = event.transactionId,
                         rrn = event.rrn,
                         authCode = event.authCode,
@@ -574,7 +584,7 @@ class PcCompactTipPaymentViewModel(
                 }
                 pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Declined(
                     resultCode = event.code,
-                    message = event.reason ?: event.rawMessage,
+                    message = if (isCancelPreviousOperation()) (event.reason ?: "Отмена не выполнена") else (event.reason ?: event.rawMessage),
                     receiptText = event.receiptText
                 )
                 scheduleDeclinedAutoClose()
@@ -590,7 +600,11 @@ class PcCompactTipPaymentViewModel(
                     )
                 }
                 pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Error(
-                    message = event.message.ifBlank { "Ошибка оплаты" },
+                    message = if (isCancelPreviousOperation()) {
+                        event.message.ifBlank { "Отмена не выполнена" }
+                    } else {
+                        event.message.ifBlank { "Ошибка оплаты" }
+                    },
                     receiptText = event.receiptText
                 )
                 scheduleDeclinedAutoClose()

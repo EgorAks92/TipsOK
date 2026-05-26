@@ -105,7 +105,6 @@ fun PcCompactTipPaymentScreen(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
-    val isCancelPrevious = state.operationType == PcEcrOperationType.CANCEL_PREVIOUS
     if (!state.visualSettingsLoaded) {
         Box(
             modifier = Modifier
@@ -157,6 +156,7 @@ private fun ExistingPcCompactTipPaymentScreenContent(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
+    val isCancelPrevious = state.operationType == PcEcrOperationType.CANCEL_PREVIOUS
     val showStatusScreen = remember { mutableStateOf(false) }
     val visibleResultVisual = remember { mutableStateOf(PcCompactPaymentResultVisual.None) }
     val pendingResultVisual = remember { mutableStateOf<PcCompactPaymentResultVisual?>(null) }
@@ -527,7 +527,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             modifier = Modifier.padding(start = 32.dp, top = 158.dp)
         ) {
             Text(
-                text = "оплата",
+                text = state.operationTitle.lowercase(),
                 color = theme.secondaryTextColor,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,

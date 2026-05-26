@@ -10,6 +10,7 @@ import com.chaiok.pos.domain.model.PcPaymentCommand
 import org.json.JSONObject
 import java.io.File
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
@@ -114,17 +115,40 @@ class Arcus2NewWayProtocolAdapter(
             cls == s.pingClass && op == s.pingOp -> EcrParseResult.Command(PcEcrCommand.Ping(null, protocol))
             cls == s.settlementClass && op == s.settlementOp -> EcrParseResult.Command(PcEcrCommand.Settlement(null, protocol))
             cls == s.universalReversalClass && op == s.universalReversalOp -> {
-                val rrn = fields
-                    .drop(2)
-                    .map { it.trim() }
-                    .firstOrNull { it.matches(Regex("\\d{8,16}")) && it != currencyCode && it != amountRaw }
-                Log.i("Arcus2Adapter", "reversal fieldsCount=${fields.size} rrnMasked=${rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"}")
+                val rrn = parseArcus2Rrn(fields, currencyCode, amountRaw)
+                Log.i("Arcus2Adapter", "reversal fieldsCount=${fields.size} rrnMasked=${maskRrn(rrn)}")
                 if (rrn.isNullOrBlank()) EcrParseResult.Error("ARCUS2 reversal RRN missing")
-                else EcrParseResult.Command(PcEcrCommand.Reversal(null, protocol, null, rrn, amountRaw?.toBigDecimalOrNull(), currency))
+                else EcrParseResult.Command(PcEcrCommand.Reversal(null, protocol, null, rrn, parseArcus2ReversalAmount(amountRaw, currency), currency))
             }
             cls == s.refundClass && op == s.refundOp -> EcrParseResult.Command(PcEcrCommand.Refund(null, protocol, amountRaw?.toBigDecimalOrNull(), currency))
             else -> EcrParseResult.Unknown("Unsupported class/op", bytes.toHexPreview())
         }
+    }
+}
+
+private fun parseArcus2Rrn(fields: List<String>, currencyCode: String?, amountRaw: String?): String? {
+    fields.forEach { field ->
+        val trimmed = field.trim()
+        val lower = trimmed.lowercase()
+        if (lower.startsWith("rrn=") || lower.startsWith("r=")) {
+            return trimmed.substringAfter('=').trim().takeIf { it.matches(Regex("\\d{6,12}")) }
+        }
+    }
+    return fields
+        .drop(2)
+        .map { it.trim() }
+        .firstOrNull { it.matches(Regex("\\d{6,12}")) && it != currencyCode && it != amountRaw }
+}
+
+private fun maskRrn(rrn: String?): String =
+    rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
+
+private fun parseArcus2ReversalAmount(raw: String?, currency: String?): BigDecimal? {
+    val n = raw?.trim()?.toBigDecimalOrNull() ?: return null
+    return when (currency?.uppercase()) {
+        "RUB" -> n.movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
+        "AMD" -> n.setScale(0, RoundingMode.HALF_UP)
+        else -> n
     }
 }
 

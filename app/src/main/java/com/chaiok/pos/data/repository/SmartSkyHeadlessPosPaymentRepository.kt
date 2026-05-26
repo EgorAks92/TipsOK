@@ -32,11 +32,91 @@ class SmartSkyHeadlessPosPaymentRepository(
     context: Context
 ) : PosPaymentRepository {
     override fun cancelPreviousPayment(request: PosPaymentCancelPreviousRequest): Flow<PosPaymentEvent> = callbackFlow {
+        cancellationRequested.set(false)
+        val operationId = System.currentTimeMillis().toString().takeLast(6)
+        val paymentCallFinished = AtomicBoolean(false)
+        val terminalEventDelivered = AtomicBoolean(false)
+        var isBound = false
+
+        Log.i(PAYMENT_TAG, "[$operationId] cancelPreviousPayment called rrn=***${request.rrn.takeLast(4)} terminalId=***${request.terminalId.takeLast(4)} amount=${request.amount} currency=${request.currency}")
         trySend(PosPaymentEvent.Preparing)
-        trySend(PosPaymentEvent.Error("TransactionResultcancel is not implemented"))
-        // TODO ARCUS2 CANCEL_PREVIOUS: integrate SSP/AAR TransactionResultcancel call here using request.rrn.
-        close()
-        awaitClose { }
+
+        val callback = object : TransactionCallback.Stub() {
+            override fun onStateChanged(state: Int, message: String?) {
+                val event = state.toNonTerminalPaymentEvent(message)
+                if (event != null && !terminalEventDelivered.get()) trySend(event)
+            }
+            override fun onQrReading(qrId: String?, payload: String?) = Unit
+            override fun onOperationNameChanged(operationName: String?) = Unit
+            override fun onRequestPassword(message: String?): String = ""
+        }
+
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, serviceBinder: IBinder?) {
+                val smartSkyPos = ISmartSkyPos.Stub.asInterface(serviceBinder)
+                if (smartSkyPos == null) {
+                    if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error("Не удалось подключиться к платежному сервису"))
+                    close(); return
+                }
+                activeService.set(smartSkyPos)
+                launch(Dispatchers.IO) {
+                    runCatching {
+                        trySend(PosPaymentEvent.WaitingForCard)
+                        invokeTransactionResultCancel(smartSkyPos, request, callback)
+                    }.onSuccess { result ->
+                        paymentCallFinished.set(true)
+                        val mapped = result.toPosPaymentEvent(operationId)
+                        val normalized = when (mapped) {
+                            is PosPaymentEvent.Approved -> mapped.copy(message = mapped.message.ifBlank { "Отмена выполнена" })
+                            is PosPaymentEvent.Declined -> mapped.copy(reason = mapped.reason ?: "Отмена не выполнена")
+                            else -> mapped
+                        }
+                        if (terminalEventDelivered.compareAndSet(false, true)) trySend(normalized)
+                        close()
+                    }.onFailure { err ->
+                        paymentCallFinished.set(true)
+                        val msg = if (err is NoSuchMethodException) "TransactionResultcancel is not available in current AAR" else (err.message ?: "Отмена не выполнена")
+                        if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error(msg))
+                        close()
+                    }
+                }
+            }
+            override fun onServiceDisconnected(name: ComponentName?) { activeService.set(null) }
+        }
+
+        val bindIntent = Intent(SSP_SERVICE_ACTION).apply { setPackage(SSP_PACKAGE) }
+        isBound = runCatching { appContext.bindService(bindIntent, connection, Context.BIND_AUTO_CREATE) }.getOrDefault(false)
+        if (!isBound) {
+            if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error("Платежное приложение не найдено"))
+            close(); return@callbackFlow
+        }
+
+        awaitClose {
+            activeService.set(null)
+            if (isBound) runCatching { appContext.unbindService(connection) }
+        }
+    }
+
+    private fun invokeTransactionResultCancel(
+        smartSkyPos: ISmartSkyPos,
+        request: PosPaymentCancelPreviousRequest,
+        callback: TransactionCallback
+    ): TransactionResult? {
+        val params = TransactionParams(request.amount.setScale(2, RoundingMode.HALF_UP)).apply {
+            terminalId = request.terminalId
+            currencyCode = if (request.currency.uppercase() == "RUB") CURRENCY_CODE_RUB else request.currency
+            extraTransactionData = JSONObject()
+                .put("rrn", request.rrn)
+                .put("operationType", "CANCEL_PREVIOUS")
+                .toString()
+        }
+        val candidates = listOf("TransactionResultcancel", "transactionResultCancel", "transactionResultcancel", "resultcancel")
+        for (name in candidates) {
+            val m = smartSkyPos.javaClass.methods.firstOrNull { it.name == name && it.parameterTypes.size == 2 }
+            if (m != null) return m.invoke(smartSkyPos, params, callback) as? TransactionResult
+        }
+        // TODO integrate explicit AAR method when available in ISmartSkyPos sdk.
+        throw NoSuchMethodException("TransactionResultcancel method not found on ISmartSkyPos")
     }
 
     private val appContext = context.applicationContext
