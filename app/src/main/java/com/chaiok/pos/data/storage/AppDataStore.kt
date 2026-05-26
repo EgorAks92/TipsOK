@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.TipRange
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +34,7 @@ class AppDataStore(private val context: Context) {
         val pcIdleImages = stringPreferencesKey("pc_idle_images")
         val pcCompactServiceFeeEnabled = booleanPreferencesKey("pc_compact_service_fee_enabled")
         val showCustomTipButton = booleanPreferencesKey("show_custom_tip_button")
+        val pcCompactPaymentDesignStyle = stringPreferencesKey("pc_compact_payment_design_style")
         val pcEcrProtocol = stringPreferencesKey("pc_ecr_protocol")
 
         val arcus2SaleClass = stringPreferencesKey("arcus2_sale_class")
@@ -78,6 +80,11 @@ class AppDataStore(private val context: Context) {
     val pcIdleImagesFlow: Flow<List<String>> = context.dataStore.data.map { prefs -> prefs[Keys.pcIdleImages]?.split(PC_IDLE_IMAGES_SEPARATOR)?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList() }
     val pcCompactServiceFeeEnabledFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.pcCompactServiceFeeEnabled] ?: true }
     val showCustomTipButtonFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.showCustomTipButton] ?: true }
+    val pcCompactPaymentDesignStyleFlow: Flow<PcCompactPaymentDesignStyle> = context.dataStore.data.map { prefs ->
+        prefs[Keys.pcCompactPaymentDesignStyle]
+            ?.let { runCatching { PcCompactPaymentDesignStyle.valueOf(it) }.getOrNull() }
+            ?: PcCompactPaymentDesignStyle.DEFAULT
+    }
     val pcEcrProtocolFlow: Flow<PcEcrProtocol> = context.dataStore.data.map { it[Keys.pcEcrProtocol]?.let { v -> runCatching { PcEcrProtocol.valueOf(v) }.getOrNull() } ?: PcEcrProtocol.CHAIOK_JSON }
 
     val arcus2NewWaySettingsFlow: Flow<Arcus2NewWaySettings> = context.dataStore.data.map { p ->
@@ -134,6 +141,7 @@ class AppDataStore(private val context: Context) {
     suspend fun setPcIdleImages(images: List<String>) = context.dataStore.edit { it[Keys.pcIdleImages] = images.map { i -> i.trim() }.filter { it.isNotBlank() }.joinToString(PC_IDLE_IMAGES_SEPARATOR) }
     suspend fun setPcCompactServiceFeeEnabled(value: Boolean) = context.dataStore.edit { it[Keys.pcCompactServiceFeeEnabled] = value }
     suspend fun setShowCustomTipButton(value: Boolean) = context.dataStore.edit { it[Keys.showCustomTipButton] = value }
+    suspend fun setPcCompactPaymentDesignStyle(value: PcCompactPaymentDesignStyle) = context.dataStore.edit { it[Keys.pcCompactPaymentDesignStyle] = value.name }
     suspend fun setPcEcrProtocol(value: PcEcrProtocol) = context.dataStore.edit { it[Keys.pcEcrProtocol] = value.name }
     suspend fun setArcus2NewWaySettings(value: Arcus2NewWaySettings) = context.dataStore.edit {
         it[Keys.arcus2SaleClass] = value.saleClass; it[Keys.arcus2SaleOp] = value.saleOp

@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcCompactServiceFeeEnabledUseCase
+import com.chaiok.pos.domain.usecase.UpdatePcCompactPaymentDesignStyleUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.usecase.UpdatePcEcrProtocolUseCase
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.usecase.UpdateShowCustomTipButtonUseCase
@@ -24,6 +26,7 @@ data class SettingsUiState(
     val pcUsbModeEnabled: Boolean = false,
     val pcCompactServiceFeeEnabled: Boolean = true,
     val showCustomTipButton: Boolean = true,
+    val pcCompactPaymentDesignStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
     val pcEcrProtocol: PcEcrProtocol = PcEcrProtocol.CHAIOK_JSON
 )
 
@@ -33,7 +36,8 @@ class SettingsViewModel(
     private val updatePcUsbModeUseCase: UpdatePcUsbModeUseCase,
     private val updatePcCompactServiceFeeEnabledUseCase: UpdatePcCompactServiceFeeEnabledUseCase,
     private val updateShowCustomTipButtonUseCase: UpdateShowCustomTipButtonUseCase,
-    private val updatePcEcrProtocolUseCase: UpdatePcEcrProtocolUseCase
+    private val updatePcEcrProtocolUseCase: UpdatePcEcrProtocolUseCase,
+    private val updatePcCompactPaymentDesignStyleUseCase: UpdatePcCompactPaymentDesignStyleUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -76,6 +80,7 @@ class SettingsViewModel(
                     pcUsbModeEnabled = settings.pcUsbModeEnabled,
                     pcCompactServiceFeeEnabled = settings.pcCompactServiceFeeEnabled,
                     showCustomTipButton = settings.showCustomTipButton,
+                    pcCompactPaymentDesignStyle = settings.pcCompactPaymentDesignStyle,
                     pcEcrProtocol = settings.pcEcrProtocol
                 )
             }.collect { nextState ->
@@ -104,5 +109,11 @@ class SettingsViewModel(
 
     fun onPcEcrProtocolChanged(protocol: PcEcrProtocol) {
         viewModelScope.launch { updatePcEcrProtocolUseCase(protocol) }
+    }
+
+    fun onPcCompactPaymentDesignStyleChanged(style: PcCompactPaymentDesignStyle) {
+        viewModelScope.launch {
+            updatePcCompactPaymentDesignStyleUseCase(style)
+        }
     }
 }

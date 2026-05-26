@@ -2,6 +2,7 @@ package com.chaiok.pos.presentation
 
 import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.AuthSession
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.TerminalInfo
@@ -30,6 +31,7 @@ class FakeSettingsRepo(private val settingsFlow: MutableStateFlow<AppSettings>) 
     override suspend fun setPcIdleImages(images: List<String>) = Unit
     override suspend fun setPcCompactServiceFeeEnabled(enabled: Boolean) = Unit
     override suspend fun setShowCustomTipButton(enabled: Boolean) = Unit
+    override suspend fun setPcCompactPaymentDesignStyle(style: PcCompactPaymentDesignStyle) = Unit
     override suspend fun setPcEcrProtocol(protocol: PcEcrProtocol) = Unit
     override suspend fun setArcus2NewWaySettings(settings: Arcus2NewWaySettings) = Unit
 }

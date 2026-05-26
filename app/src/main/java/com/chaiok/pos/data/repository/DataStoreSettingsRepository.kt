@@ -3,6 +3,7 @@ package com.chaiok.pos.data.repository
 import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
@@ -29,13 +30,23 @@ class DataStoreSettingsRepository(
             )
         }
 
+        val pcEcrSettingsFlow = combine(
+            dataStore.pcEcrProtocolFlow,
+            dataStore.arcus2NewWaySettingsFlow
+        ) { pcEcrProtocol, arcus2NewWaySettings ->
+            PcEcrSettingsBundle(
+                protocol = pcEcrProtocol,
+                arcus2NewWaySettings = arcus2NewWaySettings
+            )
+        }
+
         return combine(
             baseSettingsFlow,
             dataStore.pcCompactServiceFeeEnabledFlow,
             dataStore.showCustomTipButtonFlow,
-            dataStore.pcEcrProtocolFlow,
-            dataStore.arcus2NewWaySettingsFlow
-        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcEcrProtocol, arcus2NewWaySettings ->
+            dataStore.pcCompactPaymentDesignStyleFlow,
+            pcEcrSettingsFlow
+        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcCompactPaymentDesignStyle, pcEcrSettings ->
             AppSettings(
                 integrationModeEnabled = base.integration,
                 tableModeEnabled = base.table,
@@ -44,8 +55,9 @@ class DataStoreSettingsRepository(
                 pcIdleImages = base.pcIdleImages,
                 pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled,
                 showCustomTipButton = showCustomTipButton,
-                pcEcrProtocol = pcEcrProtocol,
-                arcus2NewWaySettings = arcus2NewWaySettings
+                pcCompactPaymentDesignStyle = pcCompactPaymentDesignStyle,
+                pcEcrProtocol = pcEcrSettings.protocol,
+                arcus2NewWaySettings = pcEcrSettings.arcus2NewWaySettings
             )
         }
     }
@@ -92,6 +104,12 @@ class DataStoreSettingsRepository(
         }
     }
 
+    override suspend fun setPcCompactPaymentDesignStyle(style: PcCompactPaymentDesignStyle) {
+        runCatching {
+            dataStore.setPcCompactPaymentDesignStyle(style)
+        }
+    }
+
 
     override suspend fun setPcEcrProtocol(protocol: PcEcrProtocol) {
         runCatching {
@@ -111,5 +129,10 @@ class DataStoreSettingsRepository(
         val background: String,
         val pcUsb: Boolean,
         val pcIdleImages: List<String>
+    )
+
+    private data class PcEcrSettingsBundle(
+        val protocol: PcEcrProtocol,
+        val arcus2NewWaySettings: Arcus2NewWaySettings
     )
 }
