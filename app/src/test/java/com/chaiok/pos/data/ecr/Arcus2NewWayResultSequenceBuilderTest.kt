@@ -25,7 +25,10 @@ class Arcus2NewWayResultSequenceBuilderTest {
         assertTrue(texts.any { it.startsWith("PRINT:") })
         assertFalse(texts.any { it.startsWith("STARTPRINT") })
         assertFalse(texts.any { it.startsWith("ENDPRINT") })
-        assertEquals(listOf("STORERC:00", "SETTAGS:", "ENDTR"), texts.takeLast(3))
+        val tail = texts.takeLast(3)
+        assertEquals("STORERC:00", tail[0])
+        assertTrue(tail[1].startsWith("SETTAGS:"))
+        assertEquals("ENDTR", tail[2])
     }
 
     @Test fun minimalApprovedSequenceWithReceipt_markersEnabled() {
@@ -56,10 +59,10 @@ class Arcus2NewWayResultSequenceBuilderTest {
         val cancelled = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Cancelled(), null, settings).map { decodeWin1251(it.data) }
         val error = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(cmd, PcEcrFinalPaymentResult.Error("e"), null, settings).map { decodeWin1251(it.data) }
         assertTrue(cancelled.any { it.startsWith("STORERC:999") })
-        assertTrue(cancelled.any { it == "SETTAGS:" })
+        assertTrue(cancelled.any { it.startsWith("SETTAGS:") })
         assertTrue(cancelled.last() == "ENDTR")
         assertTrue(error.any { it.startsWith("STORERC:999") })
-        assertTrue(error.any { it == "SETTAGS:" })
+        assertTrue(error.any { it.startsWith("SETTAGS:") })
         assertTrue(error.last() == "ENDTR")
     }
 

@@ -190,8 +190,9 @@ object Arcus2TagsBuilder {
                 if (sanitized.isNullOrBlank()) null else key to sanitized
             }
         val payload = sanitizedPairs.joinToString(ESC.toString()) { "${it.first}=${it.second}" }
-        Log.i("Arcus2Tags", "SETTAGS built keys=${sanitizedPairs.joinToString(",") { it.first }} bytes=${payload.toByteArray(Charsets.UTF_8).size}")
-        return if (payload.isBlank()) ByteArray(0) else encodeWin1251(payload)
+        val payloadBytes = if (payload.isBlank()) ByteArray(0) else encodeWin1251(payload)
+        Log.i("Arcus2Tags", "SETTAGS built keys=${sanitizedPairs.joinToString(",") { it.first }} bytes=${payloadBytes.size}")
+        return payloadBytes
     }
 
     private fun formatAmount(amount: BigDecimal?, currency: String?): String? {
