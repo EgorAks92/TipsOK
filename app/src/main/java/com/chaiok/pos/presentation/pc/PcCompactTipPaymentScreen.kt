@@ -63,9 +63,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -151,6 +151,10 @@ private val PC_COMPACT_TIP_CARD_HORIZONTAL_PADDING = 12.dp
 private val PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING = 8.dp
 private const val ALFA_LOGO_BAR_PATH = "M103.67 104.898H46.3296V116.813H103.67V104.898Z"
 private const val ALFA_LOGO_A_PATH = "M85.4961 38.2743C83.8623 33.3973 81.9772 29.5459 75.519 29.5459C69.0609 29.5459 67.0582 33.381 65.3353 38.2743L47.5947 88.7108H59.3596L63.4542 76.7189H86.092L89.8907 88.7108H102.401L85.492 38.2743H85.4961ZM66.8839 66.5918L74.9272 42.6891H75.2231L82.8204 66.5918H66.8839Z"
+private const val ALFA_MARKER_UNDERLINE_PATH = "M46.3296 110.856 H103.67"
+private const val ALFA_MARKER_LEFT_LEG_PATH = "M54 88 L68 44 C70 35 72 30 75.5 30"
+private const val ALFA_MARKER_RIGHT_LEG_PATH = "M75.5 30 C79 30 82 35 84 44 L98 88"
+private const val ALFA_MARKER_CROSS_PATH = "M64 70 H87"
 private val AlfaLogoRed = Color(0xFFEF3124)
 
 @Composable
@@ -1185,7 +1189,7 @@ private fun AlfaLogoMorphingPaymentIndicator(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3600, easing = LinearEasing),
+            animation = tween(durationMillis = 3800, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "alfa_logo_loading_cycle"
@@ -1199,8 +1203,8 @@ private fun AlfaLogoMorphingPaymentIndicator(
     )
 
     val approvedEase = FastOutSlowInEasing.transform(approvedProgress.coerceIn(0f, 1f))
-    val cycleDrawProgress = (loadingCycle / 0.52f).coerceIn(0f, 1f)
-    val cycleSpinProgress = ((loadingCycle - 0.52f) / 0.48f).coerceIn(0f, 1f)
+    val cycleDrawProgress = (loadingCycle / 0.62f).coerceIn(0f, 1f)
+    val cycleSpinProgress = ((loadingCycle - 0.62f) / 0.38f).coerceIn(0f, 1f)
     val activeLogoDrawProgress = when (phase) {
         PcCompactPaymentScreenPhase.Processing -> cycleDrawProgress
         PcCompactPaymentScreenPhase.Approved -> 1f
@@ -1208,7 +1212,7 @@ private fun AlfaLogoMorphingPaymentIndicator(
         PcCompactPaymentScreenPhase.TipSelection -> 0f
     }
     val activeFillAlpha = when (phase) {
-        PcCompactPaymentScreenPhase.Processing -> ((cycleDrawProgress - 0.72f) / 0.28f).coerceIn(0f, 1f)
+        PcCompactPaymentScreenPhase.Processing -> ((cycleDrawProgress - 0.78f) / 0.22f).coerceIn(0f, 1f)
         PcCompactPaymentScreenPhase.Approved -> 1f
         PcCompactPaymentScreenPhase.Declined,
         PcCompactPaymentScreenPhase.TipSelection -> 0f
@@ -1262,31 +1266,35 @@ private fun AlfaLogoCanvas(
 ) {
     val barPath = remember { PathParser().parsePathString(ALFA_LOGO_BAR_PATH).toPath() }
     val aPath = remember { PathParser().parsePathString(ALFA_LOGO_A_PATH).toPath() }
+    val underlineMarkerPath = remember { PathParser().parsePathString(ALFA_MARKER_UNDERLINE_PATH).toPath() }
+    val leftLegMarkerPath = remember { PathParser().parsePathString(ALFA_MARKER_LEFT_LEG_PATH).toPath() }
+    val rightLegMarkerPath = remember { PathParser().parsePathString(ALFA_MARKER_RIGHT_LEG_PATH).toPath() }
+    val crossMarkerPath = remember { PathParser().parsePathString(ALFA_MARKER_CROSS_PATH).toPath() }
     Canvas(modifier = modifier) {
         val logoScaleFactor = minOf(size.width / 150f, size.height / 150f)
         val tx = (size.width - 150f * logoScaleFactor) / 2f
         val ty = (size.height - 150f * logoScaleFactor) / 2f
         translate(tx, ty) {
             scale(logoScaleFactor, logoScaleFactor, Offset.Zero) {
-                val barProgress = (drawProgress / 0.35f).coerceIn(0f, 1f)
-                val aProgress = ((drawProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
+                val underlineProgress = intervalProgress(drawProgress, 0.00f, 0.20f)
+                val leftLegProgress = intervalProgress(drawProgress, 0.16f, 0.52f)
+                val rightLegProgress = intervalProgress(drawProgress, 0.38f, 0.76f)
+                val crossProgress = intervalProgress(drawProgress, 0.68f, 0.90f)
                 val safeFillAlpha = fillAlpha.coerceIn(0f, 1f)
-                val barLeft = 46.3296f
-                val barRight = 103.67f
-                val barTop = 104.898f
-                val barBottom = 116.813f
-                val currentBarRight = barLeft + (barRight - barLeft) * barProgress
-                val revealTop = 150f * (1f - aProgress)
+                val markerAlpha = (1f - safeFillAlpha * 0.25f).coerceIn(0f, 1f)
+                val markerStyle = Stroke(width = 10f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                val markerHighlightStyle = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
-                drawPath(barPath, color.copy(alpha = 0.10f * (1f - safeFillAlpha)), style = Stroke(width = 2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                drawPath(aPath, color.copy(alpha = 0.10f * (1f - safeFillAlpha)), style = Stroke(width = 2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(underlineMarkerPath.drawSegment(underlineProgress), color.copy(alpha = 0.95f * markerAlpha), markerStyle)
+                drawPath(leftLegMarkerPath.drawSegment(leftLegProgress), color.copy(alpha = 0.95f * markerAlpha), markerStyle)
+                drawPath(rightLegMarkerPath.drawSegment(rightLegProgress), color.copy(alpha = 0.95f * markerAlpha), markerStyle)
+                drawPath(crossMarkerPath.drawSegment(crossProgress), color.copy(alpha = 0.95f * markerAlpha), markerStyle)
 
-                clipRect(barLeft, barTop, currentBarRight, barBottom) {
-                    drawPath(path = barPath, color = color)
-                }
-                clipRect(0f, revealTop, 150f, 150f) {
-                    drawPath(path = aPath, color = color)
-                }
+                drawPath(underlineMarkerPath.drawSegment(underlineProgress), Color.White.copy(alpha = 0.18f * markerAlpha), markerHighlightStyle)
+                drawPath(leftLegMarkerPath.drawSegment(leftLegProgress), Color.White.copy(alpha = 0.18f * markerAlpha), markerHighlightStyle)
+                drawPath(rightLegMarkerPath.drawSegment(rightLegProgress), Color.White.copy(alpha = 0.18f * markerAlpha), markerHighlightStyle)
+                drawPath(crossMarkerPath.drawSegment(crossProgress), Color.White.copy(alpha = 0.18f * markerAlpha), markerHighlightStyle)
+
                 if (safeFillAlpha > 0f) {
                     drawPath(path = barPath, color = color.copy(alpha = safeFillAlpha))
                     drawPath(path = aPath, color = color.copy(alpha = safeFillAlpha))
@@ -1294,6 +1302,20 @@ private fun AlfaLogoCanvas(
             }
         }
     }
+}
+
+private fun intervalProgress(value: Float, start: Float, end: Float): Float {
+    if (end <= start) return 1f
+    return ((value - start) / (end - start)).coerceIn(0f, 1f)
+}
+
+private fun Path.drawSegment(progress: Float): Path {
+    val measure = PathMeasure()
+    val dst = Path()
+    val safeProgress = progress.coerceIn(0f, 1f)
+    measure.setPath(this, false)
+    measure.getSegment(0f, measure.length * safeProgress, dst, true)
+    return dst
 }
 
 private fun DrawScope.drawAlfaRedCheck(progress: Float) {
