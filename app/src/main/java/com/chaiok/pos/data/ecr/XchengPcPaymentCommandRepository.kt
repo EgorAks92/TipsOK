@@ -216,6 +216,30 @@ class XchengPcPaymentCommandRepository(
         return sendResult
     }
 
+    override suspend fun sendArcus2StatusIfActive(
+        statusText: String,
+        settings: Arcus2NewWaySettings
+    ): Result<Unit> = lifecycleMutex.withLock {
+        if (!settings.paymentStatusKeepAliveEnabled || !settings.sendStatusMessages) {
+            return@withLock Result.success(Unit)
+        }
+        if (!activeArcus2Transaction) {
+            return@withLock Result.success(Unit)
+        }
+        if (lifecycleState != PcEcrLifecycleState.PausedForPayment && lifecycleState != PcEcrLifecycleState.Listening) {
+            return@withLock Result.success(Unit)
+        }
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        Log.i(TAG, "ARCUS2 keep-alive STATUS send text=$statusText commandId=${activeArcus2CommandId ?: "-"}")
+        val result = runCatching {
+            session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
+        }.map { Unit }
+        if (result.isFailure) {
+            Log.w(TAG, "ARCUS2 keep-alive STATUS failed text=$statusText commandId=${activeArcus2CommandId ?: "-"} error=${result.exceptionOrNull()?.message}")
+        }
+        result
+    }
+
 
     private suspend fun sendArcus2TransactionStartedWhileListening(
         settings: Arcus2NewWaySettings
@@ -516,12 +540,6 @@ class XchengPcPaymentCommandRepository(
     private fun ByteArray.toHexPreview(limit: Int = 96): String =
         take(limit).joinToString(" ") { "%02X".format(it) }
 
-    private companion object {
-        private const val TAG = "PcUsbEcrFlow"
-        private const val LISTEN_LOOP_DELAY_MS = 300L
-        private const val ERROR_VISIBLE_DELAY_MS = 2_500L
-    }
-}
     private fun isTransportFailure(message: String): Boolean =
         message.contains("USB service missing", ignoreCase = true) ||
             message.contains("USB device missing", ignoreCase = true) ||
@@ -532,3 +550,10 @@ class XchengPcPaymentCommandRepository(
         message.contains("Cash register returned ER", ignoreCase = true) ||
             message.contains("Cash register returned NAK", ignoreCase = true) ||
             message.contains("Unexpected ARCUS2 response", ignoreCase = true)
+
+    private companion object {
+        private const val TAG = "PcUsbEcrFlow"
+        private const val LISTEN_LOOP_DELAY_MS = 300L
+        private const val ERROR_VISIBLE_DELAY_MS = 2_500L
+    }
+}
