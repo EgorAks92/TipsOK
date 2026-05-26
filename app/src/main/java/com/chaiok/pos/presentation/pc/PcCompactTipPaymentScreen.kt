@@ -1285,15 +1285,47 @@ private fun AlfaLogoCanvas(
                 val markerStyle = Stroke(width = 10f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 val markerHighlightStyle = Stroke(width = 4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
-                drawPath(underlineMarkerPath.drawSegment(underlineProgress), color.copy(alpha = 0.95f * markerAlpha), markerStyle)
-                drawPath(leftLegMarkerPath.drawSegment(leftLegProgress), color.copy(alpha = 0.95f * markerAlpha), markerStyle)
-                drawPath(rightLegMarkerPath.drawSegment(rightLegProgress), color.copy(alpha = 0.95f * markerAlpha), markerStyle)
-                drawPath(crossMarkerPath.drawSegment(crossProgress), color.copy(alpha = 0.95f * markerAlpha), markerStyle)
+                drawPath(
+                    path = underlineMarkerPath.drawSegment(underlineProgress),
+                    color = color.copy(alpha = 0.95f * markerAlpha),
+                    style = markerStyle
+                )
+                drawPath(
+                    path = leftLegMarkerPath.drawSegment(leftLegProgress),
+                    color = color.copy(alpha = 0.95f * markerAlpha),
+                    style = markerStyle
+                )
+                drawPath(
+                    path = rightLegMarkerPath.drawSegment(rightLegProgress),
+                    color = color.copy(alpha = 0.95f * markerAlpha),
+                    style = markerStyle
+                )
+                drawPath(
+                    path = crossMarkerPath.drawSegment(crossProgress),
+                    color = color.copy(alpha = 0.95f * markerAlpha),
+                    style = markerStyle
+                )
 
-                drawPath(underlineMarkerPath.drawSegment(underlineProgress), Color.White.copy(alpha = 0.18f * markerAlpha), markerHighlightStyle)
-                drawPath(leftLegMarkerPath.drawSegment(leftLegProgress), Color.White.copy(alpha = 0.18f * markerAlpha), markerHighlightStyle)
-                drawPath(rightLegMarkerPath.drawSegment(rightLegProgress), Color.White.copy(alpha = 0.18f * markerAlpha), markerHighlightStyle)
-                drawPath(crossMarkerPath.drawSegment(crossProgress), Color.White.copy(alpha = 0.18f * markerAlpha), markerHighlightStyle)
+                drawPath(
+                    path = underlineMarkerPath.drawSegment(underlineProgress),
+                    color = Color.White.copy(alpha = 0.18f * markerAlpha),
+                    style = markerHighlightStyle
+                )
+                drawPath(
+                    path = leftLegMarkerPath.drawSegment(leftLegProgress),
+                    color = Color.White.copy(alpha = 0.18f * markerAlpha),
+                    style = markerHighlightStyle
+                )
+                drawPath(
+                    path = rightLegMarkerPath.drawSegment(rightLegProgress),
+                    color = Color.White.copy(alpha = 0.18f * markerAlpha),
+                    style = markerHighlightStyle
+                )
+                drawPath(
+                    path = crossMarkerPath.drawSegment(crossProgress),
+                    color = Color.White.copy(alpha = 0.18f * markerAlpha),
+                    style = markerHighlightStyle
+                )
 
                 if (safeFillAlpha > 0f) {
                     drawPath(path = barPath, color = color.copy(alpha = safeFillAlpha))
