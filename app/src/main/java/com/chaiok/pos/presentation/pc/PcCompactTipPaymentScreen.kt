@@ -131,7 +131,7 @@ private val PC_COMPACT_TIP_CARD_HORIZONTAL_PADDING = 12.dp
 private val PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING = 8.dp
 
 @Composable
-fun ExistingPcCompactTipPaymentScreenContent(
+private fun ExistingPcCompactTipPaymentScreenContent(
     state: PcCompactTipPaymentUiState,
     theme: PcCompactPaymentVisualTheme,
     onSelectTip: (Int) -> Unit,
@@ -277,6 +277,29 @@ private fun PcCompactPaymentBackground(
     theme: PcCompactPaymentVisualTheme,
     content: @Composable BoxScope.() -> Unit
 ) {
+    if (!theme.useAnimatedDefaultBackground) {
+        val background = if (error) theme.errorBackgroundBrush ?: theme.backgroundBrush else theme.backgroundBrush
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(background)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(theme.glowColor.copy(alpha = 0.08f), Color.Transparent),
+                            center = Offset(110f, 420f),
+                            radius = 520f
+                        )
+                    )
+            )
+            content()
+        }
+        return
+    }
+
     val backgroundEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
 
     val bgStart by animateColorAsState(
@@ -298,11 +321,7 @@ private fun PcCompactPaymentBackground(
     )
 
     val glowColor by animateColorAsState(
-        targetValue = if (error) {
-            Color(0xFFC8323A).copy(alpha = 0.55f)
-        } else {
-            Color(0xFF126CA4).copy(alpha = 0.55f)
-        },
+        targetValue = if (error) theme.declinedColor.copy(alpha = 0.55f) else theme.glowColor.copy(alpha = 0.55f),
         animationSpec = tween(durationMillis = 520, easing = backgroundEasing),
         label = "pc_bg_glow"
     )
@@ -1036,7 +1055,8 @@ private fun PcCompactMorphingPaymentIndicator(
                     rotation = rotation.value,
                     sweep = 292f,
                     alpha = 1f,
-                    scale = 1f
+                    scale = 1f,
+                    theme = theme
                 )
             }
 
@@ -1046,7 +1066,8 @@ private fun PcCompactMorphingPaymentIndicator(
                         rotation = spinnerRotation,
                         sweep = spinnerSweep,
                         alpha = spinnerAlpha * (0.55f + 0.45f * spinnerPhase),
-                        scale = spinnerScale
+                        scale = spinnerScale,
+                        theme = theme
                     )
                 }
 
@@ -1055,14 +1076,16 @@ private fun PcCompactMorphingPaymentIndicator(
                         progress = bridgeProgress,
                         alpha = bridgeAlpha,
                         approved = true,
-                        settle = settle
+                        settle = settle,
+                        theme = theme
                     )
                 }
 
                 if (resultProgress > 0.001f) {
                     drawNeonCheck(
                         progress = resultProgress,
-                        settle = settle
+                        settle = settle,
+                        theme = theme
                     )
                 }
             }
@@ -1073,7 +1096,8 @@ private fun PcCompactMorphingPaymentIndicator(
                         rotation = spinnerRotation,
                         sweep = spinnerSweep,
                         alpha = spinnerAlpha * (0.55f + 0.45f * spinnerPhase),
-                        scale = spinnerScale
+                        scale = spinnerScale,
+                        theme = theme
                     )
                 }
 
@@ -1082,14 +1106,16 @@ private fun PcCompactMorphingPaymentIndicator(
                         progress = bridgeProgress,
                         alpha = bridgeAlpha,
                         approved = false,
-                        settle = settle
+                        settle = settle,
+                        theme = theme
                     )
                 }
 
                 if (resultProgress > 0.001f) {
                     drawNeonCross(
                         progress = resultProgress,
-                        settle = settle
+                        settle = settle,
+                        theme = theme
                     )
                 }
             }
@@ -1101,7 +1127,8 @@ private fun DrawScope.drawNeonSpinner(
     rotation: Float,
     sweep: Float,
     alpha: Float,
-    scale: Float
+    scale: Float,
+    theme: PcCompactPaymentVisualTheme
 ) {
     val center = Offset(size.width / 2f, size.height / 2f)
     val spinnerScale = scale.coerceIn(0.92f, 1f)
@@ -1117,8 +1144,8 @@ private fun DrawScope.drawNeonSpinner(
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFF19F1D4).copy(alpha = 0.16f * alpha),
-                Color(0xFF0E8FD2).copy(alpha = 0.07f * alpha),
+                theme.processingColor.copy(alpha = 0.16f * alpha),
+                theme.accentColor.copy(alpha = 0.07f * alpha),
                 Color.Transparent
             ),
             center = center,
@@ -1138,8 +1165,8 @@ private fun DrawScope.drawNeonSpinner(
             startAngle = 34f,
             sweepAngle = sweep,
             alpha = alpha,
-            glowColor = Color(0xFF16E8D3),
-            edgeColor = Color(0xFF118BD7),
+            glowColor = theme.processingColor,
+            edgeColor = theme.accentColor,
             coreColor = Color(0xFFCFFFF8)
         )
     }
@@ -1149,7 +1176,8 @@ private fun DrawScope.drawMorphBridgeStroke(
     progress: Float,
     alpha: Float,
     approved: Boolean,
-    settle: Float
+    settle: Float,
+    theme: PcCompactPaymentVisualTheme
 ) {
     val bridgeProgress = progress.coerceIn(0f, 1f)
     val bridgeAlpha = alpha.coerceIn(0f, 1f)
@@ -1164,14 +1192,14 @@ private fun DrawScope.drawMorphBridgeStroke(
     if (approved) {
         start = Offset(size.width * 0.30f, size.height * 0.55f)
         end = Offset(size.width * 0.43f, size.height * 0.67f)
-        glowColor = Color(0xFF19F1D4)
-        edgeColor = Color(0xFF118BD7)
+        glowColor = theme.approvedColor
+        edgeColor = theme.accentColor
         coreColor = Color(0xFFCFFFF8)
     } else {
         start = Offset(size.width * 0.32f, size.height * 0.32f)
         end = Offset(size.width * 0.68f, size.height * 0.68f)
-        glowColor = Color(0xFFFF3030)
-        edgeColor = Color(0xFFFF1F1F)
+        glowColor = theme.declinedColor
+        edgeColor = theme.declinedColor
         coreColor = Color(0xFFFFA0A0)
     } 
 
@@ -1189,7 +1217,8 @@ private fun DrawScope.drawMorphBridgeStroke(
 
 private fun DrawScope.drawNeonCheck(
     progress: Float,
-    settle: Float
+    settle: Float,
+    theme: PcCompactPaymentVisualTheme
 ) {
     val p = progress.coerceIn(0f, 1f)
 
@@ -1203,8 +1232,8 @@ private fun DrawScope.drawNeonCheck(
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFF1EF3D7).copy(alpha = 0.10f * p),
-                Color(0xFF0E8FD2).copy(alpha = 0.04f * p),
+                theme.approvedColor.copy(alpha = 0.10f * p),
+                theme.accentColor.copy(alpha = 0.04f * p),
                 Color.Transparent
             ),
             center = Offset(size.width * 0.52f, size.height * 0.52f),
@@ -1221,8 +1250,8 @@ private fun DrawScope.drawNeonCheck(
         progress = first,
         alpha = p,
         settle = settle,
-        glowColor = Color(0xFF19F1D4),
-        edgeColor = Color(0xFF118BD7),
+        glowColor = theme.approvedColor,
+        edgeColor = theme.accentColor,
         coreColor = Color(0xFFCFFFF8)
     )
 
@@ -1232,8 +1261,8 @@ private fun DrawScope.drawNeonCheck(
         progress = second,
         alpha = p,
         settle = settle,
-        glowColor = Color(0xFF19F1D4),
-        edgeColor = Color(0xFF118BD7),
+        glowColor = theme.approvedColor,
+        edgeColor = theme.accentColor,
         coreColor = Color(0xFFCFFFF8)
     )
 
@@ -1317,7 +1346,8 @@ private fun DrawScope.drawNeonCheck(
 
 private fun DrawScope.drawNeonCross(
     progress: Float,
-    settle: Float
+    settle: Float,
+    theme: PcCompactPaymentVisualTheme
 ) {
     val p = progress.coerceIn(0f, 1f)
 
@@ -1333,7 +1363,7 @@ private fun DrawScope.drawNeonCross(
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFFFF2A2A).copy(alpha = 0.10f * p),
+                theme.declinedColor.copy(alpha = 0.10f * p),
                 Color.Transparent
             ),
             center = Offset(size.width * 0.50f, size.height * 0.50f),
@@ -1349,8 +1379,8 @@ private fun DrawScope.drawNeonCross(
         progress = first,
         alpha = p,
         settle = settle,
-        glowColor = Color(0xFFFF3030),
-        edgeColor = Color(0xFFFF1F1F),
+        glowColor = theme.declinedColor,
+        edgeColor = theme.declinedColor,
         coreColor = Color(0xFFFFA0A0)
     )
 
@@ -1360,8 +1390,8 @@ private fun DrawScope.drawNeonCross(
         progress = second,
         alpha = p,
         settle = settle,
-        glowColor = Color(0xFFFF3030),
-        edgeColor = Color(0xFFFF1F1F),
+        glowColor = theme.declinedColor,
+        edgeColor = theme.declinedColor,
         coreColor = Color(0xFFFFA0A0)
     )
 
@@ -1598,6 +1628,9 @@ private fun neonIntervalProgress(
     return ((progress - start) / (end - start)).coerceIn(0f, 1f)
 }
 
+private fun Color.withMultipliedAlpha(multiplier: Float): Color =
+    copy(alpha = alpha * multiplier.coerceIn(0f, 1f))
+
 @Composable
 private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTheme) {
     val ringAlpha = alpha.coerceIn(0f, 1f)
@@ -1628,8 +1661,8 @@ private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTh
             y = -44.dp.toPx()
         )
 
-        val ringColor = Color(0xFF7DE8FF)
-        val glowColor = Color(0xFF20D6D2)
+        val ringColor = theme.accentColor
+        val glowColor = theme.accentColor
 
         fun smoothWave(progress: Float): Float {
             val p = progress.coerceIn(0f, 1f)
@@ -1760,14 +1793,15 @@ private fun PcCompactServiceFeeGlassRow(
     enabled: Boolean,
     onToggle: (Boolean) -> Unit
 ) {
+    val rowAlpha = if (enabled) 1f else 0.5f
     Row(
         modifier = modifier
             .height(48.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(theme.noTipsBrush)
+            .background(theme.serviceFeeRowBrush(rowAlpha))
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.25f),
+                color = theme.serviceFeeBorderColor.withMultipliedAlpha(rowAlpha),
                 shape = RoundedCornerShape(24.dp)
             )
             .padding(horizontal = 16.dp),
@@ -1776,7 +1810,7 @@ private fun PcCompactServiceFeeGlassRow(
     ) {
         Text(
             text = text,
-            color = theme.primaryTextColor.copy(alpha = 0.92f),
+            color = theme.serviceFeeTextColor.withMultipliedAlpha(0.92f * rowAlpha),
             fontSize = 14.sp,
             fontFamily = MontserratFontFamily
         )
@@ -1786,7 +1820,7 @@ private fun PcCompactServiceFeeGlassRow(
                 .size(width = 54.dp, height = 30.dp)
                 .clip(RoundedCornerShape(15.dp))
                 .background(
-                    if (checked) theme.cardBrush else theme.serviceFeeBrush
+                    if (checked) theme.serviceFeeToggleOnBrush else theme.serviceFeeToggleOffBrush
                 )
                 .clickable(enabled = enabled) {
                     onToggle(!checked)
@@ -1876,7 +1910,7 @@ private fun PcCompactTipPresetCard(
     val shape = RoundedCornerShape(28.dp)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
 
-    val backgroundBrush = if (selected) theme.selectedTipBrush else theme.unselectedTipBrush
+    val backgroundBrush = if (selected) theme.selectedTipBrush(visualAlpha) else theme.unselectedTipBrush(visualAlpha)
 
     Box(
         modifier = Modifier
@@ -1885,7 +1919,11 @@ private fun PcCompactTipPresetCard(
             .background(backgroundBrush)
             .border(
                 width = 1.dp,
-                color = theme.borderColor.copy(alpha = if (selected) 0.9f * visualAlpha else 0.7f * visualAlpha),
+                color = if (selected) {
+                    theme.selectedBorderColor.withMultipliedAlpha(visualAlpha)
+                } else {
+                    theme.unselectedBorderColor.withMultipliedAlpha(visualAlpha)
+                },
                 shape = shape
             )
             .clickable(
@@ -1945,7 +1983,7 @@ private fun PcCompactNoTipsButton(
 ) {
     val shape = RoundedCornerShape(20.dp)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
-    val backgroundBrush = if (selected) theme.selectedTipBrush else theme.noTipsBrush
+    val backgroundBrush = if (selected) theme.noTipsSelectedBrush(visualAlpha) else theme.noTipsUnselectedBrush(visualAlpha)
     Box(
         modifier = modifier
             .size(width = 448.dp, height = 56.dp)
@@ -1953,7 +1991,11 @@ private fun PcCompactNoTipsButton(
             .background(backgroundBrush)
             .border(
                 1.dp,
-                theme.borderColor.copy(alpha = if (selected) 0.9f * visualAlpha else 0.7f * visualAlpha),
+                if (selected) {
+                    theme.noTipsSelectedBorderColor.withMultipliedAlpha(visualAlpha)
+                } else {
+                    theme.noTipsUnselectedBorderColor.withMultipliedAlpha(visualAlpha)
+                },
                 shape
             )
             .clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
@@ -1973,18 +2015,28 @@ private fun PcCompactNoTipsButton(
 
 private data class PcCompactPaymentVisualTheme(
     val backgroundBrush: Brush,
+    val errorBackgroundBrush: Brush? = null,
+    val useAnimatedDefaultBackground: Boolean = true,
+    val glowColor: Color,
     val primaryTextColor: Color,
     val secondaryTextColor: Color,
     val accentColor: Color,
-    val selectedTipBrush: Brush,
-    val unselectedTipBrush: Brush,
-    val noTipsBrush: Brush,
-    val cardBrush: Brush,
-    val serviceFeeBrush: Brush,
+    val selectedTipBrush: (Float) -> Brush,
+    val unselectedTipBrush: (Float) -> Brush,
+    val noTipsSelectedBrush: (Float) -> Brush,
+    val noTipsUnselectedBrush: (Float) -> Brush,
+    val serviceFeeRowBrush: (Float) -> Brush,
+    val serviceFeeToggleOnBrush: Brush,
+    val serviceFeeToggleOffBrush: Brush,
+    val serviceFeeTextColor: Color,
+    val serviceFeeBorderColor: Color,
+    val selectedBorderColor: Color,
+    val unselectedBorderColor: Color,
+    val noTipsSelectedBorderColor: Color,
+    val noTipsUnselectedBorderColor: Color,
     val approvedColor: Color,
     val declinedColor: Color,
     val processingColor: Color,
-    val borderColor: Color,
     val decorativeCardDrawable: Int? = null
 )
 
@@ -1996,15 +2048,25 @@ private fun rememberPcCompactPaymentVisualTheme(style: PcCompactPaymentDesignSty
 
 private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     backgroundBrush = Brush.linearGradient(listOf(Color(0xFF151D25), Color(0xFF0E5C91), Color(0xFF1B222A))),
+    useAnimatedDefaultBackground = true,
+    glowColor = Color(0xFF126CA4),
     primaryTextColor = Color.White,
     secondaryTextColor = Color.White.copy(alpha = 0.78f),
     accentColor = Color(0xFF20D6D2),
-    selectedTipBrush = Brush.verticalGradient(listOf(Color(0xFF74E8E1), Color(0xFF20B8C8))),
-    unselectedTipBrush = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.12f))),
-    noTipsBrush = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.10f))),
-    cardBrush = Brush.horizontalGradient(listOf(Color(0xFF20D6D2), Color(0xFF126CA4))),
-    serviceFeeBrush = Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.18f))),
-    approvedColor = Color(0xFF23B26D), declinedColor = Color(0xFFE94545), processingColor = Color(0xFF20D6D2), borderColor = Color.White.copy(alpha = 0.3f)
+    selectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
+    unselectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f * alpha), Color.White.copy(alpha = 0.12f * alpha))) },
+    noTipsSelectedBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
+    noTipsUnselectedBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f * alpha), Color.White.copy(alpha = 0.10f * alpha))) },
+    serviceFeeRowBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.20f * alpha), Color.White.copy(alpha = 0.20f * alpha))) },
+    serviceFeeToggleOnBrush = Brush.horizontalGradient(listOf(Color(0xFF20D6D2), Color(0xFF126CA4))),
+    serviceFeeToggleOffBrush = Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.18f))),
+    serviceFeeTextColor = Color.White,
+    serviceFeeBorderColor = Color.White.copy(alpha = 0.25f),
+    selectedBorderColor = Color.White.copy(alpha = 0.48f),
+    unselectedBorderColor = Color.White.copy(alpha = 0.34f),
+    noTipsSelectedBorderColor = Color.White.copy(alpha = 0.45f),
+    noTipsUnselectedBorderColor = Color.White.copy(alpha = 0.30f),
+    approvedColor = Color(0xFF19F1D4), declinedColor = Color(0xFFFF3030), processingColor = Color(0xFF16E8D3)
 )
 
 private val AlfaBg = Color.White
@@ -2021,17 +2083,27 @@ private val AlfaBankCardDrawable = R.drawable.ic_pc_alt_bank_card_placeholder
 
 private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     backgroundBrush = Brush.verticalGradient(listOf(AlfaBg, Color(0xFFF8FAFD))),
+    errorBackgroundBrush = Brush.verticalGradient(listOf(AlfaBg, Color(0xFFFFF6F6))),
+    useAnimatedDefaultBackground = false,
+    glowColor = AlfaRed,
     primaryTextColor = AlfaText,
     secondaryTextColor = AlfaSubText,
     accentColor = AlfaRed,
-    selectedTipBrush = Brush.verticalGradient(listOf(AlfaRed, AlfaRedDark)),
-    unselectedTipBrush = Brush.verticalGradient(listOf(AlfaPaleBlue, AlfaPaleBlue)),
-    noTipsBrush = Brush.verticalGradient(listOf(AlfaPaleBlue, AlfaPaleBlue)),
-    cardBrush = Brush.horizontalGradient(listOf(AlfaRed, AlfaRedDark)),
-    serviceFeeBrush = Brush.horizontalGradient(listOf(AlfaPaleBlue, AlfaPaleBlue)),
+    selectedTipBrush = { alpha -> Brush.verticalGradient(listOf(AlfaRed.copy(alpha = alpha), AlfaRedDark.copy(alpha = alpha))) },
+    unselectedTipBrush = { alpha -> Brush.verticalGradient(listOf(AlfaPaleBlue.copy(alpha = alpha), AlfaPaleBlue.copy(alpha = alpha))) },
+    noTipsSelectedBrush = { alpha -> Brush.verticalGradient(listOf(AlfaRed.copy(alpha = alpha), AlfaRedDark.copy(alpha = alpha))) },
+    noTipsUnselectedBrush = { alpha -> Brush.verticalGradient(listOf(AlfaPaleBlue.copy(alpha = alpha), AlfaPaleBlue.copy(alpha = alpha))) },
+    serviceFeeRowBrush = { alpha -> Brush.verticalGradient(listOf(AlfaPaleBlue.copy(alpha = alpha), AlfaPaleBlue.copy(alpha = alpha))) },
+    serviceFeeToggleOnBrush = Brush.horizontalGradient(listOf(AlfaRed, AlfaRedDark)),
+    serviceFeeToggleOffBrush = Brush.horizontalGradient(listOf(AlfaPaleBlue, AlfaPaleBlue)),
+    serviceFeeTextColor = AlfaText,
+    serviceFeeBorderColor = Color(0xFFD7E5F7),
+    selectedBorderColor = AlfaRed.copy(alpha = 0.24f),
+    unselectedBorderColor = Color(0xFFD7E5F7),
+    noTipsSelectedBorderColor = AlfaRed.copy(alpha = 0.24f),
+    noTipsUnselectedBorderColor = Color(0xFFD7E5F7),
     approvedColor = AlfaGreen,
     declinedColor = AlfaDeclineRed,
     processingColor = AlfaGreen,
-    borderColor = Color(0xFFD7E5F7),
     decorativeCardDrawable = AlfaBankCardDrawable
 )
