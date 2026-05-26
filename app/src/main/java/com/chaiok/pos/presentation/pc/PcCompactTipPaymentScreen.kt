@@ -1153,8 +1153,8 @@ private fun DrawScope.drawNeonSpinner(
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                theme.processingColor.copy(alpha = 0.16f * alpha),
-                theme.accentColor.copy(alpha = 0.07f * alpha),
+                theme.processingGlowColor.copy(alpha = 0.16f * alpha),
+                theme.processingEdgeColor.copy(alpha = 0.07f * alpha),
                 Color.Transparent
             ),
             center = center,
@@ -1174,9 +1174,9 @@ private fun DrawScope.drawNeonSpinner(
             startAngle = 34f,
             sweepAngle = sweep,
             alpha = alpha,
-            glowColor = theme.processingColor,
-            edgeColor = theme.accentColor,
-            coreColor = Color(0xFFCFFFF8)
+            glowColor = theme.processingGlowColor,
+            edgeColor = theme.processingEdgeColor,
+            coreColor = theme.processingCoreColor
         )
     }
 }
@@ -1201,15 +1201,15 @@ private fun DrawScope.drawMorphBridgeStroke(
     if (approved) {
         start = Offset(size.width * 0.30f, size.height * 0.55f)
         end = Offset(size.width * 0.43f, size.height * 0.67f)
-        glowColor = theme.approvedColor
-        edgeColor = theme.accentColor
-        coreColor = Color(0xFFCFFFF8)
+        glowColor = theme.approvedGlowColor
+        edgeColor = theme.approvedLineEdgeColor
+        coreColor = theme.approvedCoreColor
     } else {
         start = Offset(size.width * 0.32f, size.height * 0.32f)
         end = Offset(size.width * 0.68f, size.height * 0.68f)
-        glowColor = theme.declinedColor
-        edgeColor = theme.declinedColor
-        coreColor = Color(0xFFFFA0A0)
+        glowColor = theme.declinedGlowColor
+        edgeColor = theme.declinedLineEdgeColor
+        coreColor = theme.declinedCoreColor
     } 
 
     drawNeonLine(
@@ -1220,7 +1220,8 @@ private fun DrawScope.drawMorphBridgeStroke(
         settle = settle,
         glowColor = glowColor,
         edgeColor = edgeColor,
-        coreColor = coreColor
+        coreColor = coreColor,
+        highlightColor = theme.resultHighlightColor
     )
 }
 
@@ -1241,8 +1242,8 @@ private fun DrawScope.drawNeonCheck(
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                theme.approvedColor.copy(alpha = 0.10f * p),
-                theme.accentColor.copy(alpha = 0.04f * p),
+                theme.approvedGlowColor.copy(alpha = 0.10f * p),
+                theme.approvedLineEdgeColor.copy(alpha = 0.04f * p),
                 Color.Transparent
             ),
             center = Offset(size.width * 0.52f, size.height * 0.52f),
@@ -1259,9 +1260,10 @@ private fun DrawScope.drawNeonCheck(
         progress = first,
         alpha = p,
         settle = settle,
-        glowColor = theme.approvedColor,
-        edgeColor = theme.accentColor,
-        coreColor = Color(0xFFCFFFF8)
+        glowColor = theme.approvedGlowColor,
+        edgeColor = theme.approvedLineEdgeColor,
+        coreColor = theme.approvedCoreColor,
+        highlightColor = theme.resultHighlightColor
     )
 
     drawNeonLine(
@@ -1270,9 +1272,10 @@ private fun DrawScope.drawNeonCheck(
         progress = second,
         alpha = p,
         settle = settle,
-        glowColor = theme.approvedColor,
-        edgeColor = theme.accentColor,
-        coreColor = Color(0xFFCFFFF8)
+        glowColor = theme.approvedGlowColor,
+        edgeColor = theme.approvedLineEdgeColor,
+        coreColor = theme.approvedCoreColor,
+        highlightColor = theme.resultHighlightColor
     )
 
     // В конце поверх дорисовываем цельную галочку одним path,
@@ -1289,7 +1292,7 @@ private fun DrawScope.drawNeonCheck(
         // Дальнее свечение
         drawPath(
             path = checkPath,
-            color = Color(0xFF118BD7).copy(alpha = 0.040f * unifiedAlpha),
+            color = theme.approvedUnifiedEdgeColor.copy(alpha = 0.040f * unifiedAlpha),
             style = Stroke(
                 width = 52.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1300,7 +1303,7 @@ private fun DrawScope.drawNeonCheck(
         // Glow
         drawPath(
             path = checkPath,
-            color = Color(0xFF19F1D4).copy(alpha = 0.070f * unifiedAlpha),
+            color = theme.approvedGlowColor.copy(alpha = 0.070f * unifiedAlpha),
             style = Stroke(
                 width = 42.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1310,7 +1313,7 @@ private fun DrawScope.drawNeonCheck(
 
         drawPath(
             path = checkPath,
-            color = Color(0xFF19F1D4).copy(alpha = 0.145f * unifiedAlpha),
+            color = theme.approvedGlowColor.copy(alpha = 0.145f * unifiedAlpha),
             style = Stroke(
                 width = 32.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1321,7 +1324,7 @@ private fun DrawScope.drawNeonCheck(
         // Неоновое тело
         drawPath(
             path = checkPath,
-            color = Color(0xFF19F1D4).copy(alpha = 0.36f * unifiedAlpha),
+            color = theme.approvedGlowColor.copy(alpha = 0.36f * unifiedAlpha),
             style = Stroke(
                 width = 23.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1332,7 +1335,7 @@ private fun DrawScope.drawNeonCheck(
         // Светлое ядро
         drawPath(
             path = checkPath,
-            color = Color(0xFFCFFFF8).copy(alpha = 0.94f * unifiedAlpha),
+            color = theme.approvedCoreColor.copy(alpha = 0.94f * unifiedAlpha),
             style = Stroke(
                 width = 12.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1343,7 +1346,7 @@ private fun DrawScope.drawNeonCheck(
         // Тонкий highlight
         drawPath(
             path = checkPath,
-            color = Color.White.copy(alpha = 0.20f * unifiedAlpha),
+            color = theme.resultHighlightColor.copy(alpha = 0.20f * unifiedAlpha),
             style = Stroke(
                 width = 5.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1372,7 +1375,7 @@ private fun DrawScope.drawNeonCross(
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                theme.declinedColor.copy(alpha = 0.10f * p),
+                theme.declinedGlowColor.copy(alpha = 0.10f * p),
                 Color.Transparent
             ),
             center = Offset(size.width * 0.50f, size.height * 0.50f),
@@ -1388,9 +1391,10 @@ private fun DrawScope.drawNeonCross(
         progress = first,
         alpha = p,
         settle = settle,
-        glowColor = theme.declinedColor,
-        edgeColor = theme.declinedColor,
-        coreColor = Color(0xFFFFA0A0)
+        glowColor = theme.declinedGlowColor,
+        edgeColor = theme.declinedLineEdgeColor,
+        coreColor = theme.declinedCoreColor,
+        highlightColor = theme.resultHighlightColor
     )
 
     drawNeonLine(
@@ -1399,9 +1403,10 @@ private fun DrawScope.drawNeonCross(
         progress = second,
         alpha = p,
         settle = settle,
-        glowColor = theme.declinedColor,
-        edgeColor = theme.declinedColor,
-        coreColor = Color(0xFFFFA0A0)
+        glowColor = theme.declinedGlowColor,
+        edgeColor = theme.declinedLineEdgeColor,
+        coreColor = theme.declinedCoreColor,
+        highlightColor = theme.resultHighlightColor
     )
 
     val unifiedAlpha = ((p - 0.76f) / 0.24f).coerceIn(0f, 1f)
@@ -1417,7 +1422,7 @@ private fun DrawScope.drawNeonCross(
 
         drawPath(
             path = crossPath,
-            color = Color(0xFFFF1F1F).copy(alpha = 0.040f * unifiedAlpha),
+            color = theme.declinedUnifiedEdgeColor.copy(alpha = 0.040f * unifiedAlpha),
             style = Stroke(
                 width = 52.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1427,7 +1432,7 @@ private fun DrawScope.drawNeonCross(
 
         drawPath(
             path = crossPath,
-            color = Color(0xFFFF3030).copy(alpha = 0.070f * unifiedAlpha),
+            color = theme.declinedGlowColor.copy(alpha = 0.070f * unifiedAlpha),
             style = Stroke(
                 width = 42.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1437,7 +1442,7 @@ private fun DrawScope.drawNeonCross(
 
         drawPath(
             path = crossPath,
-            color = Color(0xFFFF3030).copy(alpha = 0.145f * unifiedAlpha),
+            color = theme.declinedGlowColor.copy(alpha = 0.145f * unifiedAlpha),
             style = Stroke(
                 width = 32.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1447,7 +1452,7 @@ private fun DrawScope.drawNeonCross(
 
         drawPath(
             path = crossPath,
-            color = Color(0xFFFF3030).copy(alpha = 0.36f * unifiedAlpha),
+            color = theme.declinedGlowColor.copy(alpha = 0.36f * unifiedAlpha),
             style = Stroke(
                 width = 23.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1457,7 +1462,7 @@ private fun DrawScope.drawNeonCross(
 
         drawPath(
             path = crossPath,
-            color = Color(0xFFFFA0A0).copy(alpha = 0.94f * unifiedAlpha),
+            color = theme.declinedCoreColor.copy(alpha = 0.94f * unifiedAlpha),
             style = Stroke(
                 width = 12.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1467,7 +1472,7 @@ private fun DrawScope.drawNeonCross(
 
         drawPath(
             path = crossPath,
-            color = Color.White.copy(alpha = 0.20f * unifiedAlpha),
+            color = theme.resultHighlightColor.copy(alpha = 0.20f * unifiedAlpha),
             style = Stroke(
                 width = 5.dp.toPx() * settle,
                 cap = StrokeCap.Round,
@@ -1565,7 +1570,8 @@ private fun DrawScope.drawNeonLine(
     settle: Float,
     glowColor: Color,
     edgeColor: Color,
-    coreColor: Color
+    coreColor: Color,
+    highlightColor: Color = Color.White
 ) {
     val p = progress.coerceIn(0f, 1f)
 
@@ -1621,7 +1627,7 @@ private fun DrawScope.drawNeonLine(
 
     // Тонкий почти белый highlight — он и даёт ощущение неона.
     drawLine(
-        color = Color.White.copy(alpha = 0.20f * alpha),
+        color = highlightColor.copy(alpha = 0.20f * alpha),
         start = start,
         end = currentEnd,
         strokeWidth = 5.dp.toPx() * settle,
@@ -2049,6 +2055,18 @@ private data class PcCompactPaymentVisualTheme(
     val approvedColor: Color,
     val declinedColor: Color,
     val processingColor: Color,
+    val processingCoreColor: Color,
+    val processingGlowColor: Color,
+    val processingEdgeColor: Color,
+    val approvedCoreColor: Color,
+    val approvedGlowColor: Color,
+    val approvedLineEdgeColor: Color,
+    val approvedUnifiedEdgeColor: Color,
+    val declinedCoreColor: Color,
+    val declinedGlowColor: Color,
+    val declinedLineEdgeColor: Color,
+    val declinedUnifiedEdgeColor: Color,
+    val resultHighlightColor: Color,
     val closeIconDrawable: Int,
     val closeIconTint: Color,
     val decorativeCardDrawable: Int? = null,
@@ -2085,6 +2103,18 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     noTipsSelectedBorderColor = Color.White.copy(alpha = 0.45f),
     noTipsUnselectedBorderColor = Color.White.copy(alpha = 0.30f),
     approvedColor = Color(0xFF19F1D4), declinedColor = Color(0xFFFF3030), processingColor = Color(0xFF16E8D3),
+    processingCoreColor = Color(0xFFCFFFF8),
+    processingGlowColor = Color(0xFF16E8D3),
+    processingEdgeColor = Color(0xFF20D6D2),
+    approvedCoreColor = Color(0xFFCFFFF8),
+    approvedGlowColor = Color(0xFF19F1D4),
+    approvedLineEdgeColor = Color(0xFF20D6D2),
+    approvedUnifiedEdgeColor = Color(0xFF118BD7),
+    declinedCoreColor = Color(0xFFFFA0A0),
+    declinedGlowColor = Color(0xFFFF3030),
+    declinedLineEdgeColor = Color(0xFFFF3030),
+    declinedUnifiedEdgeColor = Color(0xFFFF1F1F),
+    resultHighlightColor = Color.White,
     decorativeCardWidth = 190.dp,
     decorativeCardHeight = 122.dp
 )
@@ -2137,6 +2167,18 @@ private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     approvedColor = AlfaGreen,
     declinedColor = AlfaDeclineRed,
     processingColor = AlfaGreen,
+    processingCoreColor = Color(0xFF9BE7B9),
+    processingGlowColor = AlfaGreen,
+    processingEdgeColor = Color(0xFF0F8F52),
+    approvedCoreColor = Color(0xFF9BE7B9),
+    approvedGlowColor = AlfaGreen,
+    approvedLineEdgeColor = Color(0xFF0F8F52),
+    approvedUnifiedEdgeColor = Color(0xFF0F8F52),
+    declinedCoreColor = Color(0xFFFF8E8E),
+    declinedGlowColor = AlfaDeclineRed,
+    declinedLineEdgeColor = Color(0xFFD82929),
+    declinedUnifiedEdgeColor = Color(0xFFD82929),
+    resultHighlightColor = Color.White,
     decorativeCardDrawable = AlfaBankCardDrawable,
     decorativeCardWidth = 260.dp,
     decorativeCardHeight = 166.dp
