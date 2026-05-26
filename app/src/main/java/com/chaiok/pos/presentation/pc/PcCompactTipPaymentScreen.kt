@@ -1689,8 +1689,8 @@ private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTh
             y = -44.dp.toPx()
         )
 
-        val ringColor = theme.accentColor
-        val glowColor = theme.accentColor
+        val ringColor = theme.topRingColor
+        val glowColor = theme.topRingGlowColor
 
         fun smoothWave(progress: Float): Float {
             val p = progress.coerceIn(0f, 1f)
@@ -2052,6 +2052,8 @@ private data class PcCompactPaymentVisualTheme(
     val primaryTextColor: Color,
     val secondaryTextColor: Color,
     val accentColor: Color,
+    val topRingColor: Color,
+    val topRingGlowColor: Color,
     val selectedTipBrush: (Float) -> Brush,
     val unselectedTipBrush: (Float) -> Brush,
     val noTipsSelectedBrush: (Float) -> Brush,
@@ -2105,6 +2107,8 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     closeIconDrawable = R.drawable.ic_payment_close,
     closeIconTint = Color.Unspecified,
     accentColor = Color(0xFF20D6D2),
+    topRingColor = Color(0xFF7DE8FF),
+    topRingGlowColor = Color(0xFF20D6D2),
     selectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
     unselectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f * alpha), Color.White.copy(alpha = 0.12f * alpha))) },
     noTipsSelectedBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
@@ -2168,6 +2172,8 @@ private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     primaryTextColor = AlfaText,
     secondaryTextColor = AlfaSubText,
     accentColor = AlfaRed,
+    topRingColor = AlfaRed.copy(alpha = 0.42f),
+    topRingGlowColor = AlfaRed.copy(alpha = 0.18f),
     closeIconDrawable = R.drawable.ic_alfa_payment_close,
     closeIconTint = Color.Unspecified,
     selectedTipBrush = { alpha -> Brush.verticalGradient(listOf(AlfaRed.copy(alpha = alpha), AlfaRedDark.copy(alpha = alpha))) },
@@ -2200,7 +2206,7 @@ private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     resultHighlightColor = Color.White,
     resultIndicatorStyle = PcCompactResultIndicatorStyle.CleanLight,
     showResultRadialGlow = false,
-    showTopRings = false,
+    showTopRings = true,
     decorativeCardDrawable = AlfaBankCardDrawable,
     decorativeCardWidth = 260.dp,
     decorativeCardHeight = 166.dp
