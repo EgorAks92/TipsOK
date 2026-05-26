@@ -1182,11 +1182,28 @@ private fun AlfaLogoMorphingPaymentIndicator(
     )
 
     val isApproved = phase == PcCompactPaymentScreenPhase.Approved || resultVisual == PcCompactPaymentResultVisual.Approved
-    val drawProgress by animateFloatAsState(
-        targetValue = if (phase == PcCompactPaymentScreenPhase.Declined) 0f else 1f,
-        animationSpec = tween(durationMillis = 1050, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
-        label = "alfa_logo_draw_progress"
-    )
+    val drawProgress = remember { Animatable(0f) }
+    LaunchedEffect(phase) {
+        when (phase) {
+            PcCompactPaymentScreenPhase.Processing -> {
+                drawProgress.snapTo(0f)
+                drawProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 1050, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
+                )
+            }
+            PcCompactPaymentScreenPhase.Approved -> {
+                if (drawProgress.value < 1f) {
+                    drawProgress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 420, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
+                    )
+                }
+            }
+            PcCompactPaymentScreenPhase.Declined,
+            PcCompactPaymentScreenPhase.TipSelection -> drawProgress.snapTo(0f)
+        }
+    }
     val approvedProgress by animateFloatAsState(
         targetValue = if (isApproved) 1f else 0f,
         animationSpec = tween(durationMillis = 760, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
@@ -1196,7 +1213,7 @@ private fun AlfaLogoMorphingPaymentIndicator(
     val approvedEase = FastOutSlowInEasing.transform(approvedProgress.coerceIn(0f, 1f))
     val logoAlpha = if (isApproved) 1f - approvedEase else 1f
     val logoScale = if (isApproved) 1f - 0.22f * approvedProgress else breathingScale
-    val actualRotationY = if (drawProgress > 0.98f) rotationY * (1f - approvedProgress) else 0f
+    val actualRotationY = if (drawProgress.value > 0.98f) rotationY * (1f - approvedProgress) else 0f
     val checkProgress = ((approvedProgress - 0.18f) / 0.82f).coerceIn(0f, 1f)
 
     Box(modifier = modifier.size(144.dp), contentAlignment = Alignment.Center) {
@@ -1206,8 +1223,8 @@ private fun AlfaLogoMorphingPaymentIndicator(
             }
             else -> {
                 AlfaLogoCanvas(
-                    drawProgress = drawProgress,
-                    fillAlpha = ((drawProgress - 0.72f) / 0.28f).coerceIn(0f, 1f),
+                    drawProgress = drawProgress.value,
+                    fillAlpha = ((drawProgress.value - 0.72f) / 0.28f).coerceIn(0f, 1f),
                     color = AlfaLogoRed,
                     modifier = Modifier
                         .fillMaxSize()
@@ -1239,12 +1256,12 @@ private fun AlfaLogoCanvas(
     val barPath = remember { PathParser().parsePathString(ALFA_LOGO_BAR_PATH).toPath() }
     val aPath = remember { PathParser().parsePathString(ALFA_LOGO_A_PATH).toPath() }
     Canvas(modifier = modifier) {
-        val scale = minOf(size.width / 150f, size.height / 150f)
-        val tx = (size.width - 150f * scale) / 2f
-        val ty = (size.height - 150f * scale) / 2f
+        val logoScale = minOf(size.width / 150f, size.height / 150f)
+        val tx = (size.width - 150f * logoScale) / 2f
+        val ty = (size.height - 150f * logoScale) / 2f
         withTransform({
             translate(left = tx, top = ty)
-            scale(scaleX = scale, scaleY = scale)
+            this.scale(scaleX = logoScale, scaleY = logoScale)
         }) {
             val barProgress = (drawProgress / 0.35f).coerceIn(0f, 1f)
             val aProgress = ((drawProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
