@@ -130,7 +130,7 @@ class Arcus2NewWayProtocolAdapter(
 }
 
 private fun parseArcus2Rrn(fields: List<String>, currencyCode: String?, amountRaw: String?): String? {
-    fields.forEach { field ->
+    fields.forEachIndexed { index, field ->
         val trimmed = field.trim()
         val lower = trimmed.lowercase()
         if (lower.startsWith("rrn=") || lower.startsWith("r=")) {
@@ -144,6 +144,15 @@ private fun parseArcus2Rrn(fields: List<String>, currencyCode: String?, amountRa
                 .filter { it.isDigit() }
             if (candidate.matches(Regex("\\d{6,12}"))) {
                 return candidate
+            }
+        }
+        if (trimmed.equals("/r", ignoreCase = true)) {
+            val next = fields.getOrNull(index + 1)
+                ?.trim()
+                ?.trim('[', ']')
+                ?.filter { it.isDigit() }
+            if (next != null && next.matches(Regex("\\d{6,12}"))) {
+                return next
             }
         }
     }
@@ -164,9 +173,12 @@ private fun maskRrn(rrn: String?): String =
 private fun maskArcusField(value: String): String =
     run {
         val trimmed = value.trim()
-        val rrnSlash = Regex("(?i)/r\\d{6,12}").find(trimmed)?.value
+        val rrnSlash = Regex("(?i)/r\\[?\\d{6,12}]?").find(trimmed)?.value
         if (rrnSlash != null) {
-            val rrn = rrnSlash.drop(2)
+            val rrn = rrnSlash
+                .removePrefix("/r")
+                .removePrefix("/R")
+                .trim('[', ']')
             return@run trimmed.replace(rrnSlash, "/r${maskRrn(rrn)}")
         }
         if (trimmed.matches(Regex("\\d{6,19}"))) trimmed.takeLast(4).padStart(trimmed.length, '*')

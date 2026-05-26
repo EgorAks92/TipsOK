@@ -280,6 +280,7 @@ private fun PcCompactPaymentAnimatedRoot(
         )
         PcCompactAnimatedStatusHeader(
             amountText = state.amountText,
+            operationTitle = state.operationTitle,
             transition = transition,
             theme = theme
         )
@@ -373,6 +374,7 @@ private fun PcCompactPaymentBackground(
 @Composable
 private fun BoxScope.PcCompactAnimatedStatusHeader(
     amountText: String,
+    operationTitle: String,
     transition: Transition<PcCompactPaymentScreenPhase>,
     theme: PcCompactPaymentVisualTheme
 ) {
@@ -424,7 +426,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = state.operationTitle.lowercase(),
+                text = operationTitle.lowercase(),
                 color = theme.secondaryTextColor,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Medium,
