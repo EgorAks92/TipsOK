@@ -63,9 +63,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -1181,30 +1181,17 @@ private fun AlfaLogoMorphingPaymentIndicator(
         animationSpec = infiniteRepeatable(animation = tween(2000, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
         label = "alfa_logo_breathing"
     )
+    val loadingCycle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "alfa_logo_loading_cycle"
+    )
 
     val isApproved = phase == PcCompactPaymentScreenPhase.Approved || resultVisual == PcCompactPaymentResultVisual.Approved
-    val drawProgress = remember { Animatable(0f) }
-    LaunchedEffect(phase) {
-        when (phase) {
-            PcCompactPaymentScreenPhase.Processing -> {
-                drawProgress.snapTo(0f)
-                drawProgress.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(durationMillis = 1050, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
-                )
-            }
-            PcCompactPaymentScreenPhase.Approved -> {
-                if (drawProgress.value < 1f) {
-                    drawProgress.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = 420, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
-                    )
-                }
-            }
-            PcCompactPaymentScreenPhase.Declined,
-            PcCompactPaymentScreenPhase.TipSelection -> drawProgress.snapTo(0f)
-        }
-    }
     val approvedProgress by animateFloatAsState(
         targetValue = if (isApproved) 1f else 0f,
         animationSpec = tween(durationMillis = 760, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
@@ -1212,9 +1199,28 @@ private fun AlfaLogoMorphingPaymentIndicator(
     )
 
     val approvedEase = FastOutSlowInEasing.transform(approvedProgress.coerceIn(0f, 1f))
+    val cycleDrawProgress = (loadingCycle / 0.52f).coerceIn(0f, 1f)
+    val cycleSpinProgress = ((loadingCycle - 0.52f) / 0.48f).coerceIn(0f, 1f)
+    val activeLogoDrawProgress = when (phase) {
+        PcCompactPaymentScreenPhase.Processing -> cycleDrawProgress
+        PcCompactPaymentScreenPhase.Approved -> 1f
+        PcCompactPaymentScreenPhase.Declined,
+        PcCompactPaymentScreenPhase.TipSelection -> 0f
+    }
+    val activeFillAlpha = when (phase) {
+        PcCompactPaymentScreenPhase.Processing -> ((cycleDrawProgress - 0.72f) / 0.28f).coerceIn(0f, 1f)
+        PcCompactPaymentScreenPhase.Approved -> 1f
+        PcCompactPaymentScreenPhase.Declined,
+        PcCompactPaymentScreenPhase.TipSelection -> 0f
+    }
     val logoAlpha = if (isApproved) 1f - approvedEase else 1f
     val logoScale = if (isApproved) 1f - 0.22f * approvedProgress else breathingScale
-    val actualRotationY = if (drawProgress.value > 0.98f) rotationY * (1f - approvedProgress) else 0f
+    val actualRotationY = when (phase) {
+        PcCompactPaymentScreenPhase.Processing -> if (cycleDrawProgress >= 0.98f) 360f * cycleSpinProgress else 0f
+        PcCompactPaymentScreenPhase.Approved -> rotationY * (1f - approvedProgress)
+        PcCompactPaymentScreenPhase.Declined,
+        PcCompactPaymentScreenPhase.TipSelection -> 0f
+    }
     val checkProgress = ((approvedProgress - 0.18f) / 0.82f).coerceIn(0f, 1f)
 
     Box(modifier = modifier.size(144.dp), contentAlignment = Alignment.Center) {
@@ -1224,8 +1230,8 @@ private fun AlfaLogoMorphingPaymentIndicator(
             }
             else -> {
                 AlfaLogoCanvas(
-                    drawProgress = drawProgress.value,
-                    fillAlpha = ((drawProgress.value - 0.72f) / 0.28f).coerceIn(0f, 1f),
+                    drawProgress = activeLogoDrawProgress,
+                    fillAlpha = activeFillAlpha,
                     color = AlfaLogoRed,
                     modifier = Modifier
                         .fillMaxSize()
@@ -1264,10 +1270,27 @@ private fun AlfaLogoCanvas(
             scale(logoScaleFactor, logoScaleFactor, Offset.Zero) {
                 val barProgress = (drawProgress / 0.35f).coerceIn(0f, 1f)
                 val aProgress = ((drawProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
-                drawPath(barPath.partial(barProgress), color, style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                drawPath(aPath.partial(aProgress), color, style = Stroke(width = 5f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                drawPath(barPath, color.copy(alpha = fillAlpha.coerceIn(0f, 1f)))
-                drawPath(aPath, color.copy(alpha = fillAlpha.coerceIn(0f, 1f)))
+                val safeFillAlpha = fillAlpha.coerceIn(0f, 1f)
+                val barLeft = 46.3296f
+                val barRight = 103.67f
+                val barTop = 104.898f
+                val barBottom = 116.813f
+                val currentBarRight = barLeft + (barRight - barLeft) * barProgress
+                val revealTop = 150f * (1f - aProgress)
+
+                drawPath(barPath, color.copy(alpha = 0.10f * (1f - safeFillAlpha)), style = Stroke(width = 2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(aPath, color.copy(alpha = 0.10f * (1f - safeFillAlpha)), style = Stroke(width = 2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+                clipRect(barLeft, barTop, currentBarRight, barBottom) {
+                    drawPath(path = barPath, color = color)
+                }
+                clipRect(0f, revealTop, 150f, 150f) {
+                    drawPath(path = aPath, color = color)
+                }
+                if (safeFillAlpha > 0f) {
+                    drawPath(path = barPath, color = color.copy(alpha = safeFillAlpha))
+                    drawPath(path = aPath, color = color.copy(alpha = safeFillAlpha))
+                }
             }
         }
     }
@@ -1291,15 +1314,6 @@ private fun DrawScope.drawAlfaRedCheck(progress: Float) {
         drawPath(path, AlfaLogoRed.copy(alpha = 0.95f * unifiedAlpha), style = Stroke(width = 12.dp.toPx() * settle, cap = StrokeCap.Round, join = StrokeJoin.Round))
         drawPath(path, Color.White.copy(alpha = 0.20f * unifiedAlpha), style = Stroke(width = 4.dp.toPx() * settle, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
-}
-
-private fun Path.partial(progress: Float): Path {
-    val measure = PathMeasure()
-    val dst = Path()
-    val safeProgress = progress.coerceIn(0f, 1f)
-    measure.setPath(this, false)
-    measure.getSegment(0f, measure.length * safeProgress, dst, true)
-    return dst
 }
 
 private fun DrawScope.drawNeonSpinner(
