@@ -161,14 +161,14 @@ private fun ExistingPcCompactTipPaymentScreenContent(
     val visibleResultVisual = remember { mutableStateOf(PcCompactPaymentResultVisual.None) }
     val pendingResultVisual = remember { mutableStateOf<PcCompactPaymentResultVisual?>(null) }
 
-    val processingRequested = !state.canChangeTips &&
-            !state.isRestartingPayment &&
-            (
-                    state.paymentStage == CardPresentingStage.CardDetected ||
-                            state.paymentStage == CardPresentingStage.Processing ||
-                            state.paymentStage == CardPresentingStage.PinRequired ||
-                            state.paymentStage == CardPresentingStage.Cancelling
-                    )
+    val processingRequested =
+        !state.isRestartingPayment &&
+                state.paymentStage in setOf(
+            CardPresentingStage.CardDetected,
+            CardPresentingStage.Processing,
+            CardPresentingStage.PinRequired,
+            CardPresentingStage.Cancelling
+        )
 
     val realResultVisual = when {
         state.paymentStage == CardPresentingStage.Approved -> {
@@ -456,6 +456,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
+    val isCancelPrevious = state.operationType == PcEcrOperationType.CANCEL_PREVIOUS
     val phase = transition.targetState
     val showCustomTipDialog = remember { mutableStateOf(false) }
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)

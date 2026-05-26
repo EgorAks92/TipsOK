@@ -511,7 +511,13 @@ class PcCompactTipPaymentViewModel(
     }
 
     private suspend fun startCancelPreviousPayment(reason: String, expectedGeneration: Long = generation): Boolean {
-        if (terminalId.isBlank()) return false
+        if (terminalId.isBlank()) {
+            Log.e(TAG, "Cancel previous operation terminalId missing")
+            sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Error("Terminal data missing"))
+            resumePcEcrAfterPayment("cancel_previous_terminal_missing")
+            _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+            return false
+        }
         val rrn = sourceRrnNormalized
         if (rrn.isNullOrBlank()) {
             Log.e(TAG, "Cancel previous operation requested without RRN")

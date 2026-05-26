@@ -116,9 +116,12 @@ class Arcus2NewWayProtocolAdapter(
             cls == s.settlementClass && op == s.settlementOp -> EcrParseResult.Command(PcEcrCommand.Settlement(null, protocol))
             cls == s.universalReversalClass && op == s.universalReversalOp -> {
                 val rrn = parseArcus2Rrn(fields, currencyCode, amountRaw)
-                Log.i("Arcus2Adapter", "reversal fieldsCount=${fields.size} rrnMasked=${maskRrn(rrn)}")
+                Log.i("Arcus2Adapter", "reversal fields=${fields.map(::maskArcusField)} rrnMasked=${maskRrn(rrn)}")
                 if (rrn.isNullOrBlank()) EcrParseResult.Error("ARCUS2 reversal RRN missing")
-                else EcrParseResult.Command(PcEcrCommand.Reversal(null, protocol, null, rrn, parseArcus2ReversalAmount(amountRaw, currency), currency))
+                else {
+                    val commandId = "ARCUS2-REVERSAL-${rrn.takeLast(4)}-${System.currentTimeMillis()}"
+                    EcrParseResult.Command(PcEcrCommand.Reversal(commandId, protocol, null, rrn, parseArcus2ReversalAmount(amountRaw, currency), currency))
+                }
             }
             cls == s.refundClass && op == s.refundOp -> EcrParseResult.Command(PcEcrCommand.Refund(null, protocol, amountRaw?.toBigDecimalOrNull(), currency))
             else -> EcrParseResult.Unknown("Unsupported class/op", bytes.toHexPreview())
@@ -137,11 +140,19 @@ private fun parseArcus2Rrn(fields: List<String>, currencyCode: String?, amountRa
     return fields
         .drop(2)
         .map { it.trim() }
-        .firstOrNull { it.matches(Regex("\\d{6,12}")) && it != currencyCode && it != amountRaw }
+        .firstOrNull {
+            it.matches(Regex("\\d{6,12}")) &&
+                    it != currencyCode &&
+                    it != amountRaw &&
+                    it != amountRaw.orEmpty().replace(".", "").replace(",", "")
+        }
 }
 
 private fun maskRrn(rrn: String?): String =
     rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
+
+private fun maskArcusField(value: String): String =
+    if (value.matches(Regex("\\d{6,19}"))) value.takeLast(4).padStart(value.length, '*') else value.take(32)
 
 private fun parseArcus2ReversalAmount(raw: String?, currency: String?): BigDecimal? {
     val n = raw?.trim()?.toBigDecimalOrNull() ?: return null

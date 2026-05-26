@@ -423,7 +423,7 @@ class XchengPcPaymentCommandRepository(
                                         lifecycleState = PcEcrLifecycleState.PausedForPayment
                                         status.value = PcUsbConnectionStatus.Idle
                                     }
-                                    PcPaymentCommand(amount = cmd.amount ?: BigDecimal.ZERO, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=****", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = cmd.rrn)
+                                    PcPaymentCommand(amount = cmd.amount ?: BigDecimal.ZERO, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=${cmd.rrn?.takeLast(4) ?: "missing"}", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = cmd.rrn)
                                 }
                             }
                         }
