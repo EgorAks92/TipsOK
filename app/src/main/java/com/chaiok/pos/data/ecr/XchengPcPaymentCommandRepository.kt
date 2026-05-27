@@ -451,6 +451,7 @@ class XchengPcPaymentCommandRepository(
                             }
                         }
                         is PcEcrCommand.Refund, is PcEcrCommand.Settlement -> {
+                            // TODO: enable refundAdditionalDataEnabled only when REFUND business flow is implemented.
                             Log.i(TAG, "ARCUS2 operation parsed but unsupported type=${cmd.javaClass.simpleName.uppercase()}")
                             // TODO: apply additional data resolver when REFUND/SETTLEMENT business flow is implemented.
                             val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "Unsupported ARCUS2 operation")
@@ -582,25 +583,37 @@ class XchengPcPaymentCommandRepository(
 
         val tags = linkedMapOf<String, String>()
         for (frame in responses) {
-            val text = frame.text
-            Log.i(logTag, "ARCUS2 additional data response=${maskArcusText(text)} raw=${frame.data.toHexPreview(48)}")
-            when (text.trim()) {
-                "OK" -> Unit
-                "ER", "NAK" -> Log.w(logTag, "ARCUS2 additional data returned ${text.trim()}")
-                else -> {
-                    tags.putAll(parseArcus2Tags(text))
-                    tags.putAll(
-                        parseArcus2OwTags(
-                            data = frame.data,
-                            rrnOwTagIdsCsv = rrnOwTagIdsCsv,
-                            amountOwTagIdsCsv = amountOwTagIdsCsv,
-                            currencyOwTagIdsCsv = currencyOwTagIdsCsv,
-                            terminalIdOwTagIdsCsv = terminalIdOwTagIdsCsv,
-                            responseCodeOwTagIdsCsv = responseCodeOwTagIdsCsv
-                        )
-                    )
-                }
+            val text = frame.text.trim()
+            if (text == "OK") {
+                Log.i(logTag, "ARCUS2 additional data response=OK rawBytes=${frame.data.size}")
+                continue
             }
+
+            if (text == "ER" || text == "NAK") {
+                Log.w(logTag, "ARCUS2 additional data returned $text rawBytes=${frame.data.size}")
+                continue
+            }
+
+            val textTags = parseArcus2Tags(frame.text)
+            val binaryTags = parseArcus2OwTags(
+                data = frame.data,
+                rrnOwTagIdsCsv = rrnOwTagIdsCsv,
+                amountOwTagIdsCsv = amountOwTagIdsCsv,
+                currencyOwTagIdsCsv = currencyOwTagIdsCsv,
+                terminalIdOwTagIdsCsv = terminalIdOwTagIdsCsv,
+                responseCodeOwTagIdsCsv = responseCodeOwTagIdsCsv
+            )
+
+            Log.i(
+                logTag,
+                "ARCUS2 additional data response=${maskArcusText(frame.text)} " +
+                    "rawBytes=${frame.data.size} " +
+                    "textTags=${maskArcusTags(textTags)} " +
+                    "owTags=${maskArcusTags(binaryTags)}"
+            )
+
+            tags.putAll(textTags)
+            tags.putAll(binaryTags)
         }
 
         val data = buildArcus2AdditionalData(tags, settings)
@@ -667,7 +680,10 @@ class XchengPcPaymentCommandRepository(
                     if ((b and 0x80) == 0) break
                 }
             }
-            if (index >= data.size) break
+            if (index >= data.size) {
+                Log.w(TAG, "ARCUS2 OWTags parse stopped: malformed tag at index=$index size=${data.size}")
+                break
+            }
 
             val tag = data.copyOfRange(tagStart, index).toHexString()
             val lengthByte = data[index].toInt() and 0xFF
@@ -677,7 +693,10 @@ class XchengPcPaymentCommandRepository(
                 lengthByte
             } else {
                 val count = lengthByte and 0x7F
-                if (count == 0 || index + count > data.size) break
+                if (count == 0 || index + count > data.size) {
+                    Log.w(TAG, "ARCUS2 OWTags parse stopped: malformed long length tag=$tag index=$index count=$count size=${data.size}")
+                    break
+                }
                 var acc = 0
                 repeat(count) {
                     acc = (acc shl 8) or (data[index].toInt() and 0xFF)
@@ -686,7 +705,10 @@ class XchengPcPaymentCommandRepository(
                 acc
             }
 
-            if (length < 0 || index + length > data.size) break
+            if (length < 0 || index + length > data.size) {
+                Log.w(TAG, "ARCUS2 OWTags parse stopped: length exceeds buffer tag=$tag index=$index length=$length size=${data.size}")
+                break
+            }
             val value = data.copyOfRange(index, index + length)
             index += length
             val normalizedTag = tag.uppercase()
@@ -804,9 +826,6 @@ class XchengPcPaymentCommandRepository(
             .trim('\u0000', ' ', '\n', '\r', '\t')
 
     private fun ByteArray.toHexString(): String = joinToString("") { "%02X".format(it.toInt() and 0xFF) }
-
-    private fun ByteArray.toHexPreview(maxBytes: Int): String =
-        take(maxBytes).joinToString("") { "%02X".format(it.toInt() and 0xFF) } + if (size > maxBytes) "..." else ""
 
     private suspend fun updateArcusListeningState(
         result: Result<Unit>,

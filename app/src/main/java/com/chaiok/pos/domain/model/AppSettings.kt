@@ -44,7 +44,7 @@ data class Arcus2NewWaySettings(
     val additionalDataMaxFrames: Int = 2,
     val saleAdditionalDataEnabled: Boolean = false,
     val reversalAdditionalDataEnabled: Boolean = true,
-    val refundAdditionalDataEnabled: Boolean = true,
+    val refundAdditionalDataEnabled: Boolean = false,
     val settlementAdditionalDataEnabled: Boolean = false,
     val rrnTagKeysCsv: String = "rrn,r",
     val amountTagKeysCsv: String = "amount,a",
