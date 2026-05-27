@@ -466,6 +466,7 @@ class PcCompactTipPaymentViewModel(
         Log.i(TAG, "USER_CANCEL requested operationType=$operationType stage=${state.paymentStage}")
 
         userCancelInProgress = true
+        paymentJob?.cancel()
         cancelEventSent = false
         cancelDeclinedAutoClose()
         tipSelectionDebounceJob?.cancel()
@@ -498,7 +499,6 @@ class PcCompactTipPaymentViewModel(
                 Log.i(TAG, "USER_CANCEL terminal cancel success")
             }
             Log.i(TAG, "USER_CANCEL arcus final cancelled send start")
-            paymentJob?.cancel()
             sendCancelledByUserOnce()
         }
     }
