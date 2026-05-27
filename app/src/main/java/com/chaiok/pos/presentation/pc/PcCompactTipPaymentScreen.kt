@@ -1,5 +1,6 @@
 package com.chaiok.pos.presentation.pc
 
+import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -82,6 +83,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
@@ -296,6 +298,44 @@ private fun PcCompactPaymentAnimatedRoot(
         PcCompactPaymentStatusOverlay(
             transition = transition,
             theme = theme
+        )
+        PcCompactPersistentCancelOverlay(
+            state = state,
+            theme = theme,
+            onCancel = onCancel
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.PcCompactPersistentCancelOverlay(
+    state: PcCompactTipPaymentUiState,
+    theme: PcCompactPaymentVisualTheme,
+    onCancel: () -> Unit
+) {
+    val show = state.canCancel
+    if (!show) return
+
+    Box(
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+            .padding(top = 8.dp, end = 8.dp)
+            .size(56.dp)
+            .zIndex(10f)
+            .clickable {
+                Log.i(
+                    "PcCompactTipPayment",
+                    "UI cancel icon clicked operationType=${state.operationType} stage=${state.paymentStage} canCancel=${state.canCancel}"
+                )
+                onCancel()
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(id = theme.closeIconDrawable),
+            contentDescription = "Cancel operation",
+            tint = theme.closeIconTint,
+            modifier = Modifier.size(24.dp)
         )
     }
 }
@@ -521,22 +561,6 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             }
     ) {
         PcCompactTipSelectionWavesLayer(transition = transition, theme = theme)
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 24.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = theme.closeIconDrawable),
-                contentDescription = null,
-                tint = theme.closeIconTint,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(24.dp)
-                    .clickable(onClick = onCancel)
-            )
-        }
 
         Column(
             modifier = Modifier.padding(start = 32.dp, top = 158.dp)
