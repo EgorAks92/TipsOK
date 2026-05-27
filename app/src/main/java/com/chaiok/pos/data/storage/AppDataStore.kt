@@ -74,6 +74,20 @@ class AppDataStore(private val context: Context) {
         val arcus2ProcessingStatusText = stringPreferencesKey("arcus2_processing_status_text")
         val arcus2PinRequiredStatusText = stringPreferencesKey("arcus2_pin_required_status_text")
         val arcus2CancellingStatusText = stringPreferencesKey("arcus2_cancelling_status_text")
+        val arcus2AdditionalDataRequestEnabled = booleanPreferencesKey("arcus2_additional_data_request_enabled")
+        val arcus2AdditionalDataRequestCommand = stringPreferencesKey("arcus2_additional_data_request_command")
+        val arcus2AdditionalDataReadTimeoutMs = longPreferencesKey("arcus2_additional_data_read_timeout_ms")
+        val arcus2AdditionalDataMaxFrames = intPreferencesKey("arcus2_additional_data_max_frames")
+        val arcus2SaleAdditionalDataEnabled = booleanPreferencesKey("arcus2_sale_additional_data_enabled")
+        val arcus2ReversalAdditionalDataEnabled = booleanPreferencesKey("arcus2_reversal_additional_data_enabled")
+        val arcus2RefundAdditionalDataEnabled = booleanPreferencesKey("arcus2_refund_additional_data_enabled")
+        val arcus2SettlementAdditionalDataEnabled = booleanPreferencesKey("arcus2_settlement_additional_data_enabled")
+        val arcus2RrnTagKeysCsv = stringPreferencesKey("arcus2_rrn_tag_keys_csv")
+        val arcus2AmountTagKeysCsv = stringPreferencesKey("arcus2_amount_tag_keys_csv")
+        val arcus2CurrencyTagKeysCsv = stringPreferencesKey("arcus2_currency_tag_keys_csv")
+        val arcus2OrderIdTagKeysCsv = stringPreferencesKey("arcus2_order_id_tag_keys_csv")
+        val arcus2ReceiptNumberTagKeysCsv = stringPreferencesKey("arcus2_receipt_number_tag_keys_csv")
+        val arcus2AuthCodeTagKeysCsv = stringPreferencesKey("arcus2_auth_code_tag_keys_csv")
     }
 
     val integrationModeFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.integrationMode] ?: false }
@@ -133,7 +147,21 @@ class AppDataStore(private val context: Context) {
             cardDetectedStatusText = p[Keys.arcus2CardDetectedStatusText] ?: d.cardDetectedStatusText,
             processingStatusText = p[Keys.arcus2ProcessingStatusText] ?: d.processingStatusText,
             pinRequiredStatusText = p[Keys.arcus2PinRequiredStatusText] ?: d.pinRequiredStatusText,
-            cancellingStatusText = p[Keys.arcus2CancellingStatusText] ?: d.cancellingStatusText
+            cancellingStatusText = p[Keys.arcus2CancellingStatusText] ?: d.cancellingStatusText,
+            additionalDataRequestEnabled = p[Keys.arcus2AdditionalDataRequestEnabled] ?: d.additionalDataRequestEnabled,
+            additionalDataRequestCommand = p[Keys.arcus2AdditionalDataRequestCommand] ?: d.additionalDataRequestCommand,
+            additionalDataReadTimeoutMs = p[Keys.arcus2AdditionalDataReadTimeoutMs] ?: d.additionalDataReadTimeoutMs,
+            additionalDataMaxFrames = p[Keys.arcus2AdditionalDataMaxFrames] ?: d.additionalDataMaxFrames,
+            saleAdditionalDataEnabled = p[Keys.arcus2SaleAdditionalDataEnabled] ?: d.saleAdditionalDataEnabled,
+            reversalAdditionalDataEnabled = p[Keys.arcus2ReversalAdditionalDataEnabled] ?: d.reversalAdditionalDataEnabled,
+            refundAdditionalDataEnabled = p[Keys.arcus2RefundAdditionalDataEnabled] ?: d.refundAdditionalDataEnabled,
+            settlementAdditionalDataEnabled = p[Keys.arcus2SettlementAdditionalDataEnabled] ?: d.settlementAdditionalDataEnabled,
+            rrnTagKeysCsv = p[Keys.arcus2RrnTagKeysCsv] ?: d.rrnTagKeysCsv,
+            amountTagKeysCsv = p[Keys.arcus2AmountTagKeysCsv] ?: d.amountTagKeysCsv,
+            currencyTagKeysCsv = p[Keys.arcus2CurrencyTagKeysCsv] ?: d.currencyTagKeysCsv,
+            orderIdTagKeysCsv = p[Keys.arcus2OrderIdTagKeysCsv] ?: d.orderIdTagKeysCsv,
+            receiptNumberTagKeysCsv = p[Keys.arcus2ReceiptNumberTagKeysCsv] ?: d.receiptNumberTagKeysCsv,
+            authCodeTagKeysCsv = p[Keys.arcus2AuthCodeTagKeysCsv] ?: d.authCodeTagKeysCsv
         )
     }
 
@@ -181,6 +209,20 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2ProcessingStatusText] = value.processingStatusText
         it[Keys.arcus2PinRequiredStatusText] = value.pinRequiredStatusText
         it[Keys.arcus2CancellingStatusText] = value.cancellingStatusText
+        it[Keys.arcus2AdditionalDataRequestEnabled] = value.additionalDataRequestEnabled
+        it[Keys.arcus2AdditionalDataRequestCommand] = value.additionalDataRequestCommand
+        it[Keys.arcus2AdditionalDataReadTimeoutMs] = value.additionalDataReadTimeoutMs
+        it[Keys.arcus2AdditionalDataMaxFrames] = value.additionalDataMaxFrames
+        it[Keys.arcus2SaleAdditionalDataEnabled] = value.saleAdditionalDataEnabled
+        it[Keys.arcus2ReversalAdditionalDataEnabled] = value.reversalAdditionalDataEnabled
+        it[Keys.arcus2RefundAdditionalDataEnabled] = value.refundAdditionalDataEnabled
+        it[Keys.arcus2SettlementAdditionalDataEnabled] = value.settlementAdditionalDataEnabled
+        it[Keys.arcus2RrnTagKeysCsv] = value.rrnTagKeysCsv
+        it[Keys.arcus2AmountTagKeysCsv] = value.amountTagKeysCsv
+        it[Keys.arcus2CurrencyTagKeysCsv] = value.currencyTagKeysCsv
+        it[Keys.arcus2OrderIdTagKeysCsv] = value.orderIdTagKeysCsv
+        it[Keys.arcus2ReceiptNumberTagKeysCsv] = value.receiptNumberTagKeysCsv
+        it[Keys.arcus2AuthCodeTagKeysCsv] = value.authCodeTagKeysCsv
     }
     suspend fun setTipRange(value: TipRange) = context.dataStore.edit {
         it[Keys.tipRangePercents] = value.percents.joinToString(",")

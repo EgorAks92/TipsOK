@@ -11,6 +11,7 @@ import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcEcrCommand
 import java.math.BigDecimal
+import java.math.RoundingMode
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.repository.SettingsRepository
 import android.content.Context
@@ -27,6 +28,13 @@ class XchengPcPaymentCommandRepository(
     private val settingsRepository: SettingsRepository,
     context: Context
 ) : PcPaymentCommandRepository {
+    private data class Arcus2AdditionalData(
+        val rrn: String? = null,
+        val amount: BigDecimal? = null,
+        val currency: String? = null,
+        val orderId: String? = null,
+        val rawTags: Map<String, String> = emptyMap()
+    )
 
     // TODO: wire enableRawArcus2Log from AppSettings into logger creation dynamically
     private val rawLogger = Arcus2RawFrameLogger(context)
@@ -383,7 +391,15 @@ class XchengPcPaymentCommandRepository(
                 when (val parsed = adapter.parseIncoming(bytes)) {
                     is EcrParseResult.Command -> when (val cmd = parsed.command) {
                         is PcEcrCommand.Payment -> {
-                            Log.i(TAG, "ARCUS2 IN sale command parsed commandId=${cmd.commandId ?: "-"} amount=${cmd.amount} currency=${cmd.currency}")
+                            val resolved = resolveArcus2FinancialCommand(cmd, settings.arcus2NewWaySettings)
+                            val amount = resolved.amount
+                            val currency = resolved.currency
+                            Log.i(TAG, "ARCUS2 primary command parsed type=SALE amount=$amount currency=$currency rrnMasked=${resolved.rrn?.takeLast(4)?.padStart(resolved.rrn.length, '*') ?: "<missing>"}")
+                            if (amount == null || currency == null) {
+                                val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найдена сумма")
+                                updateArcusListeningState(r, "arcus2 sale amount missing")
+                                return@when null
+                            }
                             Log.i(TAG, "ARCUS2 start sequence commandId=${cmd.commandId ?: "-"} commands=BEGINTR,STATUS waitOk=${settings.arcus2NewWaySettings.waitOkAfterEachCommand}")
                             val startResult = sendArcus2TransactionStartedWhileListening(settings.arcus2NewWaySettings)
                             if (startResult.isFailure) {
@@ -398,7 +414,7 @@ class XchengPcPaymentCommandRepository(
                                 }
                                 Log.i(TAG, "ARCUS2 active transaction started commandId=${cmd.commandId ?: "-"}")
                                 Log.i(TAG, "ARCUS2 payment command accepted commandId=${cmd.commandId ?: "-"}")
-                                PcPaymentCommand(amount = cmd.amount, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
+                                PcPaymentCommand(amount = amount, commandId = cmd.commandId, orderId = resolved.orderId ?: cmd.orderId, currency = currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
                             }
                         }
                         is PcEcrCommand.Ping -> {
@@ -407,7 +423,8 @@ class XchengPcPaymentCommandRepository(
                             null
                         }
                         is PcEcrCommand.Reversal -> {
-                            if (cmd.rrn.isNullOrBlank()) {
+                            val resolved = resolveArcus2FinancialCommand(cmd, settings.arcus2NewWaySettings)
+                            if (resolved.rrn.isNullOrBlank()) {
                                 val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найден RRN")
                                 updateArcusListeningState(r, "arcus2 reversal rrn missing")
                                 null
@@ -423,7 +440,7 @@ class XchengPcPaymentCommandRepository(
                                         lifecycleState = PcEcrLifecycleState.PausedForPayment
                                         status.value = PcUsbConnectionStatus.Idle
                                     }
-                                    PcPaymentCommand(amount = cmd.amount ?: BigDecimal.ZERO, commandId = cmd.commandId, orderId = cmd.orderId, currency = cmd.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=${cmd.rrn?.takeLast(4) ?: "missing"}", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = cmd.rrn)
+                                    PcPaymentCommand(amount = resolved.amount ?: BigDecimal.ZERO, commandId = cmd.commandId, orderId = resolved.orderId ?: cmd.orderId, currency = resolved.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=${resolved.rrn?.takeLast(4) ?: "missing"}", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = resolved.rrn)
                                 }
                             }
                         }
@@ -473,6 +490,95 @@ class XchengPcPaymentCommandRepository(
             commands.emit(command)
         } else {
             Log.w(TAG, "payload received but parser returned null. hex=${bytes.toHexPreview()}")
+        }
+    }
+
+    private suspend fun resolveArcus2FinancialCommand(
+        cmd: PcEcrCommand,
+        settings: Arcus2NewWaySettings
+    ): Arcus2AdditionalData {
+        val shouldRequest = when (cmd) {
+            is PcEcrCommand.Payment -> settings.saleAdditionalDataEnabled
+            is PcEcrCommand.Reversal -> settings.reversalAdditionalDataEnabled || cmd.rrn.isNullOrBlank()
+            else -> false
+        }
+        val additional = if (shouldRequest) requestArcus2AdditionalData(settings, cmd::class.simpleName ?: "unknown") else Arcus2AdditionalData()
+        return when (cmd) {
+            is PcEcrCommand.Payment -> Arcus2AdditionalData(
+                amount = cmd.amount,
+                currency = cmd.currency,
+                orderId = cmd.orderId ?: additional.orderId,
+                rrn = additional.rrn,
+                rawTags = additional.rawTags
+            )
+            is PcEcrCommand.Reversal -> Arcus2AdditionalData(
+                rrn = cmd.rrn ?: additional.rrn,
+                amount = cmd.amount ?: additional.amount,
+                currency = cmd.currency ?: additional.currency,
+                orderId = cmd.orderId ?: additional.orderId,
+                rawTags = additional.rawTags
+            )
+            else -> Arcus2AdditionalData()
+        }
+    }
+
+    private suspend fun requestArcus2AdditionalData(settings: Arcus2NewWaySettings, reason: String): Arcus2AdditionalData {
+        if (!settings.additionalDataRequestEnabled) return Arcus2AdditionalData()
+        Log.i(TAG, "ARCUS2 additional data request start reason=$reason")
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings)
+        val send = session.sendCommandAndWaitOk(settings.additionalDataRequestCommand)
+        if (send.isFailure) return Arcus2AdditionalData()
+        val tags = linkedMapOf<String, String>()
+        repeat(settings.additionalDataMaxFrames.coerceAtLeast(1)) {
+            val bytes = client.receiveOnce(settings.additionalDataReadTimeoutMs).getOrNull() ?: return@repeat
+            val frames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
+            frames.forEach { frame ->
+                val text = decodeWin1251(frame.data).trim('\u0000', ' ', '\n', '\r', '\t')
+                tags.putAll(parseArcus2Tags(text))
+            }
+        }
+        return buildArcus2AdditionalData(tags, settings)
+    }
+
+    private fun parseArcus2Tags(text: String): Map<String, String> {
+        val payload = text.substringAfter(':', text)
+        val parts = payload.split(';', '&', '\u001B', '\n', '\r').map { it.trim() }.filter { it.isNotBlank() }
+        val out = linkedMapOf<String, String>()
+        parts.forEach { p ->
+            if (p.contains("=")) out[p.substringBefore('=').trim().lowercase()] = p.substringAfter('=').trim()
+            if (p.startsWith("/r", ignoreCase = true)) out["rrn"] = p.drop(2).trim('[', ']').filter(Char::isDigit)
+        }
+        return out
+    }
+
+    private fun buildArcus2AdditionalData(tags: Map<String, String>, settings: Arcus2NewWaySettings): Arcus2AdditionalData {
+        val rrnRaw = findFirstTag(tags, settings.rrnTagKeysCsv)
+        val amountRaw = findFirstTag(tags, settings.amountTagKeysCsv)
+        val currencyRaw = findFirstTag(tags, settings.currencyTagKeysCsv)
+        val currency = normalizeArcusCurrency(currencyRaw)
+        return Arcus2AdditionalData(
+            rrn = normalizeRrn(rrnRaw),
+            amount = parseArcus2AmountFlexible(amountRaw, currency),
+            currency = currency,
+            orderId = findFirstTag(tags, settings.orderIdTagKeysCsv),
+            rawTags = tags
+        )
+    }
+
+    private fun findFirstTag(tags: Map<String, String>, csvKeys: String): String? =
+        csvKeys.split(",").map { it.trim().lowercase() }.firstNotNullOfOrNull { k -> tags[k]?.takeIf { it.isNotBlank() } }
+    private fun normalizeRrn(raw: String?): String? {
+        val d = raw?.trim()?.removePrefix("/r")?.removePrefix("/R")?.trim('[', ']')?.filter(Char::isDigit) ?: return null
+        return d.takeIf { it.matches(Regex("\\d{6,12}")) }
+    }
+    private fun normalizeArcusCurrency(raw: String?): String? = when (raw?.trim()?.uppercase()) { "643", "RUB" -> "RUB"; "051", "AMD" -> "AMD"; else -> raw?.trim() }
+    private fun parseArcus2AmountFlexible(raw: String?, currency: String?): BigDecimal? {
+        val t = raw?.trim()?.replace(',', '.') ?: return null
+        val n = t.toBigDecimalOrNull() ?: return null
+        return if (t.contains('.')) n else when (currency) {
+            "RUB" -> n.movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
+            "AMD" -> n.setScale(0, RoundingMode.HALF_UP)
+            else -> n
         }
     }
 

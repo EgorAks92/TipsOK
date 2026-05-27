@@ -117,11 +117,12 @@ class Arcus2NewWayProtocolAdapter(
             cls == s.universalReversalClass && op == s.universalReversalOp -> {
                 val rrn = parseArcus2Rrn(fields, currencyCode, amountRaw)
                 Log.i("Arcus2Adapter", "reversal fields=${fields.map(::maskArcusField)} rrnMasked=${maskRrn(rrn)}")
-                if (rrn.isNullOrBlank()) EcrParseResult.Error("ARCUS2 reversal RRN missing")
-                else {
-                    val commandId = "ARCUS2-REVERSAL-${rrn.takeLast(4)}-${System.currentTimeMillis()}"
-                    EcrParseResult.Command(PcEcrCommand.Reversal(commandId, protocol, null, rrn, parseArcus2ReversalAmount(amountRaw, currency), currency))
+                val commandId = if (rrn.isNullOrBlank()) {
+                    "ARCUS2-REVERSAL-NO-RRN-${System.currentTimeMillis()}"
+                } else {
+                    "ARCUS2-REVERSAL-${rrn.takeLast(4)}-${System.currentTimeMillis()}"
                 }
+                EcrParseResult.Command(PcEcrCommand.Reversal(commandId, protocol, null, rrn, parseArcus2ReversalAmount(amountRaw, currency), currency))
             }
             cls == s.refundClass && op == s.refundOp -> EcrParseResult.Command(PcEcrCommand.Refund(null, protocol, amountRaw?.toBigDecimalOrNull(), currency))
             else -> EcrParseResult.Unknown("Unsupported class/op", bytes.toHexPreview())

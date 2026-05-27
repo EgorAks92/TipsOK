@@ -37,7 +37,21 @@ data class Arcus2NewWaySettings(
     val cardDetectedStatusText: String = "Карта считана",
     val processingStatusText: String = "Обработка",
     val pinRequiredStatusText: String = "Введите PIN",
-    val cancellingStatusText: String = "Отмена"
+    val cancellingStatusText: String = "Отмена",
+    val additionalDataRequestEnabled: Boolean = true,
+    val additionalDataRequestCommand: String = "GETTAGS:rrn,amount,currency,orderId,receiptNumber,authCode",
+    val additionalDataReadTimeoutMs: Long = 3_000L,
+    val additionalDataMaxFrames: Int = 5,
+    val saleAdditionalDataEnabled: Boolean = true,
+    val reversalAdditionalDataEnabled: Boolean = true,
+    val refundAdditionalDataEnabled: Boolean = true,
+    val settlementAdditionalDataEnabled: Boolean = false,
+    val rrnTagKeysCsv: String = "rrn,r",
+    val amountTagKeysCsv: String = "amount,a",
+    val currencyTagKeysCsv: String = "currency,c",
+    val orderIdTagKeysCsv: String = "orderId,order_id,order",
+    val receiptNumberTagKeysCsv: String = "receiptNumber,receipt,cheque,check",
+    val authCodeTagKeysCsv: String = "authCode,auth,approvalCode"
 )
 
 data class AppSettings(
