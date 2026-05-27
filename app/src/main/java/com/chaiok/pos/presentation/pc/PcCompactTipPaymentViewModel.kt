@@ -744,8 +744,8 @@ class PcCompactTipPaymentViewModel(
                 }
             }
             PosPaymentEvent.Cancelled -> {
-                if (userCancelInProgress && cancelEventSent) {
-                    Log.i(TAG, "USER_CANCEL late SSP event ignored event=Cancelled")
+                if (userCancelInProgress) {
+                    Log.i(TAG, "USER_CANCEL late SSP Cancelled event ignored; manual cancel finalization owns result")
                     return
                 }
                 if (ignoreNextCancelledFromRestart) {
@@ -755,10 +755,6 @@ class PcCompactTipPaymentViewModel(
                 }
                 if (internalRestartInProgress) {
                     Log.i(TAG, "Ignore cancelled event during internal restart")
-                    return
-                }
-                if (userCancelInProgress) {
-                    sendCancelledByUserOnce()
                     return
                 }
                 _uiState.update {
@@ -882,17 +878,21 @@ class PcCompactTipPaymentViewModel(
 
 
     private suspend fun sendCancelledByUserOnce() {
-        if (cancelEventSent) return
-        cancelDeclinedAutoClose()
-        stopArcus2StatusKeepAlive()
-        if (isArcus2Source()) {
-            val settings = observeSettingsUseCase().first().arcus2NewWaySettings
-            if (!(isCancelPreviousOperation() && !settings.sendStatusOnCancelStart)) {
-                sendArcus2StatusNowAwait(settings.cancellingStatusText, force = true)
-            }
+        if (cancelEventSent) {
+            Log.i(TAG, "USER_CANCEL finalization already started; ignore duplicate")
+            return
         }
         cancelEventSent = true
-        sendPcEcrFinalResultOnceWithTimeout(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"), ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS)
+        cancelDeclinedAutoClose()
+        stopArcus2StatusKeepAlive()
+        val sent = sendPcEcrFinalResultOnceWithTimeout(
+            PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"),
+            ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS
+        )
+        if (!sent) {
+            Log.w(TAG, "USER_CANCEL final result send not completed; skip premature ECR resume")
+            return
+        }
         stopArcus2StatusKeepAlive()
         resumePcEcrAfterPayment("cancelled_by_user").also { Log.i(TAG, "USER_CANCEL ECR resumed") }
         _events.send(PcCompactTipPaymentEvent.CancelledByUser)
