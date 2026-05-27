@@ -13,6 +13,7 @@ import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import java.math.BigDecimal
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -78,6 +79,7 @@ class PcCommandIdleViewModel(
     private var lastCommandId: String? = null
     private var lastNoIdFingerprint: String? = null
     private var lastNoIdAtMs: Long = 0L
+    private var resumeListeningJob: Job? = null
 
     init {
         observeStatus()
@@ -89,17 +91,16 @@ class PcCommandIdleViewModel(
     fun resumeListening() {
         resetDuplicateGuard()
 
-        viewModelScope.launch(Dispatchers.IO) {
-            Log.i(TAG, "PC idle resume ECR listening")
-            repository.resumeAfterPayment()
-                .onFailure { Log.e(TAG, "PC idle resume ECR failed", it) }
-        }
-
         if (!listeningEnabled.value) {
             listeningEnabled.value = true
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        if (resumeListeningJob?.isActive == true) {
+            Log.i(TAG, "PC idle resume ECR skipped: resume already in progress")
+            return
+        }
+
+        resumeListeningJob = viewModelScope.launch(Dispatchers.IO) {
             Log.i(TAG, "PC idle resume ECR listening")
             repository.resumeAfterPayment()
                 .onFailure { Log.e(TAG, "PC idle resume ECR failed", it) }

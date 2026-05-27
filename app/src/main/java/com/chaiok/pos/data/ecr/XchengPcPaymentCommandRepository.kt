@@ -917,11 +917,11 @@ class XchengPcPaymentCommandRepository(
         val protocol = currentSettings.pcEcrProtocol
 
         return lifecycleMutex.withLock {
-            Log.i(TAG, "ECR pause for SSP payment")
-
             if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {
+                Log.i(TAG, "ECR pause for SSP payment skipped: already paused")
                 return@withLock Result.success(Unit)
             }
+            Log.i(TAG, "ECR pause for SSP payment")
 
             lifecycleState = PcEcrLifecycleState.PausedForPayment
             status.value = PcUsbConnectionStatus.Idle
@@ -943,36 +943,56 @@ class XchengPcPaymentCommandRepository(
 
     override suspend fun resumeAfterPayment(): Result<Unit> {
         val settings = settingsRepository.observeSettings().first()
-        return lifecycleMutex.withLock {
-            Log.i(TAG, "ECR resume after SSP payment")
+        val shouldResume = lifecycleMutex.withLock {
+            when {
+                activeArcus2Transaction -> {
+                    Log.i(TAG, "ECR resume requested while ARCUS2 transaction still active; defer/no-op")
+                    false
+                }
 
-            if (lifecycleState == PcEcrLifecycleState.Stopped) {
-                Log.i(TAG, "Skip ECR resume: repository stopped completely")
-                return@withLock Result.success(Unit)
+                lifecycleState == PcEcrLifecycleState.Listening -> {
+                    Log.i(TAG, "ECR resume after SSP payment skipped: already listening")
+                    false
+                }
+
+                lifecycleState == PcEcrLifecycleState.PausedForPayment -> {
+                    Log.i(TAG, "ECR resume after SSP payment")
+                    true
+                }
+
+                else -> {
+                    Log.i(TAG, "ECR resume after SSP payment skipped: state=$lifecycleState")
+                    false
+                }
             }
+        }
 
-            if (settings.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) {
-                lifecycleState = PcEcrLifecycleState.Listening
-                status.value = PcUsbConnectionStatus.WaitingForData
-                Log.i(TAG, "ARCUS2 mode: resume listening without reopening USB transport")
-                return@withLock Result.success(Unit)
-            }
+        if (!shouldResume) return Result.success(Unit)
 
+        val result = if (settings.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) {
+            Log.i(TAG, "ARCUS2 mode: resume listening without reopening USB transport")
+            Result.success(Unit)
+        } else {
             val result = client.resumeTransportAfterPayment()
+            if (result.isSuccess) {
+                Log.i(TAG, "ECR resumed and listening")
+            } else {
+                Log.e(TAG, "ECR resume after payment failed", result.exceptionOrNull())
+            }
+            result
+        }
 
+        lifecycleMutex.withLock {
             if (result.isSuccess) {
                 lifecycleState = PcEcrLifecycleState.Listening
                 status.value = PcUsbConnectionStatus.WaitingForData
-                Log.i(TAG, "ECR resumed and listening")
             } else {
                 val message = result.exceptionOrNull()?.message ?: "resume error"
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(message)
-                Log.e(TAG, "ECR resume after payment failed: $message", result.exceptionOrNull())
             }
-
-            result
         }
+        result
     }
 
     override suspend fun stopCompletely(): Result<Unit> {
