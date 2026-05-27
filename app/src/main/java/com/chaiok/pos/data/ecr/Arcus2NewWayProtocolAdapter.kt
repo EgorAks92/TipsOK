@@ -215,6 +215,12 @@ class Arcus2CashRegisterSession(
     )
 
     suspend fun sendCommandAndWaitOk(dataText: String): Result<Unit> = sendDataAndWaitOk(encodeWin1251(dataText), dataText.substringBefore(':'))
+    suspend fun sendCommandFireAndForget(dataText: String): Result<Unit> = runCatching {
+        val frame = Arcus2BinLenCodec.encode(encodeWin1251(dataText))
+        rawLogger.logOutgoing(frame, dataText.substringBefore(':'))
+        client.send(frame).getOrThrow()
+        Log.i("Arcus2Session", "ARCUS2 fire-and-forget sent label=${dataText.substringBefore(':')} bytes=${frame.size}")
+    }
     suspend fun sendOptionalStatusAndDrain(statusText: String, operationTag: String): Result<Unit> = runCatching {
         val frame = Arcus2BinLenCodec.encode(encodeWin1251("STATUS:$statusText"))
         rawLogger.logOutgoing(frame, "STATUS")
@@ -328,8 +334,8 @@ class Arcus2CashRegisterSession(
                     }
                 }
                 if (shouldStop(responses) && !settings.additionalDataRequireEndTrBeforeBusinessStart) {
-                    Log.i("Arcus2Session", "ARCUS2 additional required tags collected; fast-path stop without ENDTR")
-                    stop = true
+                    Log.i("Arcus2Session", "ARCUS2 additional required tags collected; fast-path return without ENDTR/drain")
+                    return@runCatching responses
                 }
             }
             index += 1

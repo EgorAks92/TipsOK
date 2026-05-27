@@ -291,15 +291,21 @@ class XchengPcPaymentCommandRepository(
     ): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         return runCatching {
+            if (optionalStatus) {
+                Log.i(TAG, "ARCUS2 start sequence mode=fireAndForget operation=CANCEL_PREVIOUS")
+                if (settings.sendBeginTrOnPaymentStart) {
+                    session.sendCommandFireAndForget("BEGINTR:").getOrThrow()
+                }
+                if (sendStatus) {
+                    session.sendCommandFireAndForget("STATUS:$statusText").getOrThrow()
+                }
+                return@runCatching
+            }
             if (settings.sendBeginTrOnPaymentStart) {
                 session.sendCommandAndWaitOk("BEGINTR:").getOrThrow()
             }
             if (sendStatus) {
-                if (optionalStatus) {
-                    session.sendOptionalStatusAndDrain(statusText, "CANCEL_PREVIOUS").getOrThrow()
-                } else {
-                    session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
-                }
+                session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
             }
         }.map { Unit }
     }
