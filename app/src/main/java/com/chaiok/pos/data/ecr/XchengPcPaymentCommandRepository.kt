@@ -574,6 +574,7 @@ class XchengPcPaymentCommandRepository(
         val result = session.sendCommandAndRunAdditionalDataSession(
             dataText = requestCommand,
             readTimeoutMs = readTimeoutMs,
+            totalTimeoutMs = settings.additionalDataTotalTimeoutMs,
             maxFrames = maxFrames,
             shouldStop = { responses ->
                 responsesContainRequiredRrn(

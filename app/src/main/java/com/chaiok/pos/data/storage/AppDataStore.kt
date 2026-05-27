@@ -78,7 +78,9 @@ class AppDataStore(private val context: Context) {
         val arcus2AdditionalDataRequestEnabled = booleanPreferencesKey("arcus2_additional_data_request_enabled")
         val arcus2AdditionalDataRequestCommand = stringPreferencesKey("arcus2_additional_data_request_command")
         val arcus2AdditionalDataReadTimeoutMs = longPreferencesKey("arcus2_additional_data_read_timeout_ms")
+        val arcus2AdditionalDataTotalTimeoutMs = longPreferencesKey("arcus2_additional_data_total_timeout_ms")
         val arcus2AdditionalDataMaxFrames = intPreferencesKey("arcus2_additional_data_max_frames")
+        val arcus2AdditionalDataGetTagsResponseMode = stringPreferencesKey("arcus2_additional_data_gettags_response_mode")
         val arcus2SendStatusOnCancelStart = booleanPreferencesKey("arcus2_send_status_on_cancel_start")
         val arcus2SaleAdditionalDataEnabled = booleanPreferencesKey("arcus2_sale_additional_data_enabled")
         val arcus2ReversalAdditionalDataEnabled = booleanPreferencesKey("arcus2_reversal_additional_data_enabled")
@@ -159,7 +161,9 @@ class AppDataStore(private val context: Context) {
             additionalDataRequestEnabled = p[Keys.arcus2AdditionalDataRequestEnabled] ?: d.additionalDataRequestEnabled,
             additionalDataRequestCommand = p[Keys.arcus2AdditionalDataRequestCommand] ?: d.additionalDataRequestCommand,
             additionalDataReadTimeoutMs = p[Keys.arcus2AdditionalDataReadTimeoutMs] ?: d.additionalDataReadTimeoutMs,
+            additionalDataTotalTimeoutMs = p[Keys.arcus2AdditionalDataTotalTimeoutMs] ?: d.additionalDataTotalTimeoutMs,
             additionalDataMaxFrames = p[Keys.arcus2AdditionalDataMaxFrames] ?: d.additionalDataMaxFrames,
+            additionalDataGetTagsResponseMode = p[Keys.arcus2AdditionalDataGetTagsResponseMode] ?: d.additionalDataGetTagsResponseMode,
             sendStatusOnCancelStart = p[Keys.arcus2SendStatusOnCancelStart] ?: d.sendStatusOnCancelStart,
             saleAdditionalDataEnabled = p[Keys.arcus2SaleAdditionalDataEnabled] ?: d.saleAdditionalDataEnabled,
             reversalAdditionalDataEnabled = p[Keys.arcus2ReversalAdditionalDataEnabled] ?: d.reversalAdditionalDataEnabled,
@@ -227,7 +231,9 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2AdditionalDataRequestEnabled] = value.additionalDataRequestEnabled
         it[Keys.arcus2AdditionalDataRequestCommand] = value.additionalDataRequestCommand
         it[Keys.arcus2AdditionalDataReadTimeoutMs] = value.additionalDataReadTimeoutMs
+        it[Keys.arcus2AdditionalDataTotalTimeoutMs] = value.additionalDataTotalTimeoutMs
         it[Keys.arcus2AdditionalDataMaxFrames] = value.additionalDataMaxFrames
+        it[Keys.arcus2AdditionalDataGetTagsResponseMode] = value.additionalDataGetTagsResponseMode
         it[Keys.arcus2SendStatusOnCancelStart] = value.sendStatusOnCancelStart
         it[Keys.arcus2SaleAdditionalDataEnabled] = value.saleAdditionalDataEnabled
         it[Keys.arcus2ReversalAdditionalDataEnabled] = value.reversalAdditionalDataEnabled

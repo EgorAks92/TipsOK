@@ -229,6 +229,7 @@ class Arcus2CashRegisterSession(
     suspend fun sendCommandAndRunAdditionalDataSession(
         dataText: String,
         readTimeoutMs: Long,
+        totalTimeoutMs: Long,
         maxFrames: Int,
         shouldStop: (List<Arcus2ReceivedFrame>) -> Boolean = { false }
     ): Result<List<Arcus2ReceivedFrame>> = runCatching {
@@ -238,12 +239,12 @@ class Arcus2CashRegisterSession(
 
         val responses = mutableListOf<Arcus2ReceivedFrame>()
         var stop = false
-        var shouldStopMatched = false
-        var drainCyclesLeft = 0
+        var endTrReceived = false
+        val startedAt = System.currentTimeMillis()
         var index = 0
         val limit = maxFrames.coerceAtLeast(1)
 
-        while (index < limit && !stop) {
+        while (index < limit && !stop && System.currentTimeMillis() - startedAt < totalTimeoutMs.coerceAtLeast(readTimeoutMs)) {
             val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
             if (bytes != null && bytes.isNotEmpty()) {
                 Log.i("Arcus2Session", "ARCUS2 additional data recv bytes=${bytes.size}")
@@ -283,8 +284,13 @@ class Arcus2CashRegisterSession(
                         }
 
                         normalized.startsWith("GETTAGS:", ignoreCase = true) -> {
-                            Log.i("Arcus2Session", "ARCUS2 additional GETTAGS command from peer -> ER")
-                            sendArcusControlText("ER", "additional-ER")
+                            val mode = settings.additionalDataGetTagsResponseMode.uppercase()
+                            Log.i("Arcus2Session", "ARCUS2 additional received GETTAGS from peer, mode=$mode")
+                            when (mode) {
+                                "SEND_ER" -> sendArcusControlText("ER", "additional-ER")
+                                "SEND_EMPTY_TAGS" -> sendArcusControlText("SETTAGS:", "additional-SETTAGS-empty")
+                                else -> Unit
+                            }
                         }
 
                         normalized.startsWith("SETTAGS:", ignoreCase = true) -> {
@@ -298,6 +304,7 @@ class Arcus2CashRegisterSession(
 
                         normalized.equals("ENDTR", ignoreCase = true) -> {
                             sendArcusControlText("OK", "additional-OK")
+                            endTrReceived = true
                             stop = true
                         }
 
@@ -310,17 +317,14 @@ class Arcus2CashRegisterSession(
                         }
                     }
                 }
-                if (!shouldStopMatched && shouldStop(responses)) {
-                    shouldStopMatched = true
-                    drainCyclesLeft = 2
-                }
-                if (shouldStopMatched && !stop) {
-                    drainCyclesLeft -= 1
-                    if (drainCyclesLeft <= 0) stop = true
-                }
+                shouldStop(responses) // keep collecting until ENDTR/timeout/maxFrames
             }
             index += 1
         }
+        if (!endTrReceived) {
+            Log.w("Arcus2Session", "ARCUS2 additional data ended without ENDTR")
+        }
+        client.receiveOnce(settings.drainOkAfterCommandMs).getOrNull()
 
         // TODO: confirm whether Arcus additional data response requires OK ACK.
         responses
