@@ -203,30 +203,36 @@ class Arcus2CashRegisterSession(
     private val rawLogger: Arcus2FrameLogger,
     private val settings: Arcus2NewWaySettings
 ) {
+    data class Arcus2ReceivedFrame(
+        val data: ByteArray,
+        val text: String
+    )
+
     suspend fun sendCommandAndWaitOk(dataText: String): Result<Unit> = sendDataAndWaitOk(encodeWin1251(dataText), dataText.substringBefore(':'))
     suspend fun sendCommandAndReadFrames(
         dataText: String,
         readTimeoutMs: Long,
         maxFrames: Int,
-        shouldStop: (List<String>) -> Boolean = { false }
-    ): Result<List<String>> = runCatching {
+        shouldStop: (List<Arcus2ReceivedFrame>) -> Boolean = { false }
+    ): Result<List<Arcus2ReceivedFrame>> = runCatching {
         val outFrame = Arcus2BinLenCodec.encode(encodeWin1251(dataText))
         rawLogger.logOutgoing(outFrame, dataText.substringBefore(':'))
         client.send(outFrame).getOrThrow()
 
-        val responses = mutableListOf<String>()
+        val responses = mutableListOf<Arcus2ReceivedFrame>()
         var stop = false
         var index = 0
         val limit = maxFrames.coerceAtLeast(1)
 
         while (index < limit && !stop) {
             val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
-            if (!bytes.isNullOrEmpty()) {
+            if (bytes != null && bytes.isNotEmpty()) {
                 rawLogger.logIncoming(bytes)
                 val frames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
                 for (frame in frames) {
-                    val text = decodeWin1251(frame.data).trim('\u0000', ' ', '\n', '\r', '\t')
-                    responses.add(text)
+                    val frameData = frame.data
+                    val text = decodeWin1251(frameData).trim('\u0000', ' ', '\n', '\r', '\t')
+                    responses.add(Arcus2ReceivedFrame(data = frameData, text = text))
                 }
                 stop = shouldStop(responses)
             }

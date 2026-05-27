@@ -544,6 +544,11 @@ class XchengPcPaymentCommandRepository(
         val readTimeoutMs = settings.additionalDataReadTimeoutMs
         val maxFrames = settings.additionalDataMaxFrames
         val rrnTagKeysCsv = settings.rrnTagKeysCsv
+        val rrnOwTagIdsCsv = settings.rrnOwTagIdsCsv
+        val amountOwTagIdsCsv = settings.amountOwTagIdsCsv
+        val currencyOwTagIdsCsv = settings.currencyOwTagIdsCsv
+        val terminalIdOwTagIdsCsv = settings.terminalIdOwTagIdsCsv
+        val responseCodeOwTagIdsCsv = settings.responseCodeOwTagIdsCsv
 
         Log.i(logTag, "ARCUS2 additional data request start reason=$reason command=$requestCommand timeoutMs=$readTimeoutMs maxFrames=$maxFrames")
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
@@ -555,7 +560,8 @@ class XchengPcPaymentCommandRepository(
             shouldStop = { responses ->
                 responsesContainRequiredRrn(
                     responses = responses,
-                    rrnTagKeysCsv = rrnTagKeysCsv
+                    rrnTagKeysCsv = rrnTagKeysCsv,
+                    rrnOwTagIdsCsv = rrnOwTagIdsCsv
                 )
             }
         )
@@ -571,16 +577,29 @@ class XchengPcPaymentCommandRepository(
             Log.w(logTag, "ARCUS2 additional data request returned no frames. Check additionalDataRequestCommand=$requestCommand")
         }
 
-        val maskedResponses = responses.joinToString("|") { text -> maskArcusText(text) }.take(512)
+        val maskedResponses = responses.joinToString("|") { frame -> maskArcusText(frame.text) }.take(512)
         Log.i(logTag, "ARCUS2 additional data raw responses count=${responses.size} items=$maskedResponses")
 
         val tags = linkedMapOf<String, String>()
-        for (text in responses) {
-            Log.i(logTag, "ARCUS2 additional data response=${maskArcusText(text)}")
+        for (frame in responses) {
+            val text = frame.text
+            Log.i(logTag, "ARCUS2 additional data response=${maskArcusText(text)} raw=${frame.data.toHexPreview(48)}")
             when (text.trim()) {
                 "OK" -> Unit
                 "ER", "NAK" -> Log.w(logTag, "ARCUS2 additional data returned ${text.trim()}")
-                else -> tags.putAll(parseArcus2Tags(text))
+                else -> {
+                    tags.putAll(parseArcus2Tags(text))
+                    tags.putAll(
+                        parseArcus2OwTags(
+                            data = frame.data,
+                            rrnOwTagIdsCsv = rrnOwTagIdsCsv,
+                            amountOwTagIdsCsv = amountOwTagIdsCsv,
+                            currencyOwTagIdsCsv = currencyOwTagIdsCsv,
+                            terminalIdOwTagIdsCsv = terminalIdOwTagIdsCsv,
+                            responseCodeOwTagIdsCsv = responseCodeOwTagIdsCsv
+                        )
+                    )
+                }
             }
         }
 
@@ -595,15 +614,103 @@ class XchengPcPaymentCommandRepository(
     }
 
     private fun responsesContainRequiredRrn(
-        responses: List<String>,
-        rrnTagKeysCsv: String
+        responses: List<Arcus2CashRegisterSession.Arcus2ReceivedFrame>,
+        rrnTagKeysCsv: String,
+        rrnOwTagIdsCsv: String = "1F8431,1F03"
     ): Boolean {
-        for (text in responses) {
-            val tags = parseArcus2Tags(text)
-            val rrn = normalizeRrn(findFirstTag(tags, rrnTagKeysCsv))
+        for (frame in responses) {
+            val textTags = parseArcus2Tags(frame.text)
+            val binaryTags = parseArcus2OwTags(
+                data = frame.data,
+                rrnOwTagIdsCsv = rrnOwTagIdsCsv,
+                amountOwTagIdsCsv = "9F02",
+                currencyOwTagIdsCsv = "5F2A",
+                terminalIdOwTagIdsCsv = "9F1C",
+                responseCodeOwTagIdsCsv = "1F0D"
+            )
+            val merged = linkedMapOf<String, String>()
+            merged.putAll(textTags)
+            merged.putAll(binaryTags)
+            val rrn = normalizeRrn(findFirstTag(merged, rrnTagKeysCsv)) ?: normalizeRrn(merged["rrn"])
             if (rrn != null) return true
         }
         return false
+    }
+
+    private fun parseArcus2OwTags(
+        data: ByteArray,
+        rrnOwTagIdsCsv: String,
+        amountOwTagIdsCsv: String,
+        currencyOwTagIdsCsv: String,
+        terminalIdOwTagIdsCsv: String,
+        responseCodeOwTagIdsCsv: String
+    ): Map<String, String> {
+        val out = linkedMapOf<String, String>()
+        val rrnTagIds = csvHexSet(rrnOwTagIdsCsv)
+        val amountTagIds = csvHexSet(amountOwTagIdsCsv)
+        val currencyTagIds = csvHexSet(currencyOwTagIdsCsv)
+        val terminalTagIds = csvHexSet(terminalIdOwTagIdsCsv)
+        val responseCodeTagIds = csvHexSet(responseCodeOwTagIdsCsv)
+        var index = 0
+
+        while (index < data.size) {
+            while (index < data.size && data[index] == 0.toByte()) index++
+            if (index >= data.size) break
+
+            val tagStart = index
+            val first = data[index].toInt() and 0xFF
+            index++
+            if ((first and 0x1F) == 0x1F) {
+                while (index < data.size) {
+                    val b = data[index].toInt() and 0xFF
+                    index++
+                    if ((b and 0x80) == 0) break
+                }
+            }
+            if (index >= data.size) break
+
+            val tag = data.copyOfRange(tagStart, index).toHexString()
+            val lengthByte = data[index].toInt() and 0xFF
+            index++
+
+            val length = if ((lengthByte and 0x80) == 0) {
+                lengthByte
+            } else {
+                val count = lengthByte and 0x7F
+                if (count == 0 || index + count > data.size) break
+                var acc = 0
+                repeat(count) {
+                    acc = (acc shl 8) or (data[index].toInt() and 0xFF)
+                    index++
+                }
+                acc
+            }
+
+            if (length < 0 || index + length > data.size) break
+            val value = data.copyOfRange(index, index + length)
+            index += length
+            val normalizedTag = tag.uppercase()
+
+            when {
+                normalizedTag in amountTagIds -> out["amount"] = parseBcdDigits(value).trimStart('0').ifBlank { "0" }
+                normalizedTag in currencyTagIds -> out["currency"] = parseBcdDigits(value).trimStart('0').ifBlank { "0" }
+                normalizedTag in terminalTagIds -> out["terminalId"] = value.toAsciiPrintable()
+                normalizedTag in responseCodeTagIds -> out["responseCode"] = value.toAsciiPrintable()
+                normalizedTag in rrnTagIds -> {
+                    val candidate = value.toAsciiPrintable().filter { it.isDigit() }
+                    if (candidate.matches(Regex("\\d{6,12}"))) {
+                        out.putIfAbsent("rrn", candidate)
+                        out[normalizedTag.lowercase()] = candidate
+                    }
+                }
+                else -> {
+                    val printable = value.toAsciiPrintable()
+                    if (printable.isNotBlank()) out[normalizedTag.lowercase()] = printable
+                }
+            }
+        }
+
+        return out
     }
 
     private fun parseArcus2Tags(text: String): Map<String, String> {
@@ -637,7 +744,15 @@ class XchengPcPaymentCommandRepository(
         val d = raw?.trim()?.removePrefix("/r")?.removePrefix("/R")?.trim('[', ']')?.filter(Char::isDigit) ?: return null
         return d.takeIf { it.matches(Regex("\\d{6,12}")) }
     }
-    private fun normalizeArcusCurrency(raw: String?): String? = when (raw?.trim()?.uppercase()) { "643", "RUB" -> "RUB"; "051", "AMD" -> "AMD"; else -> raw?.trim() }
+    private fun normalizeArcusCurrency(raw: String?): String? {
+        val trimmed = raw?.trim()?.uppercase() ?: return null
+        val numeric = trimmed.filter { it.isDigit() }.trimStart('0').ifBlank { "0" }
+        return when {
+            trimmed == "RUB" || numeric == "643" -> "RUB"
+            trimmed == "AMD" || numeric == "51" -> "AMD"
+            else -> raw.trim()
+        }
+    }
     private fun parseArcus2AmountFlexible(raw: String?, currency: String?): BigDecimal? {
         val t = raw?.trim()?.replace(',', '.') ?: return null
         val n = t.toBigDecimalOrNull() ?: return null
@@ -661,9 +776,37 @@ class XchengPcPaymentCommandRepository(
         .take(512)
     private fun maskArcusTags(tags: Map<String, String>): String =
         tags.entries.joinToString(prefix = "{", postfix = "}") { (k, v) ->
-            val mv = if (k.equals("rrn", true) || k.equals("r", true)) maskRrn(normalizeRrn(v)) else v.take(64)
+            val mv = if (
+                k.equals("rrn", true) ||
+                k.equals("r", true) ||
+                k.equals("1f8431", true) ||
+                k.equals("1f03", true)
+            ) maskRrn(normalizeRrn(v)) else v.take(64)
             "$k=$mv"
         }
+
+    private fun csvHexSet(csv: String): Set<String> =
+        csv.split(",").map { it.trim().uppercase() }.filter { it.isNotBlank() }.toSet()
+
+    private fun parseBcdDigits(bytes: ByteArray): String = buildString {
+        for (byte in bytes) {
+            val v = byte.toInt() and 0xFF
+            append((v ushr 4) and 0x0F)
+            append(v and 0x0F)
+        }
+    }
+
+    private fun ByteArray.toAsciiPrintable(): String =
+        map { it.toInt() and 0xFF }
+            .filter { it in 0x20..0x7E }
+            .map { it.toChar() }
+            .joinToString("")
+            .trim('\u0000', ' ', '\n', '\r', '\t')
+
+    private fun ByteArray.toHexString(): String = joinToString("") { "%02X".format(it.toInt() and 0xFF) }
+
+    private fun ByteArray.toHexPreview(maxBytes: Int): String =
+        take(maxBytes).joinToString("") { "%02X".format(it.toInt() and 0xFF) } + if (size > maxBytes) "..." else ""
 
     private suspend fun updateArcusListeningState(
         result: Result<Unit>,
