@@ -9,12 +9,12 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 class PcPaymentTransactionLogRepository(context: Context) {
-    private val file = File(context.filesDir, "pc_transactions.jsonl")
+    private val appContext = context.applicationContext
 
     suspend fun save(frame: ChaiOkEcrPaymentResultFrame, sendStatus: String, sendError: String?): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                file.parentFile?.mkdirs()
+                val file = resolveLogFile()
                 val json = JSONObject()
                     .put("id", "${frame.commandId}_${System.currentTimeMillis()}")
                     .put("commandId", frame.commandId)
@@ -37,5 +37,15 @@ class PcPaymentTransactionLogRepository(context: Context) {
             }.onFailure { Log.e(TAG, "PC ECR transaction log save failed", it) }
         }
 
-    private companion object { const val TAG = "PcUsbEcrFlow" }
+    private fun resolveLogFile(): File {
+        val dir = File(appContext.filesDir, LOG_DIR_NAME)
+        if (!dir.exists()) dir.mkdirs()
+        return File(dir, LOG_FILE_NAME)
+    }
+
+    private companion object {
+        const val TAG = "PcUsbEcrFlow"
+        const val LOG_DIR_NAME = "logs"
+        const val LOG_FILE_NAME = "pc_transactions.jsonl"
+    }
 }
