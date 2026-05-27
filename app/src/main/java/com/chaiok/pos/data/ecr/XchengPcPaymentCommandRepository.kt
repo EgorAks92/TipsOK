@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -151,7 +153,7 @@ class XchengPcPaymentCommandRepository(
             sendResult
         }
 
-    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> {
+    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> = withContext(Dispatchers.IO) {
         lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.Stopped && !activeArcus2Transaction) {
                 val message = "ARCUS2 result cannot be sent: repository stopped and COM session is lost"
@@ -234,7 +236,7 @@ class XchengPcPaymentCommandRepository(
             activeArcus2Transaction = false
             activeArcus2CommandId = null
         }
-        return sendResult
+        return@withContext sendResult
     }
 
     override suspend fun sendArcus2StatusIfActive(

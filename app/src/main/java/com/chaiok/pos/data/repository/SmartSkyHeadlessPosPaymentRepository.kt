@@ -508,13 +508,15 @@ class SmartSkyHeadlessPosPaymentRepository(
             runCatching {
                 Log.i(
                     PAYMENT_TAG,
-                    "cancelPayment called activeServicePresent=${activeService.get() != null}"
+                    "SSP user cancel method selected=cancelCardReading activeServicePresent=${activeService.get() != null}"
                 )
+                Log.i(PAYMENT_TAG, "SSP user cancel invoke start")
                 activeService.get()?.cancelCardReading()
+                Log.i(PAYMENT_TAG, "SSP user cancel invoke success")
             }.onFailure { error ->
                 Log.w(
                     PAYMENT_TAG,
-                    "SSP cancelPayment failed",
+                    "SSP user cancel invoke failure",
                     error
                 )
             }

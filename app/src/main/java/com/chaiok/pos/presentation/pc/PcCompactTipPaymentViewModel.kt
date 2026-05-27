@@ -463,7 +463,7 @@ class PcCompactTipPaymentViewModel(
     fun cancelPayment() {
         val state = _uiState.value
         if (!state.canCancel || userCancelInProgress) return
-        Log.i(TAG, "User cancel requested operationType=$operationType")
+        Log.i(TAG, "USER_CANCEL requested operationType=$operationType stage=${state.paymentStage}")
 
         userCancelInProgress = true
         cancelEventSent = false
@@ -481,19 +481,23 @@ class PcCompactTipPaymentViewModel(
         }
 
         viewModelScope.launch {
+            stopArcus2StatusKeepAlive()
             if (isArcus2Source()) {
                 val settings = observeSettingsUseCase().first().arcus2NewWaySettings
-                sendArcus2StatusNowAwait(
-                    statusText = settings.cancellingStatusText,
-                    force = true
-                )
+                if (settings.sendStatusOnCancelStart) {
+                    sendArcus2StatusNowAwait(statusText = settings.cancellingStatusText, force = true)
+                }
             }
+            Log.i(TAG, "USER_CANCEL terminal cancel start")
             val cancelResult = withTimeoutOrNull(USER_CANCEL_TERMINAL_TIMEOUT_MS) { runCatching { cancelPosPaymentUseCase() } }
             if (cancelResult == null) {
-                Log.w(TAG, "User cancel timed out, sending final cancelled result anyway")
+                Log.w(TAG, "USER_CANCEL terminal cancel timeout")
             } else if (cancelResult.isFailure) {
-                Log.w(TAG, "User cancel failed, sending final cancelled result anyway", cancelResult.exceptionOrNull())
+                Log.w(TAG, "USER_CANCEL terminal cancel failure", cancelResult.exceptionOrNull())
+            } else {
+                Log.i(TAG, "USER_CANCEL terminal cancel success")
             }
+            Log.i(TAG, "USER_CANCEL arcus final cancelled send start")
             sendCancelledByUserOnce()
         }
     }
@@ -626,7 +630,7 @@ class PcCompactTipPaymentViewModel(
             Log.i(TAG, "CANCEL_PREVIOUS UI stage=${_uiState.value.paymentStage} event=${event.javaClass.simpleName}")
         }
         when (event) {
-            PosPaymentEvent.Preparing -> _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true) }
+            PosPaymentEvent.Preparing -> _uiState.update { st -> if (isCancelPreviousOperation() && st.paymentStage == CardPresentingStage.WaitingForCard) st else st.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true) }
             PosPaymentEvent.WaitingForCard -> {
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.WaitingForCard, canCancel = true, isRestartingPayment = false) }
                 sendArcus2StatusNowForCurrentStage()
@@ -872,7 +876,7 @@ class PcCompactTipPaymentViewModel(
         cancelEventSent = true
         sendPcEcrFinalResultOnceWithTimeout(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"), ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS)
         stopArcus2StatusKeepAlive()
-        resumePcEcrAfterPayment("cancelled_by_user")
+        resumePcEcrAfterPayment("cancelled_by_user").also { Log.i(TAG, "USER_CANCEL ECR resumed") }
         _events.send(PcCompactTipPaymentEvent.CancelledByUser)
     }
 
