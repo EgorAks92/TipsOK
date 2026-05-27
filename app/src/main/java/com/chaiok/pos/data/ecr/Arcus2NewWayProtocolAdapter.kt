@@ -207,6 +207,9 @@ class Arcus2CashRegisterSession(
     companion object {
         @Volatile
         var finalResultInProgress: Boolean = false
+
+        @Volatile
+        var staleControlResponseExpectedAfterAdditionalDataFastPath: Boolean = false
     }
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     data class Arcus2ReceivedFrame(
@@ -334,6 +337,7 @@ class Arcus2CashRegisterSession(
                     }
                 }
                 if (shouldStop(responses) && !settings.additionalDataRequireEndTrBeforeBusinessStart) {
+                    staleControlResponseExpectedAfterAdditionalDataFastPath = true
                     Log.i("Arcus2Session", "ARCUS2 additional required tags collected; fast-path return without ENDTR/drain")
                     return@runCatching responses
                 }
@@ -450,14 +454,15 @@ class Arcus2CashRegisterSession(
                 ?.let { Arcus2BinLenCodec.decodeAll(it).getOrNull() }
                 .orEmpty()
                 .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
+            val filteredResponses = filterStaleControlResponses(responses, label)
 
-            if (responses.isEmpty() || responses.all { it.isBlank() }) return Result.success(Unit)
+            if (filteredResponses.isEmpty() || filteredResponses.all { it.isBlank() }) return Result.success(Unit)
             return when {
-                responses.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
-                responses.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
-                responses.any { it == "OK" } -> Result.success(Unit)
+                filteredResponses.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
+                filteredResponses.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
+                filteredResponses.any { it == "OK" } -> Result.success(Unit)
                 else -> {
-                    Log.w("Arcus2Session", "ARCUS2 drain unknown label=$label resp=${responses.joinToString("|").take(32)}")
+                    Log.w("Arcus2Session", "ARCUS2 drain unknown label=$label resp=${filteredResponses.joinToString("|").take(32)}")
                     Result.success(Unit)
                 }
             }
@@ -469,13 +474,39 @@ class Arcus2CashRegisterSession(
             ?: return Result.failure(IllegalStateException("ARCUS2 cash register OK timeout for $label").also { Log.w("Arcus2Session", "ARCUS2 OK timeout label=$label") })
         val responses = Arcus2BinLenCodec.decodeAll(response).getOrElse { return Result.failure(it) }
             .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
+        val filteredResponses = filterStaleControlResponses(responses, label)
 
         return when {
-            responses.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
-            responses.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
-            responses.any { it == "OK" } -> { Log.i("Arcus2Session", "ARCUS2 OK label=$label"); Result.success(Unit) }
-            else -> Result.failure(IllegalStateException("Unexpected ARCUS2 response for $label: ${responses.joinToString("|").take(32)}"))
+            filteredResponses.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
+            filteredResponses.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
+            filteredResponses.any { it == "OK" } -> { Log.i("Arcus2Session", "ARCUS2 OK label=$label"); Result.success(Unit) }
+            filteredResponses.isEmpty() -> Result.success(Unit)
+            else -> Result.failure(IllegalStateException("Unexpected ARCUS2 response for $label: ${filteredResponses.joinToString("|").take(32)}"))
         }
+    }
+
+    private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
+        if (!staleControlResponseExpectedAfterAdditionalDataFastPath) return responses
+
+        val normalized = responses.map { it.trim().uppercase() }.filter { it.isNotBlank() }
+        if (normalized.isEmpty()) return responses
+
+        staleControlResponseExpectedAfterAdditionalDataFastPath = false
+
+        val controlOnly = normalized.all { it == "OK" || it == "NAK" }
+        if (!controlOnly) return responses
+
+        val hasOk = normalized.any { it == "OK" }
+        val hasNak = normalized.any { it == "NAK" }
+
+        if (hasOk && hasNak) {
+            Log.i("Arcus2Session", "ARCUS2 stale mixed control response ignored context=afterAdditionalDataFastPath label=$label responses=${normalized.joinToString("|")}")
+            return listOf("OK")
+        }
+
+        if (hasOk) return listOf("OK")
+
+        return responses
     }
 }
 
