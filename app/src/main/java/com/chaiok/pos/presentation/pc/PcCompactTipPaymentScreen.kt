@@ -562,20 +562,22 @@ private fun BoxScope.PcCompactTipSelectionLayer(
     ) {
         PcCompactTipSelectionWavesLayer(transition = transition, theme = theme)
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 24.dp)
-        ) {
-            Icon(
-                painter = painterResource(id = theme.closeIconDrawable),
-                contentDescription = null,
-                tint = theme.closeIconTint,
+        if (!isCancelPrevious) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(24.dp)
-                    .clickable(onClick = onCancel)
-            )
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 24.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = theme.closeIconDrawable),
+                    contentDescription = null,
+                    tint = theme.closeIconTint,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(24.dp)
+                        .clickable(onClick = onCancel)
+                )
+            }
         }
 
         Column(
