@@ -313,13 +313,13 @@ private fun BoxScope.PcCompactPersistentCancelOverlay(
     theme: PcCompactPaymentVisualTheme,
     onCancel: () -> Unit
 ) {
-    val show = state.operationType == PcEcrOperationType.CANCEL_PREVIOUS && state.canCancel
+    val show = state.canCancel
     if (!show) return
 
     Box(
         modifier = Modifier
             .align(Alignment.TopEnd)
-            .padding(top = 20.dp, end = 20.dp)
+            .padding(top = 8.dp, end = 8.dp)
             .size(56.dp)
             .zIndex(10f)
             .clickable {
@@ -561,24 +561,6 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             }
     ) {
         PcCompactTipSelectionWavesLayer(transition = transition, theme = theme)
-
-        if (!isCancelPrevious) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 24.dp)
-            ) {
-                Icon(
-                    painter = painterResource(id = theme.closeIconDrawable),
-                    contentDescription = null,
-                    tint = theme.closeIconTint,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(24.dp)
-                        .clickable(onClick = onCancel)
-                )
-            }
-        }
 
         Column(
             modifier = Modifier.padding(start = 32.dp, top = 158.dp)
