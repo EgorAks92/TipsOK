@@ -466,7 +466,6 @@ class PcCompactTipPaymentViewModel(
         Log.i(TAG, "USER_CANCEL requested operationType=$operationType stage=${state.paymentStage}")
 
         userCancelInProgress = true
-        paymentJob?.cancel()
         cancelEventSent = false
         cancelDeclinedAutoClose()
         tipSelectionDebounceJob?.cancel()
@@ -500,6 +499,8 @@ class PcCompactTipPaymentViewModel(
             }
             Log.i(TAG, "USER_CANCEL arcus final cancelled send start")
             sendCancelledByUserOnce()
+            Log.i(TAG, "USER_CANCEL paymentJob cancel after terminal cancel/final result")
+            paymentJob?.cancel()
         }
     }
 
@@ -649,6 +650,10 @@ class PcCompactTipPaymentViewModel(
                 sendArcus2StatusNowForCurrentStage()
             }
             is PosPaymentEvent.Approved -> {
+                if (userCancelInProgress && cancelEventSent) {
+                    Log.i(TAG, "USER_CANCEL late SSP event ignored event=Approved")
+                    return
+                }
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.Approved, canCancel = false, isRestartingPayment = false, errorMessage = null) }
                 val approvedResult = PcEcrFinalPaymentResult.Approved(
                     message = if (isCancelPreviousOperation()) (event.message ?: "Отмена выполнена") else event.message,

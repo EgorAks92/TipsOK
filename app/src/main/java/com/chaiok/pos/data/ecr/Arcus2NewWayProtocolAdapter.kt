@@ -204,6 +204,10 @@ class Arcus2CashRegisterSession(
     private val rawLogger: Arcus2FrameLogger,
     private val settings: Arcus2NewWaySettings
 ) {
+    companion object {
+        @Volatile
+        var finalResultInProgress: Boolean = false
+    }
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     data class Arcus2ReceivedFrame(
         val data: ByteArray,
@@ -360,6 +364,10 @@ class Arcus2CashRegisterSession(
             try {
                 repeat(maxCycles) { cycle ->
                     if (!isActive) return@launch
+                    if (finalResultInProgress) {
+                        Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=finalResultInProgress")
+                        return@launch
+                    }
                     val recvStartedAt = System.currentTimeMillis()
                     val bytes = client.receiveOnce(graceMs).getOrNull()
                     val recvElapsedMs = System.currentTimeMillis() - recvStartedAt

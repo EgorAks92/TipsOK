@@ -153,13 +153,14 @@ class XchengPcPaymentCommandRepository(
             sendResult
         }
 
-    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> {
+        return withContext(Dispatchers.IO) {
         lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.Stopped && !activeArcus2Transaction) {
                 val message = "ARCUS2 result cannot be sent: repository stopped and COM session is lost"
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(message)
-                return Result.failure(IllegalStateException(message))
+                return@withContext Result.failure(IllegalStateException(message))
             }
 
             if (lifecycleState == PcEcrLifecycleState.Stopped && activeArcus2Transaction) {
@@ -183,6 +184,7 @@ class XchengPcPaymentCommandRepository(
         Log.i(TAG, "ARCUS2 final result send start commandId=${sourceCommand.commandId ?: "-"} lifecycle=$lifecycleState active=$activeArcus2Transaction status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
 
         var storercSent = false
+        Arcus2CashRegisterSession.finalResultInProgress = true
         val sendResult = runCatching {
             sequence.forEach { cmd ->
                 val step = cmd.label
@@ -217,7 +219,9 @@ class XchengPcPaymentCommandRepository(
                     throw ex ?: IllegalStateException("ARCUS2 critical command failed: $step")
                 }
             }
-        }.map { Unit }
+        }.map { Unit }.also {
+            Arcus2CashRegisterSession.finalResultInProgress = false
+        }
 
         lifecycleMutex.withLock {
             if (sendResult.isSuccess) {
@@ -237,6 +241,7 @@ class XchengPcPaymentCommandRepository(
             activeArcus2CommandId = null
         }
         return@withContext sendResult
+    }
     }
 
     override suspend fun sendArcus2StatusIfActive(

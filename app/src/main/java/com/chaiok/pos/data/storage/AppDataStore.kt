@@ -166,7 +166,13 @@ class AppDataStore(private val context: Context) {
             additionalDataReadTimeoutMs = p[Keys.arcus2AdditionalDataReadTimeoutMs] ?: d.additionalDataReadTimeoutMs,
             additionalDataTotalTimeoutMs = p[Keys.arcus2AdditionalDataTotalTimeoutMs] ?: d.additionalDataTotalTimeoutMs,
             additionalDataMaxFrames = p[Keys.arcus2AdditionalDataMaxFrames] ?: d.additionalDataMaxFrames,
-            additionalDataGetTagsResponseMode = p[Keys.arcus2AdditionalDataGetTagsResponseMode] ?: d.additionalDataGetTagsResponseMode,
+            additionalDataGetTagsResponseMode = ((p[Keys.arcus2AdditionalDataGetTagsResponseMode] ?: d.additionalDataGetTagsResponseMode)
+                .let { mode ->
+                    if (mode.equals("SEND_EMPTY_TAGS", ignoreCase = true)) {
+                        android.util.Log.w("AppDataStore", "SEND_EMPTY_TAGS unsupported, normalized to IGNORE_AND_WAIT_TAGS")
+                        "IGNORE_AND_WAIT_TAGS"
+                    } else mode
+                }),
             additionalDataGraceTimeoutAfterRequiredTagsMs = p[Keys.arcus2AdditionalDataGraceTimeoutAfterRequiredTagsMs] ?: d.additionalDataGraceTimeoutAfterRequiredTagsMs,
             additionalDataRequireEndTrBeforeBusinessStart = p[Keys.arcus2AdditionalDataRequireEndTrBeforeBusinessStart] ?: d.additionalDataRequireEndTrBeforeBusinessStart,
             arcus2FinalStepTimeoutMs = p[Keys.arcus2FinalStepTimeoutMs] ?: d.arcus2FinalStepTimeoutMs,
