@@ -371,19 +371,23 @@ class Arcus2CashRegisterSession(
                         return@launch
                     }
                     val recvStartedAt = System.currentTimeMillis()
-                    val bytes = client.receiveOnce(graceMs).getOrNull()
+                    val bytesOrNull = client.receiveOnce(graceMs).getOrNull()
                     val recvElapsedMs = System.currentTimeMillis() - recvStartedAt
                     if (recvElapsedMs > graceMs + 200L) {
                         Log.w("Arcus2Session", "ARCUS2 additional cleanup stop reason=timeout recvElapsedMs=$recvElapsedMs graceMs=$graceMs")
                         return@launch
                     }
-                    if (bytes.isNullOrEmpty()) {
+                    if (bytesOrNull == null || bytesOrNull.isEmpty()) {
                         Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=empty")
                         return@launch
                     }
-                    val decodedFrames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull()
-                    val framePayloads: List<ByteArray> = if (!decodedFrames.isNullOrEmpty()) {
-                        decodedFrames.map { it.data }
+                    val bytes: ByteArray = bytesOrNull
+                    val decodedFrames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
+                    val payloadsFromFrames: List<ByteArray> = decodedFrames.mapNotNull { frame ->
+                        frame.data
+                    }
+                    val framePayloads: List<ByteArray> = if (payloadsFromFrames.isNotEmpty()) {
+                        payloadsFromFrames
                     } else {
                         listOf(bytes)
                     }
