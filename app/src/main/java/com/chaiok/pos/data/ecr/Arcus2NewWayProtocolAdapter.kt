@@ -108,7 +108,7 @@ class Arcus2NewWayProtocolAdapter(
 
         return when {
             cls == s.saleClass && op == s.saleOp -> {
-                val amount = amountRaw?.toBigDecimalOrNull()
+                val amount = parseArcus2Amount(amountRaw, currency)
                 // TODO: Make PcEcrCommand.Payment amount/currency nullable for full primary+additional-data resolution.
                 if (amount == null || currency == null) EcrParseResult.Error("sale parse failed")
                 else EcrParseResult.Command(PcEcrCommand.Payment("ARCUS2-SALE-${System.currentTimeMillis()}", protocol, null, amount, currency))
@@ -123,7 +123,7 @@ class Arcus2NewWayProtocolAdapter(
                 } else {
                     "ARCUS2-REVERSAL-${rrn.takeLast(4)}-${System.currentTimeMillis()}"
                 }
-                EcrParseResult.Command(PcEcrCommand.Reversal(commandId, protocol, null, rrn, parseArcus2ReversalAmount(amountRaw, currency), currency))
+                EcrParseResult.Command(PcEcrCommand.Reversal(commandId, protocol, null, rrn, parseArcus2Amount(amountRaw, currency), currency))
             }
             cls == s.refundClass && op == s.refundOp -> EcrParseResult.Command(PcEcrCommand.Refund(null, protocol, amountRaw?.toBigDecimalOrNull(), currency))
             else -> EcrParseResult.Unknown("Unsupported class/op", bytes.toHexPreview())
@@ -187,7 +187,7 @@ private fun maskArcusField(value: String): String =
         else trimmed.take(32)
     }
 
-private fun parseArcus2ReversalAmount(raw: String?, currency: String?): BigDecimal? {
+private fun parseArcus2Amount(raw: String?, currency: String?): BigDecimal? {
     val normalizedRaw = raw?.trim()?.replace(',', '.')?.takeIf { it.isNotBlank() } ?: return null
     val n = normalizedRaw.toBigDecimalOrNull() ?: return null
     val hasDecimalSeparator = normalizedRaw.contains('.')
@@ -207,7 +207,8 @@ class Arcus2CashRegisterSession(
     suspend fun sendCommandAndReadFrames(
         dataText: String,
         readTimeoutMs: Long,
-        maxFrames: Int
+        maxFrames: Int,
+        shouldStop: (List<String>) -> Boolean = { false }
     ): Result<List<String>> = runCatching {
         val outFrame = Arcus2BinLenCodec.encode(encodeWin1251(dataText))
         rawLogger.logOutgoing(outFrame, dataText.substringBefore(':'))
@@ -221,6 +222,7 @@ class Arcus2CashRegisterSession(
             frames.forEach { frame ->
                 responses += decodeWin1251(frame.data).trim('\u0000', ' ', '\n', '\r', '\t')
             }
+            if (shouldStop(responses)) return@runCatching responses
         }
         // TODO: confirm whether Arcus additional data response requires OK ACK.
         responses

@@ -384,12 +384,15 @@ class XchengPcPaymentCommandRepository(
         Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
 
         val settings = settingsRepository.observeSettings().first()
+        var parsedHandled = false
         val command = when (settings.pcEcrProtocol) {
             PcEcrProtocol.CHAIOK_JSON -> PcPaymentCommandParser.parse(bytes)
             PcEcrProtocol.ARCUS2_NEWWAY -> {
                 val adapter = Arcus2NewWayProtocolAdapter({ settings.arcus2NewWaySettings }, rawLogger)
                 when (val parsed = adapter.parseIncoming(bytes)) {
-                    is EcrParseResult.Command -> when (val cmd = parsed.command) {
+                    is EcrParseResult.Command -> {
+                        parsedHandled = true
+                        when (val cmd = parsed.command) {
                         is PcEcrCommand.Payment -> {
                             val resolved = resolveArcus2FinancialCommand(cmd, settings.arcus2NewWaySettings)
                             val amount = resolved.amount
@@ -448,17 +451,22 @@ class XchengPcPaymentCommandRepository(
                             }
                         }
                         is PcEcrCommand.Refund, is PcEcrCommand.Settlement -> {
+                            Log.i(TAG, "ARCUS2 operation parsed but unsupported type=${cmd.javaClass.simpleName.uppercase()}")
+                            // TODO: apply additional data resolver when REFUND/SETTLEMENT business flow is implemented.
                             val r = sendArcus2UnsupportedWhileListening(settings.arcus2NewWaySettings, "Unsupported ARCUS2 operation")
                             updateArcusListeningState(r, "arcus2 unsupported error")
                             null
                         }
                         else -> null
                     }
+                    }
                     is EcrParseResult.Ack -> {
+                        parsedHandled = true
                         Log.i(TAG, "ARCUS2 standalone control response ignored")
                         null
                     }
                     is EcrParseResult.Error -> {
+                        parsedHandled = true
                         val r = if (parsed.reason.contains("RRN missing", ignoreCase = true)) {
                             sendArcus2ErrorWhileListening(
                                 settings.arcus2NewWaySettings,
@@ -474,6 +482,7 @@ class XchengPcPaymentCommandRepository(
                         null
                     }
                     is EcrParseResult.Unknown -> {
+                        parsedHandled = true
                         val r = sendArcus2UnsupportedWhileListening(
                             settings.arcus2NewWaySettings,
                             "ARCUS2 unknown command: ${parsed.reason}"
@@ -491,8 +500,10 @@ class XchengPcPaymentCommandRepository(
                 "ECR command received commandId=${command.commandId ?: "-"} currency=${command.currency}"
             )
             commands.emit(command)
-        } else {
+        } else if (!parsedHandled) {
             Log.w(TAG, "payload received but parser returned null. hex=${bytes.toHexPreview()}")
+        } else {
+            Log.i(TAG, "ECR payload handled without opening payment flow")
         }
     }
 
@@ -502,7 +513,7 @@ class XchengPcPaymentCommandRepository(
     ): Arcus2AdditionalData {
         val shouldRequest = when (cmd) {
             is PcEcrCommand.Payment -> settings.saleAdditionalDataEnabled
-            is PcEcrCommand.Reversal -> settings.reversalAdditionalDataEnabled || cmd.rrn.isNullOrBlank()
+            is PcEcrCommand.Reversal -> cmd.rrn.isNullOrBlank() && settings.reversalAdditionalDataEnabled
             else -> false
         }
         val additional = if (shouldRequest) requestArcus2AdditionalData(settings, cmd::class.simpleName ?: "unknown") else Arcus2AdditionalData()
@@ -527,16 +538,21 @@ class XchengPcPaymentCommandRepository(
 
     private suspend fun requestArcus2AdditionalData(settings: Arcus2NewWaySettings, reason: String): Arcus2AdditionalData {
         if (!settings.additionalDataRequestEnabled) return Arcus2AdditionalData()
-        Log.i(TAG, "ARCUS2 additional data request start reason=$reason command=${settings.additionalDataRequestCommand}")
+        Log.i(TAG, "ARCUS2 additional data request start reason=$reason command=${settings.additionalDataRequestCommand} timeoutMs=${settings.additionalDataReadTimeoutMs} maxFrames=${settings.additionalDataMaxFrames}")
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         val responses = session.sendCommandAndReadFrames(
             settings.additionalDataRequestCommand,
             settings.additionalDataReadTimeoutMs,
-            settings.additionalDataMaxFrames
+            settings.additionalDataMaxFrames,
+            shouldStop = { list -> responsesContainRequiredRrn(list, settings) }
         ).getOrElse { err ->
             Log.w(TAG, "ARCUS2 additional data request failed reason=$reason error=${err.message}", err)
             return Arcus2AdditionalData()
         }
+        if (responses.isEmpty()) {
+            Log.w(TAG, "ARCUS2 additional data request returned no frames. Check additionalDataRequestCommand=${settings.additionalDataRequestCommand}")
+        }
+        Log.i(TAG, "ARCUS2 additional data raw responses count=${responses.size} items=${responses.joinToString(\"|\") { maskArcusText(it) }.take(512)}")
         val tags = linkedMapOf<String, String>()
         responses.forEach { text ->
             Log.i(TAG, "ARCUS2 additional data response=${maskArcusText(text)}")
@@ -549,6 +565,14 @@ class XchengPcPaymentCommandRepository(
         val data = buildArcus2AdditionalData(tags, settings)
         Log.i(TAG, "ARCUS2 additional data parsed reason=$reason rrnMasked=${maskRrn(data.rrn)} amount=${data.amount} currency=${data.currency} orderId=${data.orderId ?: "-"} tags=${maskArcusTags(tags)}")
         return data
+    }
+
+    private fun responsesContainRequiredRrn(
+        responses: List<String>,
+        settings: Arcus2NewWaySettings
+    ): Boolean = responses.any { text ->
+        val tags = parseArcus2Tags(text)
+        normalizeRrn(findFirstTag(tags, settings.rrnTagKeysCsv)) != null
     }
 
     private fun parseArcus2Tags(text: String): Map<String, String> {
