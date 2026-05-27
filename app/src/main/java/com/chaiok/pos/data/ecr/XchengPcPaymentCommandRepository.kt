@@ -294,11 +294,18 @@ class XchengPcPaymentCommandRepository(
     ): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
         return runCatching {
+            val nonBlockingStartForCancelPrevious = optionalStatus
             if (settings.sendBeginTrOnPaymentStart) {
-                session.sendCommandAndWaitOk("BEGINTR:").getOrThrow()
+                if (nonBlockingStartForCancelPrevious) {
+                    session.sendCommandFireAndForget("BEGINTR:").getOrThrow()
+                } else {
+                    session.sendCommandAndWaitOk("BEGINTR:").getOrThrow()
+                }
             }
             if (sendStatus) {
-                if (optionalStatus) {
+                if (nonBlockingStartForCancelPrevious) {
+                    session.sendCommandFireAndForget("STATUS:$statusText").getOrThrow()
+                } else if (optionalStatus) {
                     session.sendOptionalStatusAndDrain(statusText, "CANCEL_PREVIOUS").getOrThrow()
                 } else {
                     session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()

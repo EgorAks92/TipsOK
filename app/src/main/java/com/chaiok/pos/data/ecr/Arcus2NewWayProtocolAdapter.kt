@@ -79,7 +79,6 @@ class Arcus2RawFrameLogger(
             "${m.groupValues[1]}***${m.groupValues[2].takeLast(4)}"
         }
         r = r.replace(Regex("(?i)(/r\\[?)(\\d{6,12})(\\]?)")) { m -> "${m.groupValues[1]}***${m.groupValues[2].takeLast(4)}${m.groupValues[3]}" }
-        r = r.replace(Regex("(?<!\\d)(\\d{6,12})(?!\\d)")) { m -> "***${m.value.takeLast(4)}" }
         r = r.replace(Regex("(?<!\\d)(\\d{13,19})(?!\\d)")) { m -> m.value.take(6) + "******" + m.value.takeLast(4) }
         r = r.replace(Regex(";\\d{12,19}="), ";******=")
         r = r.replace(Regex("(?i)(cvv|cvc)\\s*[:=]?\\s*\\d{3,4}"), "$1=***")
@@ -207,6 +206,11 @@ private fun maskArcusField(value: String): String =
 private fun parseArcus2Amount(raw: String?, currency: String?): BigDecimal? {
     val normalizedRaw = raw?.trim()?.replace(',', '.')?.takeIf { it.isNotBlank() } ?: return null
     val n = normalizedRaw.toBigDecimalOrNull() ?: return null
+    suspend fun sendCommandFireAndForget(dataText: String): Result<Unit> = runCatching {
+        val frame = Arcus2BinLenCodec.encode(encodeWin1251(dataText))
+        rawLogger.logOutgoing(frame, dataText.substringBefore(':'))
+        client.send(frame).getOrThrow()
+    }
     val hasDecimalSeparator = normalizedRaw.contains('.')
     return when (currency?.uppercase()) {
         "RUB" -> if (hasDecimalSeparator) n.setScale(2, RoundingMode.HALF_UP) else n.movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
@@ -434,6 +438,8 @@ class Arcus2CashRegisterSession(
                         Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=timeout")
                         return@launch
                     }
+            if (filtered.isEmpty()) return Result.success(Unit)
+        if (filtered.isEmpty()) return Result.success(Unit)
                     if (cycle == maxCycles - 1) {
                         Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=maxCycles")
                     }
