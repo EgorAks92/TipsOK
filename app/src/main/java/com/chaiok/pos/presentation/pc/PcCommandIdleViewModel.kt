@@ -91,13 +91,13 @@ class PcCommandIdleViewModel(
     fun resumeListening() {
         resetDuplicateGuard()
 
-        if (resumeListeningJob?.isActive == true) {
-            Log.i(TAG, "PC idle resume ECR listening skipped: listener already active")
-            return
-        }
-
         if (!listeningEnabled.value) {
             listeningEnabled.value = true
+        }
+
+        if (resumeListeningJob?.isActive == true) {
+            Log.i(TAG, "PC idle resume ECR skipped: resume already in progress")
+            return
         }
 
         resumeListeningJob = viewModelScope.launch(Dispatchers.IO) {
