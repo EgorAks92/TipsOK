@@ -148,23 +148,25 @@ class SmartSkyHeadlessPosPaymentRepository(
         callback: TransactionCallback
     ): TransactionResult {
         Log.i(PAYMENT_TAG, "SSP cancel smartSkyPos.cancel call start rrn=***${request.rrn.takeLast(4)}")
-        val params = buildCancelPreviousParams(request)
+        val normalizedAmount = normalizeAmountForCurrency(request.amount, request.currency)
+        val currencyCode = resolveSspCurrencyCode(request.currency)
+        val params = buildCancelPreviousParams(request, normalizedAmount, currencyCode)
         Log.i(
             PAYMENT_TAG,
-            "SSP cancel params built terminalIdBlank=${params.terminalId?.isBlank() ?: true} " +
-                "currencyCode=${params.currencyCode ?: "-"} rrnMasked=***${request.rrn.takeLast(4)} amount=${request.amount}"
+            "SSP cancel params built terminalIdBlank=${request.terminalId.isBlank()} " +
+                "currencyCode=$currencyCode rrnMasked=***${request.rrn.takeLast(4)} amount=$normalizedAmount"
         )
         return smartSkyPos.cancel(params, callback)
     }
 
     private fun buildCancelPreviousParams(
-        request: PosPaymentCancelPreviousRequest
+        request: PosPaymentCancelPreviousRequest,
+        normalizedAmount: BigDecimal,
+        currencyCode: String
     ): TransactionParams {
-        val params = TransactionParams(
-            normalizeAmountForCurrency(request.amount, request.currency)
-        )
+        val params = TransactionParams(normalizedAmount)
         params.terminalId = request.terminalId
-        params.currencyCode = resolveSspCurrencyCode(request.currency)
+        params.currencyCode = currencyCode
         params.rrn = request.rrn
         params.extraTransactionData = JSONObject()
             .put("rrn", request.rrn)

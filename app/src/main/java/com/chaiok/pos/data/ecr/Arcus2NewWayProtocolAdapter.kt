@@ -249,19 +249,15 @@ class Arcus2CashRegisterSession(
             val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
             if (bytes != null && bytes.isNotEmpty()) {
                 Log.i("Arcus2Session", "ARCUS2 additional data recv bytes=${bytes.size}")
-                val framed = Arcus2BinLenCodec.decodeAll(bytes).getOrNull()
-                val frames = when {
-                    !framed.isNullOrEmpty() -> {
-                        Log.i("Arcus2Session", "ARCUS2 additional data decode mode=framed chunks=${framed.size}")
-                        framed
-                    }
-                    else -> {
-                        Log.w("Arcus2Session", "ARCUS2 additional data decode mode=raw fallback bytes=${bytes.size}")
-                        listOf(Arcus2BinLenCodec.Frame(data = bytes))
-                    }
+                val decodedFrames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull()
+                val framePayloads: List<ByteArray> = if (!decodedFrames.isNullOrEmpty()) {
+                    Log.i("Arcus2Session", "ARCUS2 additional data decode mode=framed chunks=${decodedFrames.size}")
+                    decodedFrames.map { it.data }
+                } else {
+                    Log.w("Arcus2Session", "ARCUS2 additional data decode mode=raw fallback bytes=${bytes.size}")
+                    listOf(bytes)
                 }
-                for (frame in frames) {
-                    val frameData = frame.data
+                for (frameData in framePayloads) {
                     val text = decodeWin1251(frameData).trim('\u0000', ' ', '\n', '\r', '\t')
                     val normalized = text.trim()
                     responses.add(Arcus2ReceivedFrame(data = frameData, text = text))
