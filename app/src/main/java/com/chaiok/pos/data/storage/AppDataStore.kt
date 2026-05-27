@@ -68,6 +68,7 @@ class AppDataStore(private val context: Context) {
         val arcus2SendStatusOnPaymentStart = booleanPreferencesKey("arcus2_send_status_on_payment_start")
         val arcus2PaymentStartStatusText = stringPreferencesKey("arcus2_payment_start_status_text")
         val arcus2PaymentStatusKeepAliveEnabled = booleanPreferencesKey("arcus2_payment_status_keep_alive_enabled")
+        val arcus2CancelStatusKeepAliveEnabled = booleanPreferencesKey("arcus2_cancel_status_keep_alive_enabled")
         val arcus2PaymentStatusKeepAliveIntervalMs = longPreferencesKey("arcus2_payment_status_keep_alive_interval_ms")
         val arcus2CardWaitingStatusText = stringPreferencesKey("arcus2_card_waiting_status_text")
         val arcus2CardDetectedStatusText = stringPreferencesKey("arcus2_card_detected_status_text")
@@ -78,6 +79,7 @@ class AppDataStore(private val context: Context) {
         val arcus2AdditionalDataRequestCommand = stringPreferencesKey("arcus2_additional_data_request_command")
         val arcus2AdditionalDataReadTimeoutMs = longPreferencesKey("arcus2_additional_data_read_timeout_ms")
         val arcus2AdditionalDataMaxFrames = intPreferencesKey("arcus2_additional_data_max_frames")
+        val arcus2SendStatusOnCancelStart = booleanPreferencesKey("arcus2_send_status_on_cancel_start")
         val arcus2SaleAdditionalDataEnabled = booleanPreferencesKey("arcus2_sale_additional_data_enabled")
         val arcus2ReversalAdditionalDataEnabled = booleanPreferencesKey("arcus2_reversal_additional_data_enabled")
         val arcus2RefundAdditionalDataEnabled = booleanPreferencesKey("arcus2_refund_additional_data_enabled")
@@ -147,6 +149,7 @@ class AppDataStore(private val context: Context) {
             sendStatusOnPaymentStart = p[Keys.arcus2SendStatusOnPaymentStart] ?: d.sendStatusOnPaymentStart,
             paymentStartStatusText = p[Keys.arcus2PaymentStartStatusText] ?: d.paymentStartStatusText,
             paymentStatusKeepAliveEnabled = p[Keys.arcus2PaymentStatusKeepAliveEnabled] ?: d.paymentStatusKeepAliveEnabled,
+            cancelStatusKeepAliveEnabled = p[Keys.arcus2CancelStatusKeepAliveEnabled] ?: d.cancelStatusKeepAliveEnabled,
             paymentStatusKeepAliveIntervalMs = p[Keys.arcus2PaymentStatusKeepAliveIntervalMs] ?: d.paymentStatusKeepAliveIntervalMs,
             cardWaitingStatusText = p[Keys.arcus2CardWaitingStatusText] ?: d.cardWaitingStatusText,
             cardDetectedStatusText = p[Keys.arcus2CardDetectedStatusText] ?: d.cardDetectedStatusText,
@@ -157,6 +160,7 @@ class AppDataStore(private val context: Context) {
             additionalDataRequestCommand = p[Keys.arcus2AdditionalDataRequestCommand] ?: d.additionalDataRequestCommand,
             additionalDataReadTimeoutMs = p[Keys.arcus2AdditionalDataReadTimeoutMs] ?: d.additionalDataReadTimeoutMs,
             additionalDataMaxFrames = p[Keys.arcus2AdditionalDataMaxFrames] ?: d.additionalDataMaxFrames,
+            sendStatusOnCancelStart = p[Keys.arcus2SendStatusOnCancelStart] ?: d.sendStatusOnCancelStart,
             saleAdditionalDataEnabled = p[Keys.arcus2SaleAdditionalDataEnabled] ?: d.saleAdditionalDataEnabled,
             reversalAdditionalDataEnabled = p[Keys.arcus2ReversalAdditionalDataEnabled] ?: d.reversalAdditionalDataEnabled,
             refundAdditionalDataEnabled = p[Keys.arcus2RefundAdditionalDataEnabled] ?: d.refundAdditionalDataEnabled,
@@ -213,6 +217,7 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2SendBeginTrOnPaymentStart] = value.sendBeginTrOnPaymentStart; it[Keys.arcus2SendStatusOnPaymentStart] = value.sendStatusOnPaymentStart
         it[Keys.arcus2PaymentStartStatusText] = value.paymentStartStatusText
         it[Keys.arcus2PaymentStatusKeepAliveEnabled] = value.paymentStatusKeepAliveEnabled
+        it[Keys.arcus2CancelStatusKeepAliveEnabled] = value.cancelStatusKeepAliveEnabled
         it[Keys.arcus2PaymentStatusKeepAliveIntervalMs] = value.paymentStatusKeepAliveIntervalMs
         it[Keys.arcus2CardWaitingStatusText] = value.cardWaitingStatusText
         it[Keys.arcus2CardDetectedStatusText] = value.cardDetectedStatusText
@@ -223,6 +228,7 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2AdditionalDataRequestCommand] = value.additionalDataRequestCommand
         it[Keys.arcus2AdditionalDataReadTimeoutMs] = value.additionalDataReadTimeoutMs
         it[Keys.arcus2AdditionalDataMaxFrames] = value.additionalDataMaxFrames
+        it[Keys.arcus2SendStatusOnCancelStart] = value.sendStatusOnCancelStart
         it[Keys.arcus2SaleAdditionalDataEnabled] = value.saleAdditionalDataEnabled
         it[Keys.arcus2ReversalAdditionalDataEnabled] = value.reversalAdditionalDataEnabled
         it[Keys.arcus2RefundAdditionalDataEnabled] = value.refundAdditionalDataEnabled
