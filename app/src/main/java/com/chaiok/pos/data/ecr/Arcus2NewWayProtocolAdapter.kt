@@ -242,9 +242,10 @@ class Arcus2CashRegisterSession(
         var endTrReceived = false
         val startedAt = System.currentTimeMillis()
         var index = 0
-        val limit = maxFrames.coerceAtLeast(1)
+        val maxReadCycles = maxFrames.coerceAtLeast(1)
+        Log.i("Arcus2Session", "ARCUS2 additional data session started command=${dataText.take(32)} maxReadCycles=$maxReadCycles totalTimeoutMs=$totalTimeoutMs")
 
-        while (index < limit && !stop && System.currentTimeMillis() - startedAt < totalTimeoutMs.coerceAtLeast(readTimeoutMs)) {
+        while (index < maxReadCycles && !stop && System.currentTimeMillis() - startedAt < totalTimeoutMs.coerceAtLeast(readTimeoutMs)) {
             val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
             if (bytes != null && bytes.isNotEmpty()) {
                 Log.i("Arcus2Session", "ARCUS2 additional data recv bytes=${bytes.size}")
@@ -288,8 +289,11 @@ class Arcus2CashRegisterSession(
                             Log.i("Arcus2Session", "ARCUS2 additional received GETTAGS from peer, mode=$mode")
                             when (mode) {
                                 "SEND_ER" -> sendArcusControlText("ER", "additional-ER")
-                                "SEND_EMPTY_TAGS" -> sendArcusControlText("SETTAGS:", "additional-SETTAGS-empty")
-                                else -> Unit
+                                "SEND_EMPTY_TAGS" -> {
+                                    Log.w("Arcus2Session", "ARCUS2 additional GETTAGS mode=SEND_EMPTY_TAGS is not implemented safely; fallback=IGNORE_AND_WAIT_TAGS")
+                                    Unit
+                                }
+                                else -> Log.i("Arcus2Session", "ARCUS2 additional GETTAGS mode=IGNORE_AND_WAIT_TAGS, no response sent")
                             }
                         }
 

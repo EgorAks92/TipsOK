@@ -38,8 +38,10 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.withLock
@@ -958,19 +960,22 @@ class PcCompactTipPaymentViewModel(
         if (!isArcus2Source()) {
             return sendPcEcrFinalResultOnce(result)
         }
-        Log.i(TAG, "ARCUS2 final result send start timeoutMs=$timeoutMs")
-        val completed = withTimeoutOrNull(timeoutMs) {
-            sendPcEcrFinalResultOnce(result)
-        } ?: false
-        if (completed) {
-            Log.i(TAG, "ARCUS2 final result send success")
-            return true
+        return supervisorScope {
+            Log.i(TAG, "ARCUS2 final result send start timeoutMs=$timeoutMs")
+            val sendDeferred = async { sendPcEcrFinalResultOnce(result) }
+            val completed = withTimeoutOrNull(timeoutMs) { sendDeferred.await() }
+            if (completed != null) {
+                if (completed) Log.i(TAG, "ARCUS2 final result send success")
+                else Log.w(TAG, "ARCUS2 final result send failed")
+                return@supervisorScope completed
+            }
+
+            Log.w(TAG, "ARCUS2 final result watchdog timeout (send continues in background)")
+            val retry = sendPcEcrFinalResultOnce(result)
+            if (retry) Log.i(TAG, "ARCUS2 final result retry success")
+            else Log.w(TAG, "ARCUS2 final result retry failed")
+            retry
         }
-        Log.w(TAG, "ARCUS2 final result send timeout")
-        val retry = withTimeoutOrNull(timeoutMs) { sendPcEcrFinalResultOnce(result) } ?: false
-        if (retry) Log.i(TAG, "ARCUS2 final result retry success")
-        else Log.w(TAG, "ARCUS2 final result retry failed")
-        return retry
     }
 
     private suspend fun resumePcEcrAfterPayment(reason: String) {

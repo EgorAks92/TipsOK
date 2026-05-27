@@ -45,6 +45,7 @@ data class Arcus2NewWaySettings(
     val additionalDataTotalTimeoutMs: Long = 8_000L,
     val additionalDataMaxFrames: Int = 8,
     val additionalDataGetTagsResponseMode: String = "IGNORE_AND_WAIT_TAGS",
+    val arcus2FinalStepTimeoutMs: Long = 3_000L,
     val sendStatusOnCancelStart: Boolean = false,
     val saleAdditionalDataEnabled: Boolean = false,
     val reversalAdditionalDataEnabled: Boolean = true,
