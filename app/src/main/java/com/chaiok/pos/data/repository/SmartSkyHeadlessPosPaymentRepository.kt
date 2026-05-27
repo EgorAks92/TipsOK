@@ -22,8 +22,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -37,6 +39,7 @@ class SmartSkyHeadlessPosPaymentRepository(
         val paymentCallFinished = AtomicBoolean(false)
         val terminalEventDelivered = AtomicBoolean(false)
         var isBound = false
+        var bindTimeoutJob: Job? = null
 
         Log.i(PAYMENT_TAG, "[$operationId] cancelPreviousPayment called rrn=***${request.rrn.takeLast(4)} terminalId=***${request.terminalId.takeLast(4)} amount=${request.amount} currency=${request.currency}")
         trySend(PosPaymentEvent.Preparing)
@@ -53,8 +56,11 @@ class SmartSkyHeadlessPosPaymentRepository(
 
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, serviceBinder: IBinder?) {
+                bindTimeoutJob?.cancel()
+                Log.i(PAYMENT_TAG, "[$operationId] SSP cancel service connected binderNull=${serviceBinder == null}")
                 val smartSkyPos = ISmartSkyPos.Stub.asInterface(serviceBinder)
                 if (smartSkyPos == null) {
+                    Log.e(PAYMENT_TAG, "[$operationId] SSP cancel smartSkyPos is null")
                     if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error("Не удалось подключиться к платежному сервису"))
                     close(); return
                 }
@@ -62,10 +68,15 @@ class SmartSkyHeadlessPosPaymentRepository(
                 launch(Dispatchers.IO) {
                     runCatching {
                         trySend(PosPaymentEvent.WaitingForCard)
+                        Log.i(
+                            PAYMENT_TAG,
+                            "[$operationId] SSP cancel invoke start rrn=***${request.rrn.takeLast(4)} " +
+                                "amount=${request.amount} currency=${request.currency} terminalId=***${request.terminalId.takeLast(4)}"
+                        )
                         invokeCancelPreviousByRrn(smartSkyPos, request, callback)
                     }.onSuccess { result ->
                         paymentCallFinished.set(true)
-                        Log.i(PAYMENT_TAG, "[$operationId] SSP cancel by RRN completed")
+                        Log.i(PAYMENT_TAG, "[$operationId] SSP cancel invoke returned rc=${result.rc} approved=${result.isApproved}")
                         val mapped = result.toPosPaymentEvent(operationId)
                         val normalized = when (mapped) {
                             is PosPaymentEvent.Approved -> mapped.copy(
@@ -83,23 +94,41 @@ class SmartSkyHeadlessPosPaymentRepository(
                         close()
                     }.onFailure { err ->
                         paymentCallFinished.set(true)
+                        Log.e(PAYMENT_TAG, "[$operationId] SSP cancel invoke failure: ${err.message}", err)
                         val msg = err.message ?: "Отмена не выполнена"
                         if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error(msg))
                         close()
                     }
                 }
             }
-            override fun onServiceDisconnected(name: ComponentName?) { activeService.set(null) }
+            override fun onServiceDisconnected(name: ComponentName?) {
+                Log.w(PAYMENT_TAG, "[$operationId] SSP cancel service disconnected")
+                activeService.set(null)
+            }
         }
 
         val bindIntent = Intent(SSP_SERVICE_ACTION).apply { setPackage(SSP_PACKAGE) }
+        Log.i(PAYMENT_TAG, "[$operationId] SSP cancel bind requested package=$SSP_PACKAGE action=$SSP_SERVICE_ACTION")
         isBound = runCatching { appContext.bindService(bindIntent, connection, Context.BIND_AUTO_CREATE) }.getOrDefault(false)
+        Log.i(PAYMENT_TAG, "[$operationId] SSP cancel bind result=$isBound")
         if (!isBound) {
+            Log.e(PAYMENT_TAG, "[$operationId] SSP cancel bind failed")
             if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error("Платежное приложение не найдено"))
             close(); return@callbackFlow
         }
 
+        bindTimeoutJob = launch {
+            delay(SSP_BIND_TIMEOUT_MS)
+            if (terminalEventDelivered.compareAndSet(false, true)) {
+                Log.e(PAYMENT_TAG, "[$operationId] SSP cancel bind timeout")
+                trySend(PosPaymentEvent.Error("Таймаут подключения к платежному сервису"))
+                close()
+            }
+        }
+
         awaitClose {
+            bindTimeoutJob?.cancel()
+            Log.i(PAYMENT_TAG, "[$operationId] SSP cancel awaitClose isBound=$isBound finished=${paymentCallFinished.get()}")
             activeService.set(null)
             if (isBound) runCatching { appContext.unbindService(connection) }
         }
@@ -112,7 +141,16 @@ class SmartSkyHeadlessPosPaymentRepository(
         smartSkyPos: ISmartSkyPos,
         request: PosPaymentCancelPreviousRequest,
         callback: TransactionCallback
-    ): TransactionResult = smartSkyPos.cancel(buildCancelPreviousParams(request), callback)
+    ): TransactionResult {
+        Log.i(PAYMENT_TAG, "SSP cancel smartSkyPos.cancel call start rrn=***${request.rrn.takeLast(4)}")
+        val params = buildCancelPreviousParams(request)
+        Log.i(
+            PAYMENT_TAG,
+            "SSP cancel params built terminalIdBlank=${params.terminalId?.isBlank() ?: true} " +
+                "currencyCode=${params.currencyCode ?: "-"} rrnMasked=***${request.rrn.takeLast(4)} amount=${request.amount}"
+        )
+        return smartSkyPos.cancel(params, callback)
+    }
 
     private fun buildCancelPreviousParams(
         request: PosPaymentCancelPreviousRequest
@@ -725,6 +763,7 @@ class SmartSkyHeadlessPosPaymentRepository(
 
     companion object {
         private const val PAYMENT_TAG = "TipsPaymentFlow"
+        private const val SSP_BIND_TIMEOUT_MS = 10_000L
 
         private const val SSP_PACKAGE = "com.skytech.smartskypos"
         private const val SSP_SERVICE_ACTION = "com.skytech.smartskypos.ISmartSkyPos"

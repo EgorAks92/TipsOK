@@ -172,15 +172,70 @@ class PcCompactTipPaymentViewModel(
 
         val settings = observeSettingsUseCase().first()
 
+        if (isCancelPreviousOperation()) {
+            initCancelPreviousStateAndStart(settings)
+        } else {
+            initSaleStateAndStart(settings)
+        }
+    }
+
+    private suspend fun initCancelPreviousStateAndStart(settings: AppSettings) {
         _uiState.update {
             it.copy(
-                showServiceFeeToggle = if (isCancelPreviousOperation()) false else settings.pcCompactServiceFeeEnabled,
-                showCustomTipButton = if (isCancelPreviousOperation()) false else settings.showCustomTipButton,
+                availablePercents = emptyList(),
+                selectedPercentIndex = 0,
+                customTipAmount = null,
+                isCustomTipSelected = false,
+                isNoTipsSelected = true,
+                showCustomTipButton = false,
+                tipConfigLoaded = true,
+                serviceFeePercent = 0.0,
+                showServiceFeeToggle = false,
+                isServiceFeeEnabled = false,
+                paymentStage = CardPresentingStage.Preparing,
+                isRestartingPayment = false,
+                errorMessage = null,
+                canCancel = true,
+                operationType = PcEcrOperationType.CANCEL_PREVIOUS,
+                operationTitle = "Отмена",
+                designStyle = settings.pcCompactPaymentDesignStyle,
+                visualSettingsLoaded = true,
+                currency = commandCurrency
+            )
+        }
+        activeSelectedTip = PcCompactSelectedTip.NoTips
+        activePaymentServiceFeeEnabled = false
+        observeSettings()
+
+        Log.i(
+            TAG,
+            "CANCEL_PREVIOUS init start terminalIdBlank=${terminalId.isBlank()} " +
+                "rrnPresent=${!sourceRrnNormalized.isNullOrBlank()} amount=$billAmount currency=$commandCurrency"
+        )
+
+        pausePcEcrForPayment()
+        if (isArcus2Source()) {
+            startArcus2StatusKeepAlive()
+        }
+
+        generation += 1
+        val started = startCancelPreviousPayment("initial", generation)
+        if (!started) {
+            _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+        }
+    }
+
+    private suspend fun initSaleStateAndStart(settings: AppSettings) {
+
+        _uiState.update {
+            it.copy(
+                showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
+                showCustomTipButton = settings.showCustomTipButton,
                 designStyle = settings.pcCompactPaymentDesignStyle,
                 visualSettingsLoaded = true,
                 currency = commandCurrency,
                 operationType = operationType,
-                operationTitle = if (isCancelPreviousOperation()) "Отмена" else "Оплата",
+                operationTitle = "Оплата",
                 isServiceFeeEnabled = false
             )
         }
@@ -197,8 +252,8 @@ class PcCompactTipPaymentViewModel(
                 availablePercents = percents,
                 selectedPercentIndex = selected,
                 serviceFeePercent = profile.serviceFeePercent.coerceAtLeast(0.0),
-                showServiceFeeToggle = if (isCancelPreviousOperation()) false else settings.pcCompactServiceFeeEnabled,
-                showCustomTipButton = if (isCancelPreviousOperation()) false else settings.showCustomTipButton,
+                showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
+                showCustomTipButton = settings.showCustomTipButton,
                 tipConfigLoaded = true,
                 designStyle = settings.pcCompactPaymentDesignStyle,
                 visualSettingsLoaded = true,
@@ -215,11 +270,7 @@ class PcCompactTipPaymentViewModel(
         }
 
         generation += 1
-        val started = if (isCancelPreviousOperation()) {
-            startCancelPreviousPayment("initial", generation)
-        } else {
-            startPaymentCurrentAmount("initial", generation)
-        }
+        val started = startPaymentCurrentAmount("initial", generation)
         if (started) {
             activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
             activeSelectedTip = _uiState.value.currentSelectedTip()
@@ -229,6 +280,19 @@ class PcCompactTipPaymentViewModel(
     private fun observeSettings() {
         viewModelScope.launch {
             observeSettingsUseCase().collect { settings ->
+                if (isCancelPreviousOperation()) {
+                    _uiState.update {
+                        it.copy(
+                            designStyle = settings.pcCompactPaymentDesignStyle,
+                            visualSettingsLoaded = true,
+                            showCustomTipButton = false,
+                            showServiceFeeToggle = false,
+                            isServiceFeeEnabled = false
+                        )
+                    }
+                    return@collect
+                }
+
                 var shouldRestartAfterCustomDisabled = false
                 var fallbackSelectedTip: PcCompactSelectedTip? = null
 
@@ -512,6 +576,12 @@ class PcCompactTipPaymentViewModel(
     }
 
     private suspend fun startCancelPreviousPayment(reason: String, expectedGeneration: Long = generation): Boolean {
+        Log.i(
+            TAG,
+            "CANCEL_PREVIOUS start requested reason=$reason generation=$expectedGeneration " +
+                "terminalIdBlank=${terminalId.isBlank()} rrnMasked=${maskRrn(sourceRrnNormalized)} " +
+                "amount=${_uiState.value.billAmount} currency=$commandCurrency"
+        )
         if (terminalId.isBlank()) {
             Log.e(TAG, "Cancel previous operation terminalId missing")
             sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Error("Terminal data missing"))
@@ -537,13 +607,18 @@ class PcCompactTipPaymentViewModel(
         paymentJob?.cancel()
         _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true, errorMessage = null) }
         paymentJob = viewModelScope.launch {
+            Log.i(TAG, "CANCEL_PREVIOUS collecting SSP flow rrnMasked=${maskRrn(rrn)}")
             startPosPaymentCancelPreviousUseCase(request).collect { event ->
                 if (expectedGeneration != generation) return@collect
+                Log.i(TAG, "CANCEL_PREVIOUS SSP event=${event.javaClass.simpleName} generation=$expectedGeneration current=$generation")
                 onPaymentEvent(event)
             }
         }
         return true
     }
+
+    private fun maskRrn(rrn: String?): String =
+        rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
 
     private suspend fun onPaymentEvent(event: PosPaymentEvent) {
         when (event) {

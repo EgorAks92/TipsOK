@@ -227,7 +227,7 @@ class Arcus2CashRegisterSession(
         while (index < limit && !stop) {
             val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
             if (bytes != null && bytes.isNotEmpty()) {
-                rawLogger.logIncoming(bytes)
+                Log.i("Arcus2Session", "ARCUS2 additional data recv bytes=${bytes.size}")
                 val frames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
                 for (frame in frames) {
                     val frameData = frame.data
