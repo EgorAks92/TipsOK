@@ -827,6 +827,8 @@ class XchengWireEcrPortClient(context: Context) {
 
         private const val RECV_TIMEOUT_MS = 3000
         private const val RECV_BUFFER_SIZE = 2048
+        private const val RECEIVE_TIMEOUT_GRACE_MS = 100L
+        private const val RECEIVE_TIMEOUT_WARN_DELTA_MS = 300L
 
         private const val BIND_TIMEOUT_MS = 3000L
 

@@ -81,6 +81,8 @@ class AppDataStore(private val context: Context) {
         val arcus2AdditionalDataTotalTimeoutMs = longPreferencesKey("arcus2_additional_data_total_timeout_ms")
         val arcus2AdditionalDataMaxFrames = intPreferencesKey("arcus2_additional_data_max_frames")
         val arcus2AdditionalDataGetTagsResponseMode = stringPreferencesKey("arcus2_additional_data_gettags_response_mode")
+        val arcus2AdditionalDataGraceTimeoutAfterRequiredTagsMs = longPreferencesKey("arcus2_additional_data_grace_timeout_after_required_tags_ms")
+        val arcus2AdditionalDataRequireEndTrBeforeBusinessStart = booleanPreferencesKey("arcus2_additional_data_require_endtr_before_business_start")
         val arcus2FinalStepTimeoutMs = longPreferencesKey("arcus2_final_step_timeout_ms")
         val arcus2SendStatusOnCancelStart = booleanPreferencesKey("arcus2_send_status_on_cancel_start")
         val arcus2SaleAdditionalDataEnabled = booleanPreferencesKey("arcus2_sale_additional_data_enabled")
@@ -165,6 +167,8 @@ class AppDataStore(private val context: Context) {
             additionalDataTotalTimeoutMs = p[Keys.arcus2AdditionalDataTotalTimeoutMs] ?: d.additionalDataTotalTimeoutMs,
             additionalDataMaxFrames = p[Keys.arcus2AdditionalDataMaxFrames] ?: d.additionalDataMaxFrames,
             additionalDataGetTagsResponseMode = p[Keys.arcus2AdditionalDataGetTagsResponseMode] ?: d.additionalDataGetTagsResponseMode,
+            additionalDataGraceTimeoutAfterRequiredTagsMs = p[Keys.arcus2AdditionalDataGraceTimeoutAfterRequiredTagsMs] ?: d.additionalDataGraceTimeoutAfterRequiredTagsMs,
+            additionalDataRequireEndTrBeforeBusinessStart = p[Keys.arcus2AdditionalDataRequireEndTrBeforeBusinessStart] ?: d.additionalDataRequireEndTrBeforeBusinessStart,
             arcus2FinalStepTimeoutMs = p[Keys.arcus2FinalStepTimeoutMs] ?: d.arcus2FinalStepTimeoutMs,
             sendStatusOnCancelStart = p[Keys.arcus2SendStatusOnCancelStart] ?: d.sendStatusOnCancelStart,
             saleAdditionalDataEnabled = p[Keys.arcus2SaleAdditionalDataEnabled] ?: d.saleAdditionalDataEnabled,
@@ -236,6 +240,8 @@ class AppDataStore(private val context: Context) {
         it[Keys.arcus2AdditionalDataTotalTimeoutMs] = value.additionalDataTotalTimeoutMs
         it[Keys.arcus2AdditionalDataMaxFrames] = value.additionalDataMaxFrames
         it[Keys.arcus2AdditionalDataGetTagsResponseMode] = value.additionalDataGetTagsResponseMode
+        it[Keys.arcus2AdditionalDataGraceTimeoutAfterRequiredTagsMs] = value.additionalDataGraceTimeoutAfterRequiredTagsMs
+        it[Keys.arcus2AdditionalDataRequireEndTrBeforeBusinessStart] = value.additionalDataRequireEndTrBeforeBusinessStart
         it[Keys.arcus2FinalStepTimeoutMs] = value.arcus2FinalStepTimeoutMs
         it[Keys.arcus2SendStatusOnCancelStart] = value.sendStatusOnCancelStart
         it[Keys.arcus2SaleAdditionalDataEnabled] = value.saleAdditionalDataEnabled

@@ -498,6 +498,7 @@ class PcCompactTipPaymentViewModel(
                 Log.i(TAG, "USER_CANCEL terminal cancel success")
             }
             Log.i(TAG, "USER_CANCEL arcus final cancelled send start")
+            paymentJob?.cancel()
             sendCancelledByUserOnce()
         }
     }
@@ -668,6 +669,10 @@ class PcCompactTipPaymentViewModel(
                 _events.send(PcCompactTipPaymentEvent.Approved)
             }
             is PosPaymentEvent.Declined -> {
+                if (userCancelInProgress && cancelEventSent) {
+                    Log.i(TAG, "USER_CANCEL late SSP event ignored event=Declined")
+                    return
+                }
                 Log.i(TAG, "Payment declined")
                 val fallbackDeclinedText = if (isCancelPreviousOperation()) {
                     "Отмена не выполнена"
@@ -701,6 +706,10 @@ class PcCompactTipPaymentViewModel(
                 }
             }
             is PosPaymentEvent.Error -> {
+                if (userCancelInProgress && cancelEventSent) {
+                    Log.i(TAG, "USER_CANCEL late SSP event ignored event=Error")
+                    return
+                }
                 Log.i(TAG, "Payment error")
                 val fallbackErrorText = if (isCancelPreviousOperation()) {
                     "Ошибка отмены"
@@ -730,6 +739,10 @@ class PcCompactTipPaymentViewModel(
                 }
             }
             PosPaymentEvent.Cancelled -> {
+                if (userCancelInProgress && cancelEventSent) {
+                    Log.i(TAG, "USER_CANCEL late SSP event ignored event=Cancelled")
+                    return
+                }
                 if (ignoreNextCancelledFromRestart) {
                     ignoreNextCancelledFromRestart = false
                     Log.i(TAG, "Ignore cancelled event from restart")
