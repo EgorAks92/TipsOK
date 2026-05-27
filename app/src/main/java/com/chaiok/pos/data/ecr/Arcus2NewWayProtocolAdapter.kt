@@ -209,7 +209,7 @@ class Arcus2CashRegisterSession(
     )
 
     suspend fun sendCommandAndWaitOk(dataText: String): Result<Unit> = sendDataAndWaitOk(encodeWin1251(dataText), dataText.substringBefore(':'))
-    suspend fun sendCommandAndReadFrames(
+    suspend fun sendCommandAndRunAdditionalDataSession(
         dataText: String,
         readTimeoutMs: Long,
         maxFrames: Int,
@@ -232,15 +232,61 @@ class Arcus2CashRegisterSession(
                 for (frame in frames) {
                     val frameData = frame.data
                     val text = decodeWin1251(frameData).trim('\u0000', ' ', '\n', '\r', '\t')
+                    val normalized = text.trim()
                     responses.add(Arcus2ReceivedFrame(data = frameData, text = text))
+                    when {
+                        normalized.equals("OK", ignoreCase = true) ||
+                            normalized.equals("ER", ignoreCase = true) ||
+                            normalized.equals("NAK", ignoreCase = true) -> Unit
+
+                        normalized.startsWith("GETFILE:", ignoreCase = true) -> {
+                            val fileName = normalized.substringAfter(':', "")
+                                .replace("/", "")
+                                .replace("\\", "")
+                                .take(64)
+                            Log.i("Arcus2Session", "ARCUS2 additional GETFILE requested file=$fileName -> ER")
+                            sendArcusControlText("ER", "additional-ER")
+                        }
+
+                        normalized.startsWith("PING:", ignoreCase = true) -> {
+                            Log.i("Arcus2Session", "ARCUS2 additional PING -> OK")
+                            sendArcusControlText("OK", "additional-OK")
+                        }
+
+                        normalized.startsWith("GETTAGS:", ignoreCase = true) -> {
+                            Log.i("Arcus2Session", "ARCUS2 additional GETTAGS command from peer -> ER")
+                            sendArcusControlText("ER", "additional-ER")
+                        }
+
+                        normalized.startsWith("SETTAGS:", ignoreCase = true) -> {
+                            sendArcusControlText("OK", "additional-OK")
+                        }
+
+                        normalized.equals("ENDTR", ignoreCase = true) -> {
+                            sendArcusControlText("OK", "additional-OK")
+                            stop = true
+                        }
+
+                        else -> {
+                            if (frameData.isNotEmpty()) {
+                                sendArcusControlText("OK", "additional-OK")
+                            }
+                        }
+                    }
                 }
-                stop = shouldStop(responses)
+                stop = stop || shouldStop(responses)
             }
             index += 1
         }
 
         // TODO: confirm whether Arcus additional data response requires OK ACK.
         responses
+    }
+
+    private suspend fun sendArcusControlText(text: String, note: String): Result<Unit> {
+        val frame = Arcus2BinLenCodec.encode(encodeWin1251(text))
+        rawLogger.logOutgoing(frame, note)
+        return client.send(frame)
     }
 
     suspend fun sendDataAndWaitOk(data: ByteArray, label: String): Result<Unit> {

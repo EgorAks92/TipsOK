@@ -3,6 +3,7 @@ package com.chaiok.pos.presentation.pc
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.PosPaymentEvent
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
@@ -219,10 +220,7 @@ class PcCompactTipPaymentViewModel(
         }
 
         generation += 1
-        val started = startCancelPreviousPayment("initial", generation)
-        if (!started) {
-            _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
-        }
+        startCancelPreviousPayment("initial", generation)
     }
 
     private suspend fun initSaleStateAndStart(settings: AppSettings) {

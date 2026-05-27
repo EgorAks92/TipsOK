@@ -517,7 +517,11 @@ class XchengPcPaymentCommandRepository(
             is PcEcrCommand.Reversal -> cmd.rrn.isNullOrBlank() && settings.reversalAdditionalDataEnabled
             else -> false
         }
-        val additional = if (shouldRequest) requestArcus2AdditionalData(settings, cmd::class.simpleName ?: "unknown") else Arcus2AdditionalData()
+        val additional = if (shouldRequest) {
+            requestArcus2AdditionalData(settings, cmd.javaClass.simpleName.ifBlank { "unknown" })
+        } else {
+            Arcus2AdditionalData()
+        }
         return when (cmd) {
             is PcEcrCommand.Payment -> Arcus2AdditionalData(
                 amount = cmd.amount,
@@ -554,7 +558,7 @@ class XchengPcPaymentCommandRepository(
         Log.i(logTag, "ARCUS2 additional data request start reason=$reason command=$requestCommand timeoutMs=$readTimeoutMs maxFrames=$maxFrames")
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
 
-        val result = session.sendCommandAndReadFrames(
+        val result = session.sendCommandAndRunAdditionalDataSession(
             dataText = requestCommand,
             readTimeoutMs = readTimeoutMs,
             maxFrames = maxFrames,
