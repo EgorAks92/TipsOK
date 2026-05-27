@@ -632,7 +632,12 @@ class PcCompactTipPaymentViewModel(
             Log.i(TAG, "CANCEL_PREVIOUS UI stage=${_uiState.value.paymentStage} event=${event.javaClass.simpleName}")
         }
         when (event) {
-            PosPaymentEvent.Preparing -> _uiState.update { st -> if (isCancelPreviousOperation() && st.paymentStage == CardPresentingStage.WaitingForCard) st else st.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true) }
+            PosPaymentEvent.Preparing -> _uiState.update { st ->
+                if (isCancelPreviousOperation() && st.paymentStage == CardPresentingStage.WaitingForCard) {
+                    Log.i(TAG, "CANCEL_PREVIOUS ignore stage downgrade WaitingForCard -> Preparing")
+                    st
+                } else st.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true)
+            }
             PosPaymentEvent.WaitingForCard -> {
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.WaitingForCard, canCancel = true, isRestartingPayment = false) }
                 sendArcus2StatusNowForCurrentStage()

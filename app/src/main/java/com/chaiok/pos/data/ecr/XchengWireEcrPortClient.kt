@@ -298,11 +298,11 @@ class XchengWireEcrPortClient(context: Context) {
                 val elapsed = System.currentTimeMillis() - startedAt
                 Log.i(TAG, "recv requested timeoutMs=$timeoutMs actualElapsedMs=$elapsed bytes=${bytes?.size ?: 0}")
                 if (elapsed > timeoutMs + RECEIVE_TIMEOUT_WARN_DELTA_MS) {
-                    Log.w(TAG, "recv elapsed exceeded timeout requested=$timeoutMs actual=$elapsed")
+                    Log.w(TAG, "recv hard-timeout not enforced requested=$timeoutMs actual=$elapsed")
                 }
 
                 if (bytes != null && bytes.isNotEmpty()) {
-                    Log.i(TAG, "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}")
+                    Log.i(TAG, "recv end bytes=${bytes.size} payloadPreview=omitted")
                     return@runCatching bytes
                 }
 
@@ -318,7 +318,7 @@ class XchengWireEcrPortClient(context: Context) {
             runCatching {
                 val usbComm = usb ?: error("USB service missing")
 
-                Log.i(TAG, "send bytes=${bytes.size} hex=${bytes.toHexPreview()}")
+                Log.i(TAG, "send bytes=${bytes.size} payloadPreview=omitted")
 
                 usbComm.send(bytes)
 

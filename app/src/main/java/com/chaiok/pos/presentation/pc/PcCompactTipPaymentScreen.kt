@@ -1,5 +1,7 @@
 package com.chaiok.pos.presentation.pc
 
+import android.util.Log
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -296,6 +298,41 @@ private fun PcCompactPaymentAnimatedRoot(
         PcCompactPaymentStatusOverlay(
             transition = transition,
             theme = theme
+        )
+        PcCompactPersistentCancelOverlay(
+            state = state,
+            theme = theme,
+            onCancel = onCancel
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.PcCompactPersistentCancelOverlay(
+    state: PcCompactTipPaymentUiState,
+    theme: PcCompactPaymentVisualTheme,
+    onCancel: () -> Unit
+) {
+    if (state.operationType != PcEcrOperationType.CANCEL_PREVIOUS) return
+    if (!state.canCancel) return
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 24.dp)
+            .zIndex(10f)
+    ) {
+        Icon(
+            painter = painterResource(id = theme.closeIconDrawable),
+            contentDescription = "Cancel operation",
+            tint = theme.closeIconTint,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(24.dp)
+                .clickable(enabled = state.canCancel) {
+                    Log.i("PcCompactTipPayment", "UI cancel icon clicked operationType=${state.operationType} stage=${state.paymentStage} canCancel=${state.canCancel}")
+                    onCancel()
+                }
         )
     }
 }

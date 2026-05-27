@@ -39,7 +39,7 @@ class Arcus2RawFrameLogger(
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun logIncoming(bytes: ByteArray) {
-        Log.i("Arcus2Raw", "ARCUS2 IN length=${bytes.size} hexPreview=${bytes.toHexPreview(48)}")
+        Log.i("Arcus2Raw", "ARCUS2 IN length=${bytes.size} preview=omitted")
         ioScope.launch { write("IN", bytes, "incoming") }
     }
 
@@ -54,7 +54,7 @@ class Arcus2RawFrameLogger(
                 .put("receivedAt", Instant.now().toString())
                 .put("direction", direction)
                 .put("length", bytes.size)
-                .put("hexPreview", bytes.toHexPreview(96))
+                .put("hexPreview", "omitted")
                 .put("win1251Preview", sanitize(extractWin1251Preview(bytes)))
                 .put("asciiPreview", sanitize(extractAsciiPreview(bytes)))
                 .put("note", sanitize(note))
@@ -321,7 +321,7 @@ class Arcus2CashRegisterSession(
                                 Log.w(
                                     "Arcus2Session",
                                     "ARCUS2 additional unknown frame text=${text.take(64)} rawBytes=${frameData.size} " +
-                                        "hexPreview=${frameData.toHexPreview(24)}"
+                                        "hexPreview=omitted"
                                 )
                             }
                         }
@@ -329,21 +329,13 @@ class Arcus2CashRegisterSession(
                 }
                 if (shouldStop(responses) && !settings.additionalDataRequireEndTrBeforeBusinessStart) {
                     Log.i("Arcus2Session", "ARCUS2 additional required tags collected; fast-path stop without ENDTR")
-                    stop = true
+                    return responses
                 }
             }
             index += 1
         }
         if (!endTrReceived) {
             Log.w("Arcus2Session", "ARCUS2 additional data ended without ENDTR")
-        }
-        val fastPathUsed = stop && !settings.additionalDataRequireEndTrBeforeBusinessStart && !endTrReceived
-        if (fastPathUsed) {
-            val quickDrainMs = settings.additionalDataGraceTimeoutAfterRequiredTagsMs.coerceIn(100L, 150L)
-            Log.i("Arcus2Session", "ARCUS2 fast-path skip cleanup; quick drain only drainMs=$quickDrainMs")
-            client.receiveOnce(quickDrainMs).getOrNull()
-        } else {
-            client.receiveOnce(settings.additionalDataGraceTimeoutAfterRequiredTagsMs).getOrNull()
         }
 
         // TODO: confirm whether Arcus additional data response requires OK ACK.
