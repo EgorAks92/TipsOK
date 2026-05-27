@@ -75,7 +75,9 @@ class Arcus2RawFrameLogger(
 
     private fun sanitize(text: String): String {
         var r = text
-        r = r.replace(Regex("(?i)(rrn\\s*[:=]\\s*)(\\d{6,12})"), "$1***$2".replace("$2", ""))
+        r = r.replace(Regex("(?i)(rrn\\s*[:=]\\s*)(\\d{6,12})")) { m ->
+            "${m.groupValues[1]}***${m.groupValues[2].takeLast(4)}"
+        }
         r = r.replace(Regex("(?i)(/r\\[?)(\\d{6,12})(\\]?)")) { m -> "${m.groupValues[1]}***${m.groupValues[2].takeLast(4)}${m.groupValues[3]}" }
         r = r.replace(Regex("(?<!\\d)(\\d{6,12})(?!\\d)")) { m -> "***${m.value.takeLast(4)}" }
         r = r.replace(Regex("(?<!\\d)(\\d{13,19})(?!\\d)")) { m -> m.value.take(6) + "******" + m.value.takeLast(4) }
@@ -87,8 +89,10 @@ class Arcus2RawFrameLogger(
 
     private fun isSafeControlFrame(bytes: ByteArray): Boolean {
         val payload = Arcus2BinLenCodec.decode(bytes).getOrNull()?.data ?: bytes
-        val text = decodeWin1251(payload).trim('', ' ', '
-', '', '	').uppercase()
+        val text = decodeWin1251(payload)
+            .trim('\u0000', ' ', '\n', '\r', '\t')
+            .uppercase()
+', '	').uppercase()
         return text == "OK" || text == "ER" || text == "NAK" || text.startsWith("PING:")
     }
 }
