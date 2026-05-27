@@ -42,7 +42,7 @@ data class Arcus2NewWaySettings(
     val additionalDataRequestCommand: String = "GETTAGS:rrn,amount,currency,orderId,receiptNumber,authCode",
     val additionalDataReadTimeoutMs: Long = 3_000L,
     val additionalDataMaxFrames: Int = 5,
-    val saleAdditionalDataEnabled: Boolean = true,
+    val saleAdditionalDataEnabled: Boolean = false,
     val reversalAdditionalDataEnabled: Boolean = true,
     val refundAdditionalDataEnabled: Boolean = true,
     val settlementAdditionalDataEnabled: Boolean = false,

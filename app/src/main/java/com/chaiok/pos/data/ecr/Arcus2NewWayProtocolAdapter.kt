@@ -109,6 +109,7 @@ class Arcus2NewWayProtocolAdapter(
         return when {
             cls == s.saleClass && op == s.saleOp -> {
                 val amount = amountRaw?.toBigDecimalOrNull()
+                // TODO: Make PcEcrCommand.Payment amount/currency nullable for full primary+additional-data resolution.
                 if (amount == null || currency == null) EcrParseResult.Error("sale parse failed")
                 else EcrParseResult.Command(PcEcrCommand.Payment("ARCUS2-SALE-${System.currentTimeMillis()}", protocol, null, amount, currency))
             }
@@ -174,7 +175,7 @@ private fun maskRrn(rrn: String?): String =
 private fun maskArcusField(value: String): String =
     run {
         val trimmed = value.trim()
-        val rrnSlash = Regex("(?i)/r\\[?\\d{6,12}]?").find(trimmed)?.value
+        val rrnSlash = Regex("(?i)/r\\[?\\d{6,12}\\]?").find(trimmed)?.value
         if (rrnSlash != null) {
             val rrn = rrnSlash
                 .removePrefix("/r")
@@ -187,9 +188,11 @@ private fun maskArcusField(value: String): String =
     }
 
 private fun parseArcus2ReversalAmount(raw: String?, currency: String?): BigDecimal? {
-    val n = raw?.trim()?.toBigDecimalOrNull() ?: return null
+    val normalizedRaw = raw?.trim()?.replace(',', '.')?.takeIf { it.isNotBlank() } ?: return null
+    val n = normalizedRaw.toBigDecimalOrNull() ?: return null
+    val hasDecimalSeparator = normalizedRaw.contains('.')
     return when (currency?.uppercase()) {
-        "RUB" -> n.movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
+        "RUB" -> if (hasDecimalSeparator) n.setScale(2, RoundingMode.HALF_UP) else n.movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
         "AMD" -> n.setScale(0, RoundingMode.HALF_UP)
         else -> n
     }
@@ -201,6 +204,27 @@ class Arcus2CashRegisterSession(
     private val settings: Arcus2NewWaySettings
 ) {
     suspend fun sendCommandAndWaitOk(dataText: String): Result<Unit> = sendDataAndWaitOk(encodeWin1251(dataText), dataText.substringBefore(':'))
+    suspend fun sendCommandAndReadFrames(
+        dataText: String,
+        readTimeoutMs: Long,
+        maxFrames: Int
+    ): Result<List<String>> = runCatching {
+        val outFrame = Arcus2BinLenCodec.encode(encodeWin1251(dataText))
+        rawLogger.logOutgoing(outFrame, dataText.substringBefore(':'))
+        client.send(outFrame).getOrThrow()
+        val responses = mutableListOf<String>()
+        repeat(maxFrames.coerceAtLeast(1)) {
+            val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
+            if (bytes.isNullOrEmpty()) return@repeat
+            rawLogger.logIncoming(bytes)
+            val frames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
+            frames.forEach { frame ->
+                responses += decodeWin1251(frame.data).trim('\u0000', ' ', '\n', '\r', '\t')
+            }
+        }
+        // TODO: confirm whether Arcus additional data response requires OK ACK.
+        responses
+    }
 
     suspend fun sendDataAndWaitOk(data: ByteArray, label: String): Result<Unit> {
         val frame = Arcus2BinLenCodec.encode(data)

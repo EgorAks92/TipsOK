@@ -394,27 +394,28 @@ class XchengPcPaymentCommandRepository(
                             val resolved = resolveArcus2FinancialCommand(cmd, settings.arcus2NewWaySettings)
                             val amount = resolved.amount
                             val currency = resolved.currency
-                            Log.i(TAG, "ARCUS2 primary command parsed type=SALE amount=$amount currency=$currency rrnMasked=${resolved.rrn?.takeLast(4)?.padStart(resolved.rrn.length, '*') ?: "<missing>"}")
+                            Log.i(TAG, "ARCUS2 resolved financial command type=SALE amount=$amount currency=$currency orderId=${resolved.orderId ?: "-"} rrnMasked=${maskRrn(resolved.rrn)}")
                             if (amount == null || currency == null) {
                                 val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найдена сумма")
                                 updateArcusListeningState(r, "arcus2 sale amount missing")
-                                return@when null
-                            }
-                            Log.i(TAG, "ARCUS2 start sequence commandId=${cmd.commandId ?: "-"} commands=BEGINTR,STATUS waitOk=${settings.arcus2NewWaySettings.waitOkAfterEachCommand}")
-                            val startResult = sendArcus2TransactionStartedWhileListening(settings.arcus2NewWaySettings)
-                            if (startResult.isFailure) {
-                                updateArcusListeningState(startResult, "arcus2 payment start response error")
                                 null
                             } else {
-                                lifecycleMutex.withLock {
-                                    activeArcus2Transaction = true
-                                    activeArcus2CommandId = cmd.commandId
-                                    lifecycleState = PcEcrLifecycleState.PausedForPayment
-                                    status.value = PcUsbConnectionStatus.Idle
+                                Log.i(TAG, "ARCUS2 start sequence commandId=${cmd.commandId ?: "-"} commands=BEGINTR,STATUS waitOk=${settings.arcus2NewWaySettings.waitOkAfterEachCommand}")
+                                val startResult = sendArcus2TransactionStartedWhileListening(settings.arcus2NewWaySettings)
+                                if (startResult.isFailure) {
+                                    updateArcusListeningState(startResult, "arcus2 payment start response error")
+                                    null
+                                } else {
+                                    lifecycleMutex.withLock {
+                                        activeArcus2Transaction = true
+                                        activeArcus2CommandId = cmd.commandId
+                                        lifecycleState = PcEcrLifecycleState.PausedForPayment
+                                        status.value = PcUsbConnectionStatus.Idle
+                                    }
+                                    Log.i(TAG, "ARCUS2 active transaction started commandId=${cmd.commandId ?: "-"}")
+                                    Log.i(TAG, "ARCUS2 payment command accepted commandId=${cmd.commandId ?: "-"}")
+                                    PcPaymentCommand(amount = amount, commandId = cmd.commandId, orderId = resolved.orderId ?: cmd.orderId, currency = currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
                                 }
-                                Log.i(TAG, "ARCUS2 active transaction started commandId=${cmd.commandId ?: "-"}")
-                                Log.i(TAG, "ARCUS2 payment command accepted commandId=${cmd.commandId ?: "-"}")
-                                PcPaymentCommand(amount = amount, commandId = cmd.commandId, orderId = resolved.orderId ?: cmd.orderId, currency = currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
                             }
                         }
                         is PcEcrCommand.Ping -> {
@@ -424,7 +425,9 @@ class XchengPcPaymentCommandRepository(
                         }
                         is PcEcrCommand.Reversal -> {
                             val resolved = resolveArcus2FinancialCommand(cmd, settings.arcus2NewWaySettings)
+                            Log.i(TAG, "ARCUS2 resolved financial command type=REVERSAL amount=${resolved.amount} currency=${resolved.currency} orderId=${resolved.orderId ?: "-"} rrnMasked=${maskRrn(resolved.rrn)}")
                             if (resolved.rrn.isNullOrBlank()) {
+                                Log.w(TAG, "ARCUS2 required data missing type=REVERSAL missing=rrn amount=${resolved.amount} currency=${resolved.currency}")
                                 val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найден RRN")
                                 updateArcusListeningState(r, "arcus2 reversal rrn missing")
                                 null
@@ -524,20 +527,28 @@ class XchengPcPaymentCommandRepository(
 
     private suspend fun requestArcus2AdditionalData(settings: Arcus2NewWaySettings, reason: String): Arcus2AdditionalData {
         if (!settings.additionalDataRequestEnabled) return Arcus2AdditionalData()
-        Log.i(TAG, "ARCUS2 additional data request start reason=$reason")
+        Log.i(TAG, "ARCUS2 additional data request start reason=$reason command=${settings.additionalDataRequestCommand}")
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
-        val send = session.sendCommandAndWaitOk(settings.additionalDataRequestCommand)
-        if (send.isFailure) return Arcus2AdditionalData()
+        val responses = session.sendCommandAndReadFrames(
+            settings.additionalDataRequestCommand,
+            settings.additionalDataReadTimeoutMs,
+            settings.additionalDataMaxFrames
+        ).getOrElse { err ->
+            Log.w(TAG, "ARCUS2 additional data request failed reason=$reason error=${err.message}", err)
+            return Arcus2AdditionalData()
+        }
         val tags = linkedMapOf<String, String>()
-        repeat(settings.additionalDataMaxFrames.coerceAtLeast(1)) {
-            val bytes = client.receiveOnce(settings.additionalDataReadTimeoutMs).getOrNull() ?: return@repeat
-            val frames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
-            frames.forEach { frame ->
-                val text = decodeWin1251(frame.data).trim('\u0000', ' ', '\n', '\r', '\t')
-                tags.putAll(parseArcus2Tags(text))
+        responses.forEach { text ->
+            Log.i(TAG, "ARCUS2 additional data response=${maskArcusText(text)}")
+            when (text.trim()) {
+                "OK" -> Unit
+                "ER", "NAK" -> Log.w(TAG, "ARCUS2 additional data returned ${text.trim()}")
+                else -> tags.putAll(parseArcus2Tags(text))
             }
         }
-        return buildArcus2AdditionalData(tags, settings)
+        val data = buildArcus2AdditionalData(tags, settings)
+        Log.i(TAG, "ARCUS2 additional data parsed reason=$reason rrnMasked=${maskRrn(data.rrn)} amount=${data.amount} currency=${data.currency} orderId=${data.orderId ?: "-"} tags=${maskArcusTags(tags)}")
+        return data
     }
 
     private fun parseArcus2Tags(text: String): Map<String, String> {
@@ -581,6 +592,23 @@ class XchengPcPaymentCommandRepository(
             else -> n
         }
     }
+
+    private fun maskRrn(rrn: String?): String = rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
+    private fun maskArcusText(text: String): String = text
+        .replace(Regex("(?i)(rrn=)\\d{6,12}")) { it.groupValues[1] + maskRrn(it.value.substringAfter("=")) }
+        .replace(Regex("(?i)(r=)\\d{6,12}")) { it.groupValues[1] + maskRrn(it.value.substringAfter("=")) }
+        .replace(Regex("(?i)/r\\[?\\d{6,12}\\]?")) {
+            val rrn = it.value.removePrefix("/r").removePrefix("/R").trim('[', ']')
+            "/r${maskRrn(rrn)}"
+        }
+        .replace(Regex("\\d{13,19}")) { it.value.takeLast(4).padStart(it.value.length, '*') }
+        .replace("\u001B", "<ESC>")
+        .take(512)
+    private fun maskArcusTags(tags: Map<String, String>): String =
+        tags.entries.joinToString(prefix = "{", postfix = "}") { (k, v) ->
+            val mv = if (k.equals("rrn", true) || k.equals("r", true)) maskRrn(normalizeRrn(v)) else v.take(64)
+            "$k=$mv"
+        }
 
     private suspend fun updateArcusListeningState(
         result: Result<Unit>,
