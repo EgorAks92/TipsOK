@@ -925,11 +925,11 @@ class PcCompactTipPaymentViewModel(
 
     private fun startArcus2StatusKeepAlive() {
         if (!isArcus2Source()) return
+        if (isCancelPreviousOperation()) return
         if (arcus2StatusKeepAliveJob?.isActive == true) return
         arcus2StatusKeepAliveJob = viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
             if (!settings.paymentStatusKeepAliveEnabled) return@launch
-            if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return@launch
             while (isActive && !pcEcrFinalResultSent && !userCancelInProgress) {
                 val statusText = statusTextForStage(_uiState.value.paymentStage, settings)
                 pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
@@ -945,15 +945,16 @@ class PcCompactTipPaymentViewModel(
 
     private fun sendArcus2StatusNowForCurrentStage() {
         if (!isArcus2Source()) return
+        if (isCancelPreviousOperation()) return
         viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
-            if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return@launch
             sendArcus2StatusNow(statusTextForStage(_uiState.value.paymentStage, settings))
         }
     }
 
     private fun sendArcus2StatusNow(statusText: String) {
         if (!isArcus2Source()) return
+        if (isCancelPreviousOperation()) return
         if (lastArcus2StatusText == statusText) return
         lastArcus2StatusText = statusText
         viewModelScope.launch {
@@ -967,10 +968,10 @@ class PcCompactTipPaymentViewModel(
         force: Boolean = false
     ) {
         if (!isArcus2Source()) return
+        if (isCancelPreviousOperation()) return
         if (!force && lastArcus2StatusText == statusText) return
         lastArcus2StatusText = statusText
         val settings = observeSettingsUseCase().first().arcus2NewWaySettings
-        if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return
         val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
         result.onFailure {
             Log.w(TAG, "ARCUS2 immediate STATUS failed text=$statusText error=${it.message}", it)

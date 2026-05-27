@@ -75,12 +75,10 @@ class Arcus2RawFrameLogger(
 
     private fun sanitize(text: String): String {
         var r = text
-        r = r.replace(Regex("(?i)(rrn\\s*[:=]\\s*)(\\d{6,12})")) { m ->
-            "${m.groupValues[1]}***${m.groupValues[2].takeLast(4)}"
-        }
-        r = r.replace(Regex("(?i)(/r\\[?)(\\d{6,12})(\\]?)")) { m -> "${m.groupValues[1]}***${m.groupValues[2].takeLast(4)}${m.groupValues[3]}" }
         r = r.replace(Regex("(?<!\\d)(\\d{13,19})(?!\\d)")) { m -> m.value.take(6) + "******" + m.value.takeLast(4) }
         r = r.replace(Regex(";\\d{12,19}="), ";******=")
+        r = r.replace(Regex("(?i)(exp|expiry|expdate)\\s*[:=]?\\s*\\d{2}/?\\d{2,4}"), "$1=**/**")
+        r = r.replace(Regex("(?i)(cardholder|name)\\s*[:=]\\s*[^,;\\n\\r]{2,64}"), "$1=***")
         r = r.replace(Regex("(?i)(cvv|cvc)\\s*[:=]?\\s*\\d{3,4}"), "$1=***")
         return r
     }
@@ -116,7 +114,7 @@ class Arcus2NewWayProtocolAdapter(
         val currencyCode = fields.getOrNull(2)
         val amountRaw = fields.getOrNull(3)
         val s = settingsProvider.get()
-        val currency = when (currencyCode) {
+            else -> EcrParseResult.Unknown("Unsupported class/op", "payload omitted bytes=${bytes.size}")
             s.currencyRubCode -> "RUB"
             s.currencyAmdCode -> "AMD"
             else -> null
@@ -182,7 +180,9 @@ private fun maskArcusField(value: String): String =
         val trimmed = value.trim()
         val rrnSlash = Regex("(?i)/r\\[?\\d{6,12}\\]?").find(trimmed)?.value
         if (rrnSlash != null) {
-            val rrn = rrnSlash
+    private val setStaleExpected: (Boolean) -> Unit = {},
+    private val getStaleSetAtMs: () -> Long = { 0L },
+    private val setStaleSetAtMs: (Long) -> Unit = {}
                 .removePrefix("/r")
                 .removePrefix("/R")
                 .trim('[', ']')
@@ -315,6 +315,7 @@ class Arcus2CashRegisterSession(
                         }
                         normalized.startsWith("STORERC:", ignoreCase = true) -> {
                     Log.i("Arcus2Session", "ARCUS2 stale flag set after additional-data fast-path")
+                    setStaleSetAtMs(System.currentTimeMillis())
                             Log.i("Arcus2Session", "ARCUS2 additional STORERC received value=${normalized.take(64)}")
                             sendArcusControlText("OK", "additional-OK")
                         }
@@ -458,8 +459,18 @@ class Arcus2CashRegisterSession(
             return when {
                 filtered.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
                 filtered.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
-                filtered.any { it == "OK" } -> Result.success(Unit)
-                else -> {
+        val allowedLabel = label == "BEGINTR" || label == "STATUS"
+        val staleAgeMs = System.currentTimeMillis() - getStaleSetAtMs()
+        if (!allowedLabel || staleAgeMs > 2000L) {
+            Log.i("Arcus2Session", "ARCUS2 stale flag cleared label=$label reason=window_or_label")
+            setStaleExpected(false)
+            setStaleSetAtMs(0L)
+            return responses
+        }
+            Log.i("Arcus2Session", "ARCUS2 stale flag cleared label=$label reason=unexpected_payload")
+            setStaleSetAtMs(0L)
+        Log.i("Arcus2Session", "ARCUS2 stale flag cleared label=$label reason=ignored_stale")
+        setStaleSetAtMs(0L)
                     Log.w("Arcus2Session", "ARCUS2 drain unknown label=$label resp=${responses.joinToString("|").take(32)}")
             Log.i("Arcus2Session", "ARCUS2 stale flag cleared label=$label")
         Log.i("Arcus2Session", "ARCUS2 stale flag cleared label=$label")

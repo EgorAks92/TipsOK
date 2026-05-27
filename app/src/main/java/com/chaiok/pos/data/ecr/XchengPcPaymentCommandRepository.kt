@@ -65,6 +65,8 @@ class XchengPcPaymentCommandRepository(
 
     @Volatile
     private var arcus2StaleAdditionalDataResponseExpected: Boolean = false
+    @Volatile
+    private var arcus2StaleAdditionalDataResponseSetAtMs: Long = 0L
 
     override fun observeCommands(): Flow<PcPaymentCommand> = commands
 
@@ -176,7 +178,15 @@ class XchengPcPaymentCommandRepository(
             }
         }
 
-        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
+        val session = Arcus2CashRegisterSession(
+            client,
+            rawLogger,
+            settings,
+            { arcus2StaleAdditionalDataResponseExpected },
+            { arcus2StaleAdditionalDataResponseExpected = it },
+            { arcus2StaleAdditionalDataResponseSetAtMs },
+            { arcus2StaleAdditionalDataResponseSetAtMs = it }
+        )
         val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings, terminalId)
         val resultStatus = when (result) {
             is PcEcrFinalPaymentResult.Approved -> "approved"
@@ -270,7 +280,7 @@ class XchengPcPaymentCommandRepository(
         }
         val safeCommandId = commandId?.ifBlank { "-" } ?: "-"
 
-        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it }, { arcus2StaleAdditionalDataResponseSetAtMs }, { arcus2StaleAdditionalDataResponseSetAtMs = it })
         Log.i(TAG, "ARCUS2 keep-alive STATUS send text=$statusText commandId=$safeCommandId")
         val result = runCatching {
             session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
@@ -292,7 +302,7 @@ class XchengPcPaymentCommandRepository(
         sendStatus: Boolean = settings.sendStatusOnPaymentStart,
         optionalStatus: Boolean = false
     ): Result<Unit> {
-        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it }, { arcus2StaleAdditionalDataResponseSetAtMs }, { arcus2StaleAdditionalDataResponseSetAtMs = it })
         return runCatching {
             val nonBlockingStartForCancelPrevious = optionalStatus
             Log.i(
@@ -320,7 +330,7 @@ class XchengPcPaymentCommandRepository(
     }
 
     private suspend fun sendArcus2SimpleSuccessWhileListening(settings: Arcus2NewWaySettings): Result<Unit> {
-        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it }, { arcus2StaleAdditionalDataResponseSetAtMs }, { arcus2StaleAdditionalDataResponseSetAtMs = it })
         return runCatching {
             session.sendCommandAndWaitOk("STORERC:00").getOrThrow()
             session.sendCommandAndWaitOk("ENDTR").getOrThrow()
@@ -328,7 +338,7 @@ class XchengPcPaymentCommandRepository(
     }
 
     private suspend fun sendArcus2UnsupportedWhileListening(settings: Arcus2NewWaySettings, message: String): Result<Unit> {
-        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it }, { arcus2StaleAdditionalDataResponseSetAtMs }, { arcus2StaleAdditionalDataResponseSetAtMs = it })
         return runCatching {
             if (settings.sendStatusMessages) session.sendCommandAndWaitOk("STATUS:Операция не поддержана").getOrThrow()
             session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrThrow()
@@ -341,7 +351,7 @@ class XchengPcPaymentCommandRepository(
         settings: Arcus2NewWaySettings,
         statusText: String
     ): Result<Unit> {
-        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it }, { arcus2StaleAdditionalDataResponseSetAtMs }, { arcus2StaleAdditionalDataResponseSetAtMs = it })
         return runCatching {
             session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
             session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrThrow()
@@ -423,7 +433,7 @@ class XchengPcPaymentCommandRepository(
             return
         }
 
-        Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
+        Log.i(TAG, "recv bytes=${bytes.size} payloadPreview=omitted")
 
         val settings = settingsRepository.observeSettings().first()
         var parsedHandled = false
@@ -551,7 +561,7 @@ class XchengPcPaymentCommandRepository(
             )
             commands.emit(command)
         } else if (!parsedHandled) {
-            Log.w(TAG, "payload received but parser returned null. hex=${bytes.toHexPreview()}")
+            Log.w(TAG, "payload received but parser returned null. payloadPreview=omitted bytes=${bytes.size}")
         } else {
             Log.i(TAG, "ECR payload handled without opening payment flow")
         }
@@ -605,7 +615,7 @@ class XchengPcPaymentCommandRepository(
         val responseCodeOwTagIdsCsv = settings.responseCodeOwTagIdsCsv
 
         Log.i(logTag, "ARCUS2 additional data request start reason=$reason command=$requestCommand timeoutMs=$readTimeoutMs maxFrames=$maxFrames")
-        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
+        val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it }, { arcus2StaleAdditionalDataResponseSetAtMs }, { arcus2StaleAdditionalDataResponseSetAtMs = it })
 
         val result = session.sendCommandAndRunAdditionalDataSession(
             dataText = requestCommand,
