@@ -650,7 +650,7 @@ class PcCompactTipPaymentViewModel(
                     receiptText = event.receiptText
                 )
                 if (isArcus2Source()) {
-                    sendPcEcrFinalResultOnce(approvedResult)
+                    sendPcEcrFinalResultOnceWithTimeout(approvedResult, ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS)
                     resumePcEcrAfterPayment("approved")
                     delay(ARCUS2_RESULT_VISIBLE_MS)
                 } else {
@@ -685,7 +685,7 @@ class PcCompactTipPaymentViewModel(
                     receiptText = event.receiptText
                 )
                 if (isArcus2Source()) {
-                    pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnce(it) }
+                    pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnceWithTimeout(it, ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS) }
                     resumePcEcrAfterPayment("declined_arcus2_immediate")
                     delay(ARCUS2_RESULT_VISIBLE_MS)
                     _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
@@ -714,7 +714,7 @@ class PcCompactTipPaymentViewModel(
                     receiptText = event.receiptText
                 )
                 if (isArcus2Source()) {
-                    pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnce(it) }
+                    pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnceWithTimeout(it, ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS) }
                     resumePcEcrAfterPayment("error_arcus2_immediate")
                     delay(ARCUS2_RESULT_VISIBLE_MS)
                     _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
@@ -754,7 +754,7 @@ class PcCompactTipPaymentViewModel(
                 } else {
                     "Cancelled"
                 }
-                sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = cancelledText))
+                sendPcEcrFinalResultOnceWithTimeout(PcEcrFinalPaymentResult.Cancelled(message = cancelledText), ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS)
                 resumePcEcrAfterPayment("cancelled")
                 _events.send(PcCompactTipPaymentEvent.CancelledByUser)
             }
@@ -851,10 +851,12 @@ class PcCompactTipPaymentViewModel(
         stopArcus2StatusKeepAlive()
         if (isArcus2Source()) {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
-            sendArcus2StatusNowAwait(settings.cancellingStatusText, force = true)
+            if (!(isCancelPreviousOperation() && !settings.sendStatusOnCancelStart)) {
+                sendArcus2StatusNowAwait(settings.cancellingStatusText, force = true)
+            }
         }
         cancelEventSent = true
-        sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"))
+        sendPcEcrFinalResultOnceWithTimeout(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"), ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS)
         stopArcus2StatusKeepAlive()
         resumePcEcrAfterPayment("cancelled_by_user")
         _events.send(PcCompactTipPaymentEvent.CancelledByUser)
@@ -907,6 +909,7 @@ class PcCompactTipPaymentViewModel(
         if (!isArcus2Source()) return
         viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
+            if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return@launch
             sendArcus2StatusNow(statusTextForStage(_uiState.value.paymentStage, settings))
         }
     }
@@ -929,10 +932,29 @@ class PcCompactTipPaymentViewModel(
         if (!force && lastArcus2StatusText == statusText) return
         lastArcus2StatusText = statusText
         val settings = observeSettingsUseCase().first().arcus2NewWaySettings
+        if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return
         val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
         result.onFailure {
             Log.w(TAG, "ARCUS2 immediate STATUS failed text=$statusText error=${it.message}", it)
         }
+    }
+
+    private suspend fun sendPcEcrFinalResultOnceWithTimeout(
+        result: PcEcrFinalPaymentResult,
+        timeoutMs: Long
+    ): Boolean {
+        if (!isArcus2Source()) {
+            sendPcEcrFinalResultOnce(result)
+            return true
+        }
+        Log.i(TAG, "ARCUS2 final result send start timeoutMs=$timeoutMs")
+        val completed = withTimeoutOrNull(timeoutMs) {
+            sendPcEcrFinalResultOnce(result)
+            true
+        } ?: false
+        if (completed) Log.i(TAG, "ARCUS2 final result send success")
+        else Log.w(TAG, "ARCUS2 final result send timeout")
+        return completed
     }
 
     private suspend fun resumePcEcrAfterPayment(reason: String) {
@@ -1014,6 +1036,7 @@ class PcCompactTipPaymentViewModel(
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
         private const val APPROVED_VISIBLE_MS = 1200L
         private const val ARCUS2_RESULT_VISIBLE_MS = 900L
+        private const val ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS = 3_000L
         private const val DECLINED_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val USER_CANCEL_TERMINAL_TIMEOUT_MS = 2_500L
     }

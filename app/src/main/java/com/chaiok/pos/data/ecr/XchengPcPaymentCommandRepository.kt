@@ -451,13 +451,15 @@ class XchengPcPaymentCommandRepository(
                                     updateArcusListeningState(startResult, "arcus2 reversal start response error")
                                     null
                                 } else {
+                                    val finalCommandId = buildArcus2ReversalCommandId(resolved.rrn, cmd.commandId)
                                     lifecycleMutex.withLock {
                                         activeArcus2Transaction = true
-                                        activeArcus2CommandId = cmd.commandId
+                                        activeArcus2CommandId = finalCommandId
                                         lifecycleState = PcEcrLifecycleState.PausedForPayment
                                         status.value = PcUsbConnectionStatus.Idle
                                     }
-                                    PcPaymentCommand(amount = resolved.amount ?: BigDecimal.ZERO, commandId = cmd.commandId, orderId = resolved.orderId ?: cmd.orderId, currency = resolved.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=${resolved.rrn?.takeLast(4) ?: "missing"}", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = resolved.rrn)
+                                    Log.i(TAG, "ARCUS2 reversal accepted commandId=$finalCommandId rrnMasked=${maskRrn(resolved.rrn)}")
+                                    PcPaymentCommand(amount = resolved.amount ?: BigDecimal.ZERO, commandId = finalCommandId, orderId = resolved.orderId ?: cmd.orderId, currency = resolved.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=${resolved.rrn?.takeLast(4) ?: "missing"}", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = resolved.rrn)
                                 }
                             }
                         }
@@ -610,8 +612,9 @@ class XchengPcPaymentCommandRepository(
             }
 
             val textTags = parseArcus2Tags(frame.text)
+            val owPayload = extractSetTagsPayload(frame.data, frame.text)
             val binaryTags = parseArcus2OwTags(
-                data = frame.data,
+                data = owPayload,
                 rrnOwTagIdsCsv = rrnOwTagIdsCsv,
                 amountOwTagIdsCsv = amountOwTagIdsCsv,
                 currencyOwTagIdsCsv = currencyOwTagIdsCsv,
@@ -649,7 +652,7 @@ class XchengPcPaymentCommandRepository(
         for (frame in responses) {
             val textTags = parseArcus2Tags(frame.text)
             val binaryTags = parseArcus2OwTags(
-                data = frame.data,
+                data = extractSetTagsPayload(frame.data, frame.text),
                 rrnOwTagIdsCsv = rrnOwTagIdsCsv,
                 amountOwTagIdsCsv = "9F02",
                 currencyOwTagIdsCsv = "5F2A",
@@ -759,6 +762,22 @@ class XchengPcPaymentCommandRepository(
             if (p.startsWith("/r", ignoreCase = true)) out["rrn"] = p.drop(2).trim('[', ']').filter(Char::isDigit)
         }
         return out
+    }
+
+    private fun extractSetTagsPayload(data: ByteArray, text: String): ByteArray {
+        if (!text.startsWith("SETTAGS:", ignoreCase = true)) return data
+        val prefix = "SETTAGS:".toByteArray(Charsets.US_ASCII)
+        if (data.size <= prefix.size) return ByteArray(0)
+        val startsWithPrefix = data.copyOfRange(0, prefix.size).contentEquals(prefix)
+        return if (startsWithPrefix) data.copyOfRange(prefix.size, data.size) else data
+    }
+
+    private fun buildArcus2ReversalCommandId(rrn: String?, fallback: String?): String {
+        val normalized = normalizeRrn(rrn)
+        if (!normalized.isNullOrBlank()) {
+            return "ARCUS2-REVERSAL-${normalized.takeLast(4)}-${System.currentTimeMillis()}"
+        }
+        return fallback?.ifBlank { null } ?: "ARCUS2-REVERSAL-NO-RRN-${System.currentTimeMillis()}"
     }
 
     private fun buildArcus2AdditionalData(tags: Map<String, String>, settings: Arcus2NewWaySettings): Arcus2AdditionalData {

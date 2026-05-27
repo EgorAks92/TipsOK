@@ -238,6 +238,8 @@ class Arcus2CashRegisterSession(
 
         val responses = mutableListOf<Arcus2ReceivedFrame>()
         var stop = false
+        var shouldStopMatched = false
+        var drainCyclesLeft = 0
         var index = 0
         val limit = maxFrames.coerceAtLeast(1)
 
@@ -285,13 +287,22 @@ class Arcus2CashRegisterSession(
                         }
 
                         else -> {
-                            if (frameData.isNotEmpty()) {
-                                sendArcusControlText("OK", "additional-OK")
-                            }
+                            Log.w(
+                                "Arcus2Session",
+                                "ARCUS2 additional unknown frame text=${text.take(64)} rawBytes=${frameData.size} " +
+                                    "hexPreview=${frameData.toHexPreview(24)}"
+                            )
                         }
                     }
                 }
-                stop = stop || shouldStop(responses)
+                if (!shouldStopMatched && shouldStop(responses)) {
+                    shouldStopMatched = true
+                    drainCyclesLeft = 2
+                }
+                if (shouldStopMatched && !stop) {
+                    drainCyclesLeft -= 1
+                    if (drainCyclesLeft <= 0) stop = true
+                }
             }
             index += 1
         }
