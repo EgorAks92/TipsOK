@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 class XchengWireEcrPortClient(context: Context) {
 
@@ -290,8 +291,15 @@ class XchengWireEcrPortClient(context: Context) {
                 }
 
                 Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE timeoutMs=$timeoutMs")
-
-                val bytes = usbComm.recv(RECV_BUFFER_SIZE)
+                val startedAt = System.currentTimeMillis()
+                val bytes = withTimeoutOrNull(timeoutMs + RECEIVE_TIMEOUT_GRACE_MS) {
+                    usbComm.recv(RECV_BUFFER_SIZE)
+                }
+                val elapsed = System.currentTimeMillis() - startedAt
+                Log.i(TAG, "recv requested timeoutMs=$timeoutMs actualElapsedMs=$elapsed bytes=${bytes?.size ?: 0}")
+                if (elapsed > timeoutMs + RECEIVE_TIMEOUT_WARN_DELTA_MS) {
+                    Log.w(TAG, "recv elapsed exceeded timeout requested=$timeoutMs actual=$elapsed")
+                }
 
                 if (bytes != null && bytes.isNotEmpty()) {
                     Log.i(TAG, "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}")
@@ -819,6 +827,8 @@ class XchengWireEcrPortClient(context: Context) {
 
         private const val RECV_TIMEOUT_MS = 3000
         private const val RECV_BUFFER_SIZE = 2048
+        private const val RECEIVE_TIMEOUT_GRACE_MS = 100L
+        private const val RECEIVE_TIMEOUT_WARN_DELTA_MS = 300L
 
         private const val BIND_TIMEOUT_MS = 3000L
 

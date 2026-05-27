@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 
 fun interface Arcus2NewWaySettingsProvider { fun get(): Arcus2NewWaySettings }
 
@@ -203,6 +204,11 @@ class Arcus2CashRegisterSession(
     private val rawLogger: Arcus2FrameLogger,
     private val settings: Arcus2NewWaySettings
 ) {
+    companion object {
+        @Volatile
+        var finalResultInProgress: Boolean = false
+    }
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     data class Arcus2ReceivedFrame(
         val data: ByteArray,
         val text: String
@@ -250,18 +256,17 @@ class Arcus2CashRegisterSession(
             if (bytes != null && bytes.isNotEmpty()) {
                 Log.i("Arcus2Session", "ARCUS2 additional data recv bytes=${bytes.size}")
                 val framed = Arcus2BinLenCodec.decodeAll(bytes).getOrNull()
-                val frames = when {
+                val framePayloads: List<ByteArray> = when {
                     !framed.isNullOrEmpty() -> {
                         Log.i("Arcus2Session", "ARCUS2 additional data decode mode=framed chunks=${framed.size}")
-                        framed
+                        framed.map { it.data }
                     }
                     else -> {
                         Log.w("Arcus2Session", "ARCUS2 additional data decode mode=raw fallback bytes=${bytes.size}")
-                        listOf(Arcus2BinLenCodec.Frame(data = bytes))
+                        listOf(bytes)
                     }
                 }
-                for (frame in frames) {
-                    val frameData = frame.data
+                for (frameData in framePayloads) {
                     val text = decodeWin1251(frameData).trim('\u0000', ' ', '\n', '\r', '\t')
                     val normalized = text.trim()
                     responses.add(Arcus2ReceivedFrame(data = frameData, text = text))
@@ -289,10 +294,6 @@ class Arcus2CashRegisterSession(
                             Log.i("Arcus2Session", "ARCUS2 additional received GETTAGS from peer, mode=$mode")
                             when (mode) {
                                 "SEND_ER" -> sendArcusControlText("ER", "additional-ER")
-                                "SEND_EMPTY_TAGS" -> {
-                                    Log.w("Arcus2Session", "ARCUS2 additional GETTAGS mode=SEND_EMPTY_TAGS is not implemented safely; fallback=IGNORE_AND_WAIT_TAGS")
-                                    Unit
-                                }
                                 else -> Log.i("Arcus2Session", "ARCUS2 additional GETTAGS mode=IGNORE_AND_WAIT_TAGS, no response sent")
                             }
                         }
@@ -313,22 +314,37 @@ class Arcus2CashRegisterSession(
                         }
 
                         else -> {
-                            Log.w(
-                                "Arcus2Session",
-                                "ARCUS2 additional unknown frame text=${text.take(64)} rawBytes=${frameData.size} " +
-                                    "hexPreview=${frameData.toHexPreview(24)}"
-                            )
+                            val first = frameData.firstOrNull()?.toInt()?.and(0xFF) ?: -1
+                            if (first == 0x9F || first == 0x1F || first == 0x5F) {
+                                Log.i("Arcus2Session", "ARCUS2 additional OWTags payload received bytes=${frameData.size} mode=raw")
+                            } else {
+                                Log.w(
+                                    "Arcus2Session",
+                                    "ARCUS2 additional unknown frame text=${text.take(64)} rawBytes=${frameData.size} " +
+                                        "hexPreview=${frameData.toHexPreview(24)}"
+                                )
+                            }
                         }
                     }
                 }
-                shouldStop(responses) // keep collecting until ENDTR/timeout/maxFrames
+                if (shouldStop(responses) && !settings.additionalDataRequireEndTrBeforeBusinessStart) {
+                    Log.i("Arcus2Session", "ARCUS2 additional required tags collected; fast-path stop without ENDTR")
+                    stop = true
+                }
             }
             index += 1
         }
         if (!endTrReceived) {
             Log.w("Arcus2Session", "ARCUS2 additional data ended without ENDTR")
         }
-        client.receiveOnce(settings.drainOkAfterCommandMs).getOrNull()
+        val fastPathUsed = stop && !settings.additionalDataRequireEndTrBeforeBusinessStart && !endTrReceived
+        if (fastPathUsed) {
+            val quickDrainMs = settings.additionalDataGraceTimeoutAfterRequiredTagsMs.coerceIn(100L, 150L)
+            Log.i("Arcus2Session", "ARCUS2 fast-path skip cleanup; quick drain only drainMs=$quickDrainMs")
+            client.receiveOnce(quickDrainMs).getOrNull()
+        } else {
+            client.receiveOnce(settings.additionalDataGraceTimeoutAfterRequiredTagsMs).getOrNull()
+        }
 
         // TODO: confirm whether Arcus additional data response requires OK ACK.
         responses
@@ -338,6 +354,82 @@ class Arcus2CashRegisterSession(
         val frame = Arcus2BinLenCodec.encode(encodeWin1251(text))
         rawLogger.logOutgoing(frame, note)
         return client.send(frame)
+    }
+
+    private fun launchAdditionalDataCleanup() {
+        cleanupScope.launch {
+            val graceMs = settings.additionalDataGraceTimeoutAfterRequiredTagsMs.coerceAtLeast(50L)
+            val cleanupStartedAt = System.currentTimeMillis()
+            val maxCycles = 2
+            val maxTotalElapsedMs = 800L
+            Log.i("Arcus2Session", "ARCUS2 additional cleanup start graceMs=$graceMs")
+            try {
+                repeat(maxCycles) { cycle ->
+                    if (!isActive) return@launch
+                    if (finalResultInProgress) {
+                        Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=finalResultInProgress")
+                        return@launch
+                    }
+                    val recvStartedAt = System.currentTimeMillis()
+                    val bytesOrNull = client.receiveOnce(graceMs).getOrNull()
+                    val recvElapsedMs = System.currentTimeMillis() - recvStartedAt
+                    if (recvElapsedMs > graceMs + 200L) {
+                        Log.w("Arcus2Session", "ARCUS2 additional cleanup stop reason=timeout recvElapsedMs=$recvElapsedMs graceMs=$graceMs")
+                        return@launch
+                    }
+                    if (bytesOrNull == null || bytesOrNull.isEmpty()) {
+                        Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=empty")
+                        return@launch
+                    }
+                    val bytes: ByteArray = bytesOrNull
+                    val decodedFrames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
+                    val payloadsFromFrames: List<ByteArray> = decodedFrames.mapNotNull { frame ->
+                        frame.data
+                    }
+                    val framePayloads: List<ByteArray> = if (payloadsFromFrames.isNotEmpty()) {
+                        payloadsFromFrames
+                    } else {
+                        listOf(bytes)
+                    }
+                    var stop = false
+                    for (frameData in framePayloads) {
+                        val text = decodeWin1251(frameData).trim('\u0000', ' ', '\n', '\r', '\t')
+                        val normalized = text.trim()
+                        when {
+                            normalized.startsWith("PING:", ignoreCase = true) -> sendArcusControlText("OK", "cleanup-OK")
+                            normalized.startsWith("GETFILE:", ignoreCase = true) -> sendArcusControlText("ER", "cleanup-ER")
+                            normalized.startsWith("SETTAGS:", ignoreCase = true) -> sendArcusControlText("OK", "cleanup-OK")
+                            normalized.startsWith("STORERC:", ignoreCase = true) -> sendArcusControlText("OK", "cleanup-OK")
+                            normalized.equals("ENDTR", ignoreCase = true) -> {
+                                sendArcusControlText("OK", "cleanup-OK")
+                                stop = true
+                            }
+                            else -> {
+                                val first = frameData.firstOrNull()?.toInt()?.and(0xFF) ?: -1
+                                if (first == 0x9F || first == 0x1F || first == 0x5F) {
+                                    Log.i("Arcus2Session", "ARCUS2 additional OWTags payload received bytes=${frameData.size} mode=cleanup")
+                                } else {
+                                    Log.i("Arcus2Session", "ARCUS2 additional cleanup ignored unknown bytes=${frameData.size} text=${text.take(64)}")
+                                }
+                            }
+                        }
+                    }
+                    if (stop) {
+                        Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=endtr")
+                        return@launch
+                    }
+                    if (System.currentTimeMillis() - cleanupStartedAt >= maxTotalElapsedMs) {
+                        Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=timeout")
+                        return@launch
+                    }
+                    if (cycle == maxCycles - 1) {
+                        Log.i("Arcus2Session", "ARCUS2 additional cleanup stop reason=maxCycles")
+                    }
+                }
+            } finally {
+                Log.i("Arcus2Session", "ARCUS2 additional cleanup elapsedMs=${System.currentTimeMillis() - cleanupStartedAt}")
+            }
+        }
     }
 
     suspend fun sendDataAndWaitOk(data: ByteArray, label: String): Result<Unit> {

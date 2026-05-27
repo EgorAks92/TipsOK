@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -152,12 +154,13 @@ class XchengPcPaymentCommandRepository(
         }
 
     override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> {
+        return withContext(Dispatchers.IO) {
         lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.Stopped && !activeArcus2Transaction) {
                 val message = "ARCUS2 result cannot be sent: repository stopped and COM session is lost"
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(message)
-                return Result.failure(IllegalStateException(message))
+                return@withContext Result.failure(IllegalStateException(message))
             }
 
             if (lifecycleState == PcEcrLifecycleState.Stopped && activeArcus2Transaction) {
@@ -181,41 +184,46 @@ class XchengPcPaymentCommandRepository(
         Log.i(TAG, "ARCUS2 final result send start commandId=${sourceCommand.commandId ?: "-"} lifecycle=$lifecycleState active=$activeArcus2Transaction status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
 
         var storercSent = false
-        val sendResult = runCatching {
-            sequence.forEach { cmd ->
-                val step = cmd.label
-                Log.i(TAG, "ARCUS2 final step=$step started")
-                val stepResult = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
-                    session.sendDataAndWaitOk(cmd.data, cmd.label)
-                } ?: Result.failure(IllegalStateException("ARCUS2 final step timeout: $step"))
-                if (stepResult.isSuccess) {
-                    if (step == "STORERC") storercSent = true
-                    Log.i(TAG, "ARCUS2 final step=$step success")
-                    return@forEach
-                }
-
-                val ex = stepResult.exceptionOrNull()
-                val message = ex?.message.orEmpty()
-                val transportFailure = isTransportFailure(message)
-                Log.w(TAG, "ARCUS2 final step=$step timeout/error: $message")
-                if (step == "SETTAGS" && !transportFailure && isCashRegisterRejection(message)) {
-                    Log.w(TAG, "ARCUS2 SETTAGS payload rejected; retry empty SETTAGS: $message")
-                    val fallback = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
-                        session.sendCommandAndWaitOk("SETTAGS:")
-                    } ?: Result.failure(IllegalStateException("ARCUS2 empty SETTAGS fallback timeout"))
-                    if (fallback.isSuccess) {
-                        Log.i(TAG, "ARCUS2 empty SETTAGS fallback accepted")
+        Arcus2CashRegisterSession.finalResultInProgress = true // TODO move from global flag to repository-scoped coordinator
+        val sendResult = try {
+            runCatching {
+                sequence.forEach { cmd ->
+                    val step = cmd.label
+                    Log.i(TAG, "ARCUS2 final step=$step started")
+                    val stepResult = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
+                        session.sendDataAndWaitOk(cmd.data, cmd.label)
+                    } ?: Result.failure(IllegalStateException("ARCUS2 final step timeout: $step"))
+                    if (stepResult.isSuccess) {
+                        if (step == "STORERC") storercSent = true
+                        Log.i(TAG, "ARCUS2 final step=$step success")
                         return@forEach
                     }
-                    Log.w(TAG, "ARCUS2 empty SETTAGS fallback failed: ${fallback.exceptionOrNull()?.message}")
-                }
 
-                val isEndtr = step == "ENDTR"
-                if ((cmd.critical || transportFailure) && !(storercSent && !isEndtr)) {
-                    throw ex ?: IllegalStateException("ARCUS2 critical command failed: $step")
+                    val ex = stepResult.exceptionOrNull()
+                    val message = ex?.message.orEmpty()
+                    val transportFailure = isTransportFailure(message)
+                    Log.w(TAG, "ARCUS2 final step=$step timeout/error: $message")
+                    if (step == "SETTAGS" && !transportFailure && isCashRegisterRejection(message)) {
+                        Log.w(TAG, "ARCUS2 SETTAGS payload rejected; retry empty SETTAGS: $message")
+                        val fallback = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
+                            session.sendCommandAndWaitOk("SETTAGS:")
+                        } ?: Result.failure(IllegalStateException("ARCUS2 empty SETTAGS fallback timeout"))
+                        if (fallback.isSuccess) {
+                            Log.i(TAG, "ARCUS2 empty SETTAGS fallback accepted")
+                            return@forEach
+                        }
+                        Log.w(TAG, "ARCUS2 empty SETTAGS fallback failed: ${fallback.exceptionOrNull()?.message}")
+                    }
+
+                    val isEndtr = step == "ENDTR"
+                    if ((cmd.critical || transportFailure) && !(storercSent && !isEndtr)) {
+                        throw ex ?: IllegalStateException("ARCUS2 critical command failed: $step")
+                    }
                 }
-            }
-        }.map { Unit }
+            }.map { Unit }
+        } finally {
+            Arcus2CashRegisterSession.finalResultInProgress = false
+        }
 
         lifecycleMutex.withLock {
             if (sendResult.isSuccess) {
@@ -234,7 +242,8 @@ class XchengPcPaymentCommandRepository(
             activeArcus2Transaction = false
             activeArcus2CommandId = null
         }
-        return sendResult
+        return@withContext sendResult
+    }
     }
 
     override suspend fun sendArcus2StatusIfActive(
