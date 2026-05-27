@@ -58,7 +58,7 @@ class Arcus2RawFrameLogger(
                 .put("win1251Preview", sanitize(extractWin1251Preview(bytes)))
                 .put("asciiPreview", sanitize(extractAsciiPreview(bytes)))
                 .put("note", sanitize(note))
-            if (enableFullRawLog && !isSensitiveFrame(bytes)) obj.put("fullHex", bytes.toHexPreview(bytes.size))
+            if (enableFullRawLog && isSafeControlFrame(bytes)) obj.put("fullHex", bytes.toHexPreview(bytes.size))
             File(dir, "arcus2_raw_${LocalDate.now()}.jsonl").appendText(obj.toString() + "\n")
         }
     }
@@ -85,18 +85,13 @@ class Arcus2RawFrameLogger(
     }
 
 
-    private fun isSensitiveFrame(bytes: ByteArray): Boolean {
+    private fun isSafeControlFrame(bytes: ByteArray): Boolean {
         val payload = Arcus2BinLenCodec.decode(bytes).getOrNull()?.data ?: bytes
-        val text = decodeWin1251(payload).trim()
-        val first = payload.firstOrNull()?.toInt()?.and(0xFF) ?: -1
-        if (first == 0x9F || first == 0x1F || first == 0x5F) return true
-        return text.startsWith("SETTAGS:", ignoreCase = true) ||
-            text.startsWith("OWTags", ignoreCase = true) ||
-            text.startsWith("PRINT:", ignoreCase = true) ||
-            text.contains("RRN=", ignoreCase = true) ||
-            text.contains("TRACK2", ignoreCase = true)
+        val text = decodeWin1251(payload).trim('', ' ', '
+', '', '	').uppercase()
+        return text == "OK" || text == "ER" || text == "NAK" || text.startsWith("PING:")
     }
-
+}
 
 class Arcus2NewWayProtocolAdapter(
     private val settingsProvider: Arcus2NewWaySettingsProvider,
@@ -219,14 +214,15 @@ private fun parseArcus2Amount(raw: String?, currency: String?): BigDecimal? {
 class Arcus2CashRegisterSession(
     private val client: XchengWireEcrPortClient,
     private val rawLogger: Arcus2FrameLogger,
-    private val settings: Arcus2NewWaySettings
+    private val settings: Arcus2NewWaySettings,
+    private val getStaleExpected: () -> Boolean = { false },
+    private val setStaleExpected: (Boolean) -> Unit = {}
 ) {
     companion object {
         @Volatile
         var finalResultInProgress: Boolean = false
     }
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    @Volatile private var staleAdditionalDataResponseExpected: Boolean = false
     data class Arcus2ReceivedFrame(
         val data: ByteArray,
         val text: String
@@ -347,7 +343,7 @@ class Arcus2CashRegisterSession(
                 }
                 if (shouldStop(responses) && !settings.additionalDataRequireEndTrBeforeBusinessStart) {
                     Log.i("Arcus2Session", "ARCUS2 additional required tags collected; fast-path stop without ENDTR")
-                    staleAdditionalDataResponseExpected = true
+                    setStaleExpected(true)
                     return@runCatching responses
                 }
             }
@@ -356,7 +352,7 @@ class Arcus2CashRegisterSession(
         if (!endTrReceived) {
             Log.w("Arcus2Session", "ARCUS2 additional data ended without ENDTR")
         }
-        staleAdditionalDataResponseExpected = false
+        setStaleExpected(false)
 
         // TODO: confirm whether Arcus additional data response requires OK ACK.
         responses
@@ -487,14 +483,14 @@ class Arcus2CashRegisterSession(
     }
 
     private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
-        if (!staleAdditionalDataResponseExpected || responses.isEmpty()) return responses
+        if (!getStaleExpected() || responses.isEmpty()) return responses
         val normalized = responses.map { it.trim().uppercase() }
         val canIgnore = normalized.all { it == "NAK" || it == "OK" }
         if (!canIgnore) {
-            staleAdditionalDataResponseExpected = false
+            setStaleExpected(false)
             return responses
         }
-        staleAdditionalDataResponseExpected = false
+        setStaleExpected(false)
         normalized.forEach {
             Log.i("Arcus2Session", "ARCUS2 stale control response ignored text=$it context=afterAdditionalDataFastPath label=$label")
         }
