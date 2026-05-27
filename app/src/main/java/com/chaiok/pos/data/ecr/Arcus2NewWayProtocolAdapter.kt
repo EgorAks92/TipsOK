@@ -58,7 +58,7 @@ class Arcus2RawFrameLogger(
                 .put("win1251Preview", sanitize(extractWin1251Preview(bytes)))
                 .put("asciiPreview", sanitize(extractAsciiPreview(bytes)))
                 .put("note", sanitize(note))
-            if (enableFullRawLog) obj.put("fullHex", bytes.toHexPreview(bytes.size))
+            if (enableFullRawLog && !isSensitiveFrame(bytes)) obj.put("fullHex", bytes.toHexPreview(bytes.size))
             File(dir, "arcus2_raw_${LocalDate.now()}.jsonl").appendText(obj.toString() + "\n")
         }
     }
@@ -74,12 +74,29 @@ class Arcus2RawFrameLogger(
     }
 
     private fun sanitize(text: String): String {
-        var r = text.replace(Regex("(\\d{6})\\d{3,7}(\\d{4})"), "$1******$2")
+        var r = text
+        r = r.replace(Regex("(?i)(rrn\\s*[:=]\\s*)(\\d{6,12})"), "$1***$2".replace("$2", ""))
+        r = r.replace(Regex("(?i)(/r\\[?)(\\d{6,12})(\\]?)")) { m -> "${m.groupValues[1]}***${m.groupValues[2].takeLast(4)}${m.groupValues[3]}" }
+        r = r.replace(Regex("(?<!\\d)(\\d{6,12})(?!\\d)")) { m -> "***${m.value.takeLast(4)}" }
+        r = r.replace(Regex("(?<!\\d)(\\d{13,19})(?!\\d)")) { m -> m.value.take(6) + "******" + m.value.takeLast(4) }
         r = r.replace(Regex(";\\d{12,19}="), ";******=")
         r = r.replace(Regex("(?i)(cvv|cvc)\\s*[:=]?\\s*\\d{3,4}"), "$1=***")
         return r
     }
-}
+
+
+    private fun isSensitiveFrame(bytes: ByteArray): Boolean {
+        val payload = Arcus2BinLenCodec.decode(bytes).getOrNull()?.data ?: bytes
+        val text = decodeWin1251(payload).trim()
+        val first = payload.firstOrNull()?.toInt()?.and(0xFF) ?: -1
+        if (first == 0x9F || first == 0x1F || first == 0x5F) return true
+        return text.startsWith("SETTAGS:", ignoreCase = true) ||
+            text.startsWith("OWTags", ignoreCase = true) ||
+            text.startsWith("PRINT:", ignoreCase = true) ||
+            text.contains("RRN=", ignoreCase = true) ||
+            text.contains("TRACK2", ignoreCase = true)
+    }
+
 
 class Arcus2NewWayProtocolAdapter(
     private val settingsProvider: Arcus2NewWaySettingsProvider,
@@ -209,6 +226,7 @@ class Arcus2CashRegisterSession(
         var finalResultInProgress: Boolean = false
     }
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var staleAdditionalDataResponseExpected: Boolean = false
     data class Arcus2ReceivedFrame(
         val data: ByteArray,
         val text: String
@@ -329,7 +347,8 @@ class Arcus2CashRegisterSession(
                 }
                 if (shouldStop(responses) && !settings.additionalDataRequireEndTrBeforeBusinessStart) {
                     Log.i("Arcus2Session", "ARCUS2 additional required tags collected; fast-path stop without ENDTR")
-                    return responses
+                    staleAdditionalDataResponseExpected = true
+                    return@runCatching responses
                 }
             }
             index += 1
@@ -337,6 +356,7 @@ class Arcus2CashRegisterSession(
         if (!endTrReceived) {
             Log.w("Arcus2Session", "ARCUS2 additional data ended without ENDTR")
         }
+        staleAdditionalDataResponseExpected = false
 
         // TODO: confirm whether Arcus additional data response requires OK ACK.
         responses
@@ -438,10 +458,11 @@ class Arcus2CashRegisterSession(
                 .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
 
             if (responses.isEmpty() || responses.all { it.isBlank() }) return Result.success(Unit)
+            val filtered = filterStaleControlResponses(responses, label)
             return when {
-                responses.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
-                responses.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
-                responses.any { it == "OK" } -> Result.success(Unit)
+                filtered.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
+                filtered.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
+                filtered.any { it == "OK" } -> Result.success(Unit)
                 else -> {
                     Log.w("Arcus2Session", "ARCUS2 drain unknown label=$label resp=${responses.joinToString("|").take(32)}")
                     Result.success(Unit)
@@ -455,13 +476,29 @@ class Arcus2CashRegisterSession(
             ?: return Result.failure(IllegalStateException("ARCUS2 cash register OK timeout for $label").also { Log.w("Arcus2Session", "ARCUS2 OK timeout label=$label") })
         val responses = Arcus2BinLenCodec.decodeAll(response).getOrElse { return Result.failure(it) }
             .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
+        val filtered = filterStaleControlResponses(responses, label)
 
         return when {
-            responses.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
-            responses.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
-            responses.any { it == "OK" } -> { Log.i("Arcus2Session", "ARCUS2 OK label=$label"); Result.success(Unit) }
+            filtered.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
+            filtered.any { it == "NAK" } -> Result.failure(IllegalStateException("Cash register returned NAK for $label"))
+            filtered.any { it == "OK" } -> { Log.i("Arcus2Session", "ARCUS2 OK label=$label"); Result.success(Unit) }
             else -> Result.failure(IllegalStateException("Unexpected ARCUS2 response for $label: ${responses.joinToString("|").take(32)}"))
         }
+    }
+
+    private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
+        if (!staleAdditionalDataResponseExpected || responses.isEmpty()) return responses
+        val normalized = responses.map { it.trim().uppercase() }
+        val canIgnore = normalized.all { it == "NAK" || it == "OK" }
+        if (!canIgnore) {
+            staleAdditionalDataResponseExpected = false
+            return responses
+        }
+        staleAdditionalDataResponseExpected = false
+        normalized.forEach {
+            Log.i("Arcus2Session", "ARCUS2 stale control response ignored text=$it context=afterAdditionalDataFastPath label=$label")
+        }
+        return emptyList()
     }
 }
 

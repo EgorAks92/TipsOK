@@ -80,6 +80,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -322,18 +323,23 @@ private fun BoxScope.PcCompactPersistentCancelOverlay(
             .padding(horizontal = 24.dp, vertical = 24.dp)
             .zIndex(10f)
     ) {
-        Icon(
-            painter = painterResource(id = theme.closeIconDrawable),
-            contentDescription = "Cancel operation",
-            tint = theme.closeIconTint,
+        Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .size(24.dp)
+                .size(56.dp)
                 .clickable(enabled = state.canCancel) {
                     Log.i("PcCompactTipPayment", "UI cancel icon clicked operationType=${state.operationType} stage=${state.paymentStage} canCancel=${state.canCancel}")
                     onCancel()
-                }
-        )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(id = theme.closeIconDrawable),
+                contentDescription = "Cancel operation",
+                tint = theme.closeIconTint,
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 }
 
