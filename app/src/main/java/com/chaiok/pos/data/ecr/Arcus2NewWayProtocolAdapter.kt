@@ -213,17 +213,26 @@ class Arcus2CashRegisterSession(
         val outFrame = Arcus2BinLenCodec.encode(encodeWin1251(dataText))
         rawLogger.logOutgoing(outFrame, dataText.substringBefore(':'))
         client.send(outFrame).getOrThrow()
+
         val responses = mutableListOf<String>()
-        repeat(maxFrames.coerceAtLeast(1)) {
+        var stop = false
+        var index = 0
+        val limit = maxFrames.coerceAtLeast(1)
+
+        while (index < limit && !stop) {
             val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
-            if (bytes.isNullOrEmpty()) return@repeat
-            rawLogger.logIncoming(bytes)
-            val frames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
-            frames.forEach { frame ->
-                responses += decodeWin1251(frame.data).trim('\u0000', ' ', '\n', '\r', '\t')
+            if (!bytes.isNullOrEmpty()) {
+                rawLogger.logIncoming(bytes)
+                val frames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
+                for (frame in frames) {
+                    val text = decodeWin1251(frame.data).trim('\u0000', ' ', '\n', '\r', '\t')
+                    responses.add(text)
+                }
+                stop = shouldStop(responses)
             }
-            if (shouldStop(responses)) return@runCatching responses
+            index += 1
         }
+
         // TODO: confirm whether Arcus additional data response requires OK ACK.
         responses
     }

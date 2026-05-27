@@ -538,41 +538,72 @@ class XchengPcPaymentCommandRepository(
 
     private suspend fun requestArcus2AdditionalData(settings: Arcus2NewWaySettings, reason: String): Arcus2AdditionalData {
         if (!settings.additionalDataRequestEnabled) return Arcus2AdditionalData()
-        Log.i(TAG, "ARCUS2 additional data request start reason=$reason command=${settings.additionalDataRequestCommand} timeoutMs=${settings.additionalDataReadTimeoutMs} maxFrames=${settings.additionalDataMaxFrames}")
+
+        val logTag = TAG
+        val requestCommand = settings.additionalDataRequestCommand
+        val readTimeoutMs = settings.additionalDataReadTimeoutMs
+        val maxFrames = settings.additionalDataMaxFrames
+        val rrnTagKeysCsv = settings.rrnTagKeysCsv
+
+        Log.i(logTag, "ARCUS2 additional data request start reason=$reason command=$requestCommand timeoutMs=$readTimeoutMs maxFrames=$maxFrames")
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
-        val responses = session.sendCommandAndReadFrames(
-            settings.additionalDataRequestCommand,
-            settings.additionalDataReadTimeoutMs,
-            settings.additionalDataMaxFrames,
-            shouldStop = { list -> responsesContainRequiredRrn(list, settings) }
-        ).getOrElse { err ->
-            Log.w(TAG, "ARCUS2 additional data request failed reason=$reason error=${err.message}", err)
+
+        val result = session.sendCommandAndReadFrames(
+            dataText = requestCommand,
+            readTimeoutMs = readTimeoutMs,
+            maxFrames = maxFrames,
+            shouldStop = { responses ->
+                responsesContainRequiredRrn(
+                    responses = responses,
+                    rrnTagKeysCsv = rrnTagKeysCsv
+                )
+            }
+        )
+
+        if (result.isFailure) {
+            val err = result.exceptionOrNull()
+            Log.w(logTag, "ARCUS2 additional data request failed reason=$reason error=${err?.message}", err)
             return Arcus2AdditionalData()
         }
+
+        val responses = result.getOrNull().orEmpty()
         if (responses.isEmpty()) {
-            Log.w(TAG, "ARCUS2 additional data request returned no frames. Check additionalDataRequestCommand=${settings.additionalDataRequestCommand}")
+            Log.w(logTag, "ARCUS2 additional data request returned no frames. Check additionalDataRequestCommand=$requestCommand")
         }
-        Log.i(TAG, "ARCUS2 additional data raw responses count=${responses.size} items=${responses.joinToString(\"|\") { maskArcusText(it) }.take(512)}")
+
+        val maskedResponses = responses.joinToString("|") { text -> maskArcusText(text) }.take(512)
+        Log.i(logTag, "ARCUS2 additional data raw responses count=${responses.size} items=$maskedResponses")
+
         val tags = linkedMapOf<String, String>()
-        responses.forEach { text ->
-            Log.i(TAG, "ARCUS2 additional data response=${maskArcusText(text)}")
+        for (text in responses) {
+            Log.i(logTag, "ARCUS2 additional data response=${maskArcusText(text)}")
             when (text.trim()) {
                 "OK" -> Unit
-                "ER", "NAK" -> Log.w(TAG, "ARCUS2 additional data returned ${text.trim()}")
+                "ER", "NAK" -> Log.w(logTag, "ARCUS2 additional data returned ${text.trim()}")
                 else -> tags.putAll(parseArcus2Tags(text))
             }
         }
+
         val data = buildArcus2AdditionalData(tags, settings)
-        Log.i(TAG, "ARCUS2 additional data parsed reason=$reason rrnMasked=${maskRrn(data.rrn)} amount=${data.amount} currency=${data.currency} orderId=${data.orderId ?: "-"} tags=${maskArcusTags(tags)}")
+        val parsedLog = "ARCUS2 additional data parsed reason=$reason " +
+            "rrnMasked=${maskRrn(data.rrn)} " +
+            "amount=${data.amount} currency=${data.currency} " +
+            "orderId=${data.orderId ?: "-"} " +
+            "tags=${maskArcusTags(tags)}"
+        Log.i(logTag, parsedLog)
         return data
     }
 
     private fun responsesContainRequiredRrn(
         responses: List<String>,
-        settings: Arcus2NewWaySettings
-    ): Boolean = responses.any { text ->
-        val tags = parseArcus2Tags(text)
-        normalizeRrn(findFirstTag(tags, settings.rrnTagKeysCsv)) != null
+        rrnTagKeysCsv: String
+    ): Boolean {
+        for (text in responses) {
+            val tags = parseArcus2Tags(text)
+            val rrn = normalizeRrn(findFirstTag(tags, rrnTagKeysCsv))
+            if (rrn != null) return true
+        }
+        return false
     }
 
     private fun parseArcus2Tags(text: String): Map<String, String> {
