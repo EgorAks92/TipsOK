@@ -10,6 +10,7 @@ import com.chaiok.pos.domain.model.PcPaymentCommand
 import org.json.JSONObject
 import java.io.File
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
@@ -107,16 +108,93 @@ class Arcus2NewWayProtocolAdapter(
 
         return when {
             cls == s.saleClass && op == s.saleOp -> {
-                val amount = amountRaw?.toBigDecimalOrNull()
+                val amount = parseArcus2Amount(amountRaw, currency)
+                // TODO: Make PcEcrCommand.Payment amount/currency nullable for full primary+additional-data resolution.
                 if (amount == null || currency == null) EcrParseResult.Error("sale parse failed")
                 else EcrParseResult.Command(PcEcrCommand.Payment("ARCUS2-SALE-${System.currentTimeMillis()}", protocol, null, amount, currency))
             }
             cls == s.pingClass && op == s.pingOp -> EcrParseResult.Command(PcEcrCommand.Ping(null, protocol))
             cls == s.settlementClass && op == s.settlementOp -> EcrParseResult.Command(PcEcrCommand.Settlement(null, protocol))
-            cls == s.universalReversalClass && op == s.universalReversalOp -> EcrParseResult.Command(PcEcrCommand.Reversal(null, protocol, null, null, amountRaw?.toBigDecimalOrNull(), currency))
+            cls == s.universalReversalClass && op == s.universalReversalOp -> {
+                val rrn = parseArcus2Rrn(fields, currencyCode, amountRaw)
+                Log.i("Arcus2Adapter", "reversal fields=${fields.map(::maskArcusField)} rrnMasked=${maskRrn(rrn)}")
+                val commandId = if (rrn.isNullOrBlank()) {
+                    "ARCUS2-REVERSAL-NO-RRN-${System.currentTimeMillis()}"
+                } else {
+                    "ARCUS2-REVERSAL-${rrn.takeLast(4)}-${System.currentTimeMillis()}"
+                }
+                EcrParseResult.Command(PcEcrCommand.Reversal(commandId, protocol, null, rrn, parseArcus2Amount(amountRaw, currency), currency))
+            }
             cls == s.refundClass && op == s.refundOp -> EcrParseResult.Command(PcEcrCommand.Refund(null, protocol, amountRaw?.toBigDecimalOrNull(), currency))
             else -> EcrParseResult.Unknown("Unsupported class/op", bytes.toHexPreview())
         }
+    }
+}
+
+private fun parseArcus2Rrn(fields: List<String>, currencyCode: String?, amountRaw: String?): String? {
+    fields.forEachIndexed { index, field ->
+        val trimmed = field.trim()
+        val lower = trimmed.lowercase()
+        if (lower.startsWith("rrn=") || lower.startsWith("r=")) {
+            return trimmed.substringAfter('=').trim().takeIf { it.matches(Regex("\\d{6,12}")) }
+        }
+        if (lower.startsWith("/r")) {
+            val candidate = trimmed
+                .drop(2)
+                .trim()
+                .trim('[', ']')
+                .filter { it.isDigit() }
+            if (candidate.matches(Regex("\\d{6,12}"))) {
+                return candidate
+            }
+        }
+        if (trimmed.equals("/r", ignoreCase = true)) {
+            val next = fields.getOrNull(index + 1)
+                ?.trim()
+                ?.trim('[', ']')
+                ?.filter { it.isDigit() }
+            if (next != null && next.matches(Regex("\\d{6,12}"))) {
+                return next
+            }
+        }
+    }
+    return fields
+        .drop(2)
+        .map { it.trim() }
+        .firstOrNull {
+            it.matches(Regex("\\d{6,12}")) &&
+                    it != currencyCode &&
+                    it != amountRaw &&
+                    it != amountRaw.orEmpty().replace(".", "").replace(",", "")
+        }
+}
+
+private fun maskRrn(rrn: String?): String =
+    rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
+
+private fun maskArcusField(value: String): String =
+    run {
+        val trimmed = value.trim()
+        val rrnSlash = Regex("(?i)/r\\[?\\d{6,12}\\]?").find(trimmed)?.value
+        if (rrnSlash != null) {
+            val rrn = rrnSlash
+                .removePrefix("/r")
+                .removePrefix("/R")
+                .trim('[', ']')
+            return@run trimmed.replace(rrnSlash, "/r${maskRrn(rrn)}")
+        }
+        if (trimmed.matches(Regex("\\d{6,19}"))) trimmed.takeLast(4).padStart(trimmed.length, '*')
+        else trimmed.take(32)
+    }
+
+private fun parseArcus2Amount(raw: String?, currency: String?): BigDecimal? {
+    val normalizedRaw = raw?.trim()?.replace(',', '.')?.takeIf { it.isNotBlank() } ?: return null
+    val n = normalizedRaw.toBigDecimalOrNull() ?: return null
+    val hasDecimalSeparator = normalizedRaw.contains('.')
+    return when (currency?.uppercase()) {
+        "RUB" -> if (hasDecimalSeparator) n.setScale(2, RoundingMode.HALF_UP) else n.movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
+        "AMD" -> n.setScale(0, RoundingMode.HALF_UP)
+        else -> n
     }
 }
 
@@ -125,7 +203,142 @@ class Arcus2CashRegisterSession(
     private val rawLogger: Arcus2FrameLogger,
     private val settings: Arcus2NewWaySettings
 ) {
+    data class Arcus2ReceivedFrame(
+        val data: ByteArray,
+        val text: String
+    )
+
     suspend fun sendCommandAndWaitOk(dataText: String): Result<Unit> = sendDataAndWaitOk(encodeWin1251(dataText), dataText.substringBefore(':'))
+    suspend fun sendOptionalStatusAndDrain(statusText: String, operationTag: String): Result<Unit> = runCatching {
+        val frame = Arcus2BinLenCodec.encode(encodeWin1251("STATUS:$statusText"))
+        rawLogger.logOutgoing(frame, "STATUS")
+        client.send(frame).getOrThrow()
+        val response = client.receiveOnce(settings.waitOkTimeoutMs).getOrNull()
+        val responses = response
+            ?.let { Arcus2BinLenCodec.decodeAll(it).getOrNull() }
+            .orEmpty()
+            .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
+        when {
+            responses.any { it == "OK" } -> Unit
+            responses.any { it == "NAK" } -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got NAK, ignored for operationType=$operationTag")
+            responses.any { it == "ER" } -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got ER, ignored for operationType=$operationTag")
+            responses.isNotEmpty() -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got unknown response=${responses.joinToString("|")}")
+            else -> Unit
+        }
+    }
+    suspend fun sendCommandAndRunAdditionalDataSession(
+        dataText: String,
+        readTimeoutMs: Long,
+        totalTimeoutMs: Long,
+        maxFrames: Int,
+        shouldStop: (List<Arcus2ReceivedFrame>) -> Boolean = { false }
+    ): Result<List<Arcus2ReceivedFrame>> = runCatching {
+        val outFrame = Arcus2BinLenCodec.encode(encodeWin1251(dataText))
+        rawLogger.logOutgoing(outFrame, dataText.substringBefore(':'))
+        client.send(outFrame).getOrThrow()
+
+        val responses = mutableListOf<Arcus2ReceivedFrame>()
+        var stop = false
+        var endTrReceived = false
+        val startedAt = System.currentTimeMillis()
+        var index = 0
+        val maxReadCycles = maxFrames.coerceAtLeast(1)
+        Log.i("Arcus2Session", "ARCUS2 additional data session started command=${dataText.take(32)} maxReadCycles=$maxReadCycles totalTimeoutMs=$totalTimeoutMs")
+
+        while (index < maxReadCycles && !stop && System.currentTimeMillis() - startedAt < totalTimeoutMs.coerceAtLeast(readTimeoutMs)) {
+            val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
+            if (bytes != null && bytes.isNotEmpty()) {
+                Log.i("Arcus2Session", "ARCUS2 additional data recv bytes=${bytes.size}")
+                val framed = Arcus2BinLenCodec.decodeAll(bytes).getOrNull()
+                val frames = when {
+                    !framed.isNullOrEmpty() -> {
+                        Log.i("Arcus2Session", "ARCUS2 additional data decode mode=framed chunks=${framed.size}")
+                        framed
+                    }
+                    else -> {
+                        Log.w("Arcus2Session", "ARCUS2 additional data decode mode=raw fallback bytes=${bytes.size}")
+                        listOf(Arcus2BinLenCodec.Frame(data = bytes))
+                    }
+                }
+                for (frame in frames) {
+                    val frameData = frame.data
+                    val text = decodeWin1251(frameData).trim('\u0000', ' ', '\n', '\r', '\t')
+                    val normalized = text.trim()
+                    responses.add(Arcus2ReceivedFrame(data = frameData, text = text))
+                    when {
+                        normalized.equals("OK", ignoreCase = true) ||
+                            normalized.equals("ER", ignoreCase = true) ||
+                            normalized.equals("NAK", ignoreCase = true) -> Unit
+
+                        normalized.startsWith("GETFILE:", ignoreCase = true) -> {
+                            val fileName = normalized.substringAfter(':', "")
+                                .replace("/", "")
+                                .replace("\\", "")
+                                .take(64)
+                            Log.i("Arcus2Session", "ARCUS2 additional GETFILE requested file=$fileName -> ER")
+                            sendArcusControlText("ER", "additional-ER")
+                        }
+
+                        normalized.startsWith("PING:", ignoreCase = true) -> {
+                            Log.i("Arcus2Session", "ARCUS2 additional PING -> OK")
+                            sendArcusControlText("OK", "additional-OK")
+                        }
+
+                        normalized.startsWith("GETTAGS:", ignoreCase = true) -> {
+                            val mode = settings.additionalDataGetTagsResponseMode.uppercase()
+                            Log.i("Arcus2Session", "ARCUS2 additional received GETTAGS from peer, mode=$mode")
+                            when (mode) {
+                                "SEND_ER" -> sendArcusControlText("ER", "additional-ER")
+                                "SEND_EMPTY_TAGS" -> {
+                                    Log.w("Arcus2Session", "ARCUS2 additional GETTAGS mode=SEND_EMPTY_TAGS is not implemented safely; fallback=IGNORE_AND_WAIT_TAGS")
+                                    Unit
+                                }
+                                else -> Log.i("Arcus2Session", "ARCUS2 additional GETTAGS mode=IGNORE_AND_WAIT_TAGS, no response sent")
+                            }
+                        }
+
+                        normalized.startsWith("SETTAGS:", ignoreCase = true) -> {
+                            Log.i("Arcus2Session", "ARCUS2 additional SETTAGS received bytes=${frameData.size}")
+                            sendArcusControlText("OK", "additional-OK")
+                        }
+                        normalized.startsWith("STORERC:", ignoreCase = true) -> {
+                            Log.i("Arcus2Session", "ARCUS2 additional STORERC received value=${normalized.take(64)}")
+                            sendArcusControlText("OK", "additional-OK")
+                        }
+
+                        normalized.equals("ENDTR", ignoreCase = true) -> {
+                            sendArcusControlText("OK", "additional-OK")
+                            endTrReceived = true
+                            stop = true
+                        }
+
+                        else -> {
+                            Log.w(
+                                "Arcus2Session",
+                                "ARCUS2 additional unknown frame text=${text.take(64)} rawBytes=${frameData.size} " +
+                                    "hexPreview=${frameData.toHexPreview(24)}"
+                            )
+                        }
+                    }
+                }
+                shouldStop(responses) // keep collecting until ENDTR/timeout/maxFrames
+            }
+            index += 1
+        }
+        if (!endTrReceived) {
+            Log.w("Arcus2Session", "ARCUS2 additional data ended without ENDTR")
+        }
+        client.receiveOnce(settings.drainOkAfterCommandMs).getOrNull()
+
+        // TODO: confirm whether Arcus additional data response requires OK ACK.
+        responses
+    }
+
+    private suspend fun sendArcusControlText(text: String, note: String): Result<Unit> {
+        val frame = Arcus2BinLenCodec.encode(encodeWin1251(text))
+        rawLogger.logOutgoing(frame, note)
+        return client.send(frame)
+    }
 
     suspend fun sendDataAndWaitOk(data: ByteArray, label: String): Result<Unit> {
         val frame = Arcus2BinLenCodec.encode(data)

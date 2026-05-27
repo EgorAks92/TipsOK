@@ -3,11 +3,14 @@ package com.chaiok.pos.presentation.pc
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.PosPaymentEvent
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
+import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.PcPaymentCommand
+import com.chaiok.pos.domain.model.PosPaymentCancelPreviousRequest
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
 import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
@@ -17,6 +20,7 @@ import com.chaiok.pos.domain.usecase.CancelPosPaymentUseCase
 import com.chaiok.pos.domain.usecase.GetTransactionRangeUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
+import com.chaiok.pos.domain.usecase.StartPosPaymentCancelPreviousUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import java.math.BigDecimal
@@ -34,8 +38,10 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.withLock
@@ -58,6 +64,8 @@ data class PcCompactTipPaymentUiState(
     val isRestartingPayment: Boolean = false,
     val errorMessage: String? = null,
     val canCancel: Boolean = true,
+    val operationType: PcEcrOperationType = PcEcrOperationType.SALE,
+    val operationTitle: String = "Оплата",
     val designStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
     val visualSettingsLoaded: Boolean = false,
     val currency: String = "RUB"
@@ -67,6 +75,7 @@ data class PcCompactTipPaymentUiState(
 
     val selectedTipAmount: Double
         get() = when {
+            operationType == PcEcrOperationType.CANCEL_PREVIOUS -> 0.0
             isNoTipsSelected -> 0.0
             isCustomTipSelected -> roundMoney(customTipAmount ?: 0.0)
             else -> availablePercents
@@ -76,16 +85,18 @@ data class PcCompactTipPaymentUiState(
         }
 
     val serviceFeeAmount: Double
-        get() = if (showServiceFeeToggle && isServiceFeeEnabled && serviceFeePercent > 0.0) roundMoney(selectedTipAmount * serviceFeePercent / 100.0) else 0.0
+        get() = if (operationType == PcEcrOperationType.CANCEL_PREVIOUS) 0.0
+        else if (showServiceFeeToggle && isServiceFeeEnabled && serviceFeePercent > 0.0) roundMoney(selectedTipAmount * serviceFeePercent / 100.0) else 0.0
 
     val totalAmount: Double
-        get() = billAmount + selectedTipAmount + serviceFeeAmount
+        get() = if (operationType == PcEcrOperationType.CANCEL_PREVIOUS) billAmount else billAmount + selectedTipAmount + serviceFeeAmount
 
     val amountText: String
         get() = formatRubles(totalAmount)
 
     val canChangeTips: Boolean
-        get() = !isRestartingPayment && paymentStage in setOf(
+        get() = operationType != PcEcrOperationType.CANCEL_PREVIOUS &&
+                !isRestartingPayment && paymentStage in setOf(
             CardPresentingStage.Idle,
             CardPresentingStage.Preparing,
             CardPresentingStage.WaitingForCard
@@ -103,6 +114,7 @@ sealed interface PcCompactTipPaymentEvent {
 class PcCompactTipPaymentViewModel(
     private val billAmount: Double,
     private val startPosPaymentUseCase: StartPosPaymentUseCase,
+    private val startPosPaymentCancelPreviousUseCase: StartPosPaymentCancelPreviousUseCase,
     private val cancelPosPaymentUseCase: CancelPosPaymentUseCase,
     private val getTransactionRangeUseCase: GetTransactionRangeUseCase,
     private val observeSettingsUseCase: ObserveSettingsUseCase,
@@ -114,7 +126,9 @@ class PcCompactTipPaymentViewModel(
     private val sourceCommandId: String?,
     private val sourceOrderId: String?,
     private val sourceCurrency: String?,
-    private val sourceProtocol: String?
+    private val sourceProtocol: String?,
+    private val sourceOperationType: String?,
+    private val sourceRrn: String?
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PcCompactTipPaymentUiState(billAmount = billAmount))
     val uiState = _uiState.asStateFlow()
@@ -136,6 +150,7 @@ class PcCompactTipPaymentViewModel(
     private var userCancelInProgress = false
     private var cancelEventSent = false
     private var ignoreNextCancelledFromRestart = false
+    private var pcEcrFinalResultSending = false
     private var pcEcrFinalResultSent = false
     private var pendingFinalPcEcrResult: PcEcrFinalPaymentResult? = null
     private var arcus2StatusKeepAliveJob: Job? = null
@@ -145,6 +160,11 @@ class PcCompactTipPaymentViewModel(
     private var waiterId: String = ""
     private var activePaymentServiceFeeEnabled: Boolean = false
     private var terminalId: String = ""
+    private val operationType: PcEcrOperationType =
+        runCatching {
+            PcEcrOperationType.valueOf(sourceOperationType?.ifBlank { "SALE" } ?: "SALE")
+        }.getOrDefault(PcEcrOperationType.SALE)
+    private val sourceRrnNormalized: String? = sourceRrn?.trim()?.ifBlank { null }
 
     init {
         viewModelScope.launch { initStateAndStart() }
@@ -156,13 +176,68 @@ class PcCompactTipPaymentViewModel(
 
         val settings = observeSettingsUseCase().first()
 
+        if (isCancelPreviousOperation()) {
+            initCancelPreviousStateAndStart(settings)
+        } else {
+            initSaleStateAndStart(settings)
+        }
+    }
+
+    private suspend fun initCancelPreviousStateAndStart(settings: AppSettings) {
+        _uiState.update {
+            it.copy(
+                availablePercents = emptyList(),
+                selectedPercentIndex = 0,
+                customTipAmount = null,
+                isCustomTipSelected = false,
+                isNoTipsSelected = true,
+                showCustomTipButton = false,
+                tipConfigLoaded = true,
+                serviceFeePercent = 0.0,
+                showServiceFeeToggle = false,
+                isServiceFeeEnabled = false,
+                paymentStage = CardPresentingStage.Preparing,
+                isRestartingPayment = false,
+                errorMessage = null,
+                canCancel = true,
+                operationType = PcEcrOperationType.CANCEL_PREVIOUS,
+                operationTitle = "Отмена",
+                designStyle = settings.pcCompactPaymentDesignStyle,
+                visualSettingsLoaded = true,
+                currency = commandCurrency
+            )
+        }
+        activeSelectedTip = PcCompactSelectedTip.NoTips
+        activePaymentServiceFeeEnabled = false
+        observeSettings()
+
+        Log.i(
+            TAG,
+            "CANCEL_PREVIOUS init start terminalIdBlank=${terminalId.isBlank()} " +
+                "rrnPresent=${!sourceRrnNormalized.isNullOrBlank()} amount=$billAmount currency=$commandCurrency"
+        )
+
+        pausePcEcrForPayment()
+        if (isArcus2Source() && settings.arcus2NewWaySettings.cancelStatusKeepAliveEnabled) {
+            startArcus2StatusKeepAlive()
+        }
+
+        generation += 1
+        startCancelPreviousPayment("initial", generation)
+    }
+
+    private suspend fun initSaleStateAndStart(settings: AppSettings) {
+
         _uiState.update {
             it.copy(
                 showServiceFeeToggle = settings.pcCompactServiceFeeEnabled,
                 showCustomTipButton = settings.showCustomTipButton,
                 designStyle = settings.pcCompactPaymentDesignStyle,
                 visualSettingsLoaded = true,
-                currency = commandCurrency
+                currency = commandCurrency,
+                operationType = operationType,
+                operationTitle = "Оплата",
+                isServiceFeeEnabled = false
             )
         }
 
@@ -206,6 +281,19 @@ class PcCompactTipPaymentViewModel(
     private fun observeSettings() {
         viewModelScope.launch {
             observeSettingsUseCase().collect { settings ->
+                if (isCancelPreviousOperation()) {
+                    _uiState.update {
+                        it.copy(
+                            designStyle = settings.pcCompactPaymentDesignStyle,
+                            visualSettingsLoaded = true,
+                            showCustomTipButton = false,
+                            showServiceFeeToggle = false,
+                            isServiceFeeEnabled = false
+                        )
+                    }
+                    return@collect
+                }
+
                 var shouldRestartAfterCustomDisabled = false
                 var fallbackSelectedTip: PcCompactSelectedTip? = null
 
@@ -263,6 +351,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun selectTipPreset(index: Int) {
+        if (isCancelPreviousOperation()) return
         val state = _uiState.value
         if (index !in state.availablePercents.indices) return
         if (!state.isCustomTipSelected && !state.isNoTipsSelected && index == state.selectedPercentIndex) return
@@ -292,6 +381,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun selectNoTips() {
+        if (isCancelPreviousOperation()) return
         val state = _uiState.value
         if (state.isNoTipsSelected || !state.canChangeTips) return
         tipSelectionDebounceJob?.cancel()
@@ -309,6 +399,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun applyCustomTipAmount(amount: Double) {
+        if (isCancelPreviousOperation()) return
         val normalized = amount.coerceAtLeast(0.0)
         val state = _uiState.value
         if (!state.showCustomTipButton) return
@@ -330,6 +421,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     fun toggleServiceFee(enabled: Boolean) {
+        if (isCancelPreviousOperation()) return
         if (!_uiState.value.showServiceFeeToggle) return
         if (_uiState.value.isServiceFeeEnabled == enabled || !_uiState.value.canChangeTips) return
         cancelDeclinedAutoClose()
@@ -350,10 +442,19 @@ class PcCompactTipPaymentViewModel(
         viewModelScope.launch {
             operationMutex.withLock {
                 generation += 1
-                val started = startPaymentCurrentAmount("retry", generation)
+                val started = if (isCancelPreviousOperation()) {
+                    startCancelPreviousPayment("retry", generation)
+                } else {
+                    startPaymentCurrentAmount("retry", generation)
+                }
                 if (started) {
-                    activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
-                    activeSelectedTip = _uiState.value.currentSelectedTip()
+                    if (isCancelPreviousOperation()) {
+                        activePaymentServiceFeeEnabled = false
+                        activeSelectedTip = PcCompactSelectedTip.NoTips
+                    } else {
+                        activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+                        activeSelectedTip = _uiState.value.currentSelectedTip()
+                    }
                 }
             }
         }
@@ -362,6 +463,7 @@ class PcCompactTipPaymentViewModel(
     fun cancelPayment() {
         val state = _uiState.value
         if (!state.canCancel || userCancelInProgress) return
+        Log.i(TAG, "User cancel requested operationType=$operationType")
 
         userCancelInProgress = true
         cancelEventSent = false
@@ -397,6 +499,7 @@ class PcCompactTipPaymentViewModel(
     }
 
     private suspend fun restartPaymentWithCurrentAmount(reason: String) {
+        if (isCancelPreviousOperation()) return
         operationMutex.withLock {
             val before = _uiState.value
             if (!before.canChangeTips || userCancelInProgress) return
@@ -473,7 +576,55 @@ class PcCompactTipPaymentViewModel(
         return true
     }
 
+    private suspend fun startCancelPreviousPayment(reason: String, expectedGeneration: Long = generation): Boolean {
+        Log.i(
+            TAG,
+            "CANCEL_PREVIOUS start requested reason=$reason generation=$expectedGeneration " +
+                "terminalIdBlank=${terminalId.isBlank()} rrnMasked=${maskRrn(sourceRrnNormalized)} " +
+                "amount=${_uiState.value.billAmount} currency=$commandCurrency"
+        )
+        if (terminalId.isBlank()) {
+            Log.e(TAG, "Cancel previous operation terminalId missing")
+            sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Error("Terminal data missing"))
+            resumePcEcrAfterPayment("cancel_previous_terminal_missing")
+            _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+            return false
+        }
+        val rrn = sourceRrnNormalized
+        if (rrn.isNullOrBlank()) {
+            Log.e(TAG, "Cancel previous operation requested without RRN")
+            sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Error("RRN missing"))
+            resumePcEcrAfterPayment("cancel_previous_rrn_missing")
+            _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+            return false
+        }
+        val request = PosPaymentCancelPreviousRequest(
+            rrn = rrn,
+            amount = toMoneyAmount(_uiState.value.billAmount, commandCurrency),
+            currency = commandCurrency,
+            terminalId = terminalId
+        )
+        Log.i(TAG, "Start cancel previous SSP op rrn=***${rrn.takeLast(4)} reason=$reason generation=$expectedGeneration")
+        paymentJob?.cancel()
+        _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true, errorMessage = null) }
+        paymentJob = viewModelScope.launch {
+            Log.i(TAG, "CANCEL_PREVIOUS collecting SSP flow rrnMasked=${maskRrn(rrn)}")
+            startPosPaymentCancelPreviousUseCase(request).collect { event ->
+                if (expectedGeneration != generation) return@collect
+                Log.i(TAG, "CANCEL_PREVIOUS SSP event=${event.javaClass.simpleName} generation=$expectedGeneration current=$generation")
+                onPaymentEvent(event)
+            }
+        }
+        return true
+    }
+
+    private fun maskRrn(rrn: String?): String =
+        rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
+
     private suspend fun onPaymentEvent(event: PosPaymentEvent) {
+        if (isCancelPreviousOperation()) {
+            Log.i(TAG, "CANCEL_PREVIOUS UI stage=${_uiState.value.paymentStage} event=${event.javaClass.simpleName}")
+        }
         when (event) {
             PosPaymentEvent.Preparing -> _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true) }
             PosPaymentEvent.WaitingForCard -> {
@@ -494,51 +645,85 @@ class PcCompactTipPaymentViewModel(
             }
             is PosPaymentEvent.Approved -> {
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.Approved, canCancel = false, isRestartingPayment = false, errorMessage = null) }
-                delay(APPROVED_VISIBLE_MS)
-                sendPcEcrFinalResultOnce(
-                    PcEcrFinalPaymentResult.Approved(
-                        message = event.message,
-                        externalTransactionId = event.transactionId,
-                        rrn = event.rrn,
-                        authCode = event.authCode,
-                        receiptText = event.receiptText
-                    )
+                val approvedResult = PcEcrFinalPaymentResult.Approved(
+                    message = if (isCancelPreviousOperation()) (event.message ?: "Отмена выполнена") else event.message,
+                    externalTransactionId = event.transactionId,
+                    rrn = event.rrn,
+                    authCode = event.authCode,
+                    receiptText = event.receiptText
                 )
-                resumePcEcrAfterPayment("approved")
+                if (isArcus2Source()) {
+                    sendPcEcrFinalResultOnceWithTimeout(approvedResult, ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS)
+                    resumePcEcrAfterPayment("approved")
+                    delay(ARCUS2_RESULT_VISIBLE_MS)
+                } else {
+                    delay(APPROVED_VISIBLE_MS)
+                    sendPcEcrFinalResultOnce(approvedResult)
+                    resumePcEcrAfterPayment("approved")
+                }
                 _events.send(PcCompactTipPaymentEvent.Approved)
             }
             is PosPaymentEvent.Declined -> {
                 Log.i(TAG, "Payment declined")
+                val fallbackDeclinedText = if (isCancelPreviousOperation()) {
+                    "Отмена не выполнена"
+                } else {
+                    "Оплата отклонена"
+                }
                 _uiState.update {
                     it.copy(
                         paymentStage = CardPresentingStage.Declined,
                         canCancel = true,
                         isRestartingPayment = false,
-                        errorMessage = event.reason ?: "Оплата отклонена"
+                        errorMessage = event.reason?.ifBlank { fallbackDeclinedText } ?: fallbackDeclinedText
                     )
                 }
                 pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Declined(
                     resultCode = event.code,
-                    message = event.reason ?: event.rawMessage,
+                    message = if (isCancelPreviousOperation()) {
+                        event.reason?.ifBlank { "Отмена не выполнена" } ?: "Отмена не выполнена"
+                    } else {
+                        event.reason ?: event.rawMessage
+                    },
                     receiptText = event.receiptText
                 )
-                scheduleDeclinedAutoClose()
+                if (isArcus2Source()) {
+                    pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnceWithTimeout(it, ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS) }
+                    resumePcEcrAfterPayment("declined_arcus2_immediate")
+                    delay(ARCUS2_RESULT_VISIBLE_MS)
+                    _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+                } else {
+                    scheduleDeclinedAutoClose()
+                }
             }
             is PosPaymentEvent.Error -> {
                 Log.i(TAG, "Payment error")
+                val fallbackErrorText = if (isCancelPreviousOperation()) {
+                    "Ошибка отмены"
+                } else {
+                    "Ошибка оплаты"
+                }
+                val errorText = event.message.ifBlank { fallbackErrorText }
                 _uiState.update {
                     it.copy(
                         paymentStage = CardPresentingStage.Error,
                         canCancel = true,
                         isRestartingPayment = false,
-                        errorMessage = event.message.ifBlank { "Ошибка оплаты" }
+                        errorMessage = errorText
                     )
                 }
                 pendingFinalPcEcrResult = PcEcrFinalPaymentResult.Error(
-                    message = event.message.ifBlank { "Ошибка оплаты" },
+                    message = errorText,
                     receiptText = event.receiptText
                 )
-                scheduleDeclinedAutoClose()
+                if (isArcus2Source()) {
+                    pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnceWithTimeout(it, ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS) }
+                    resumePcEcrAfterPayment("error_arcus2_immediate")
+                    delay(ARCUS2_RESULT_VISIBLE_MS)
+                    _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+                } else {
+                    scheduleDeclinedAutoClose()
+                }
             }
             PosPaymentEvent.Cancelled -> {
                 if (ignoreNextCancelledFromRestart) {
@@ -555,81 +740,102 @@ class PcCompactTipPaymentViewModel(
                     return
                 }
                 _uiState.update {
+                    val cancelledText = if (isCancelPreviousOperation()) {
+                        "Отмена операции прервана"
+                    } else {
+                        "Оплата отменена"
+                    }
                     it.copy(
                         paymentStage = CardPresentingStage.Cancelled,
                         canCancel = true,
                         isRestartingPayment = false,
-                        errorMessage = "Оплата отменена"
+                        errorMessage = cancelledText
                     )
                 }
-                sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled"))
+                val cancelledText = if (isCancelPreviousOperation()) {
+                    "Отмена операции прервана"
+                } else {
+                    "Cancelled"
+                }
+                sendPcEcrFinalResultOnceWithTimeout(PcEcrFinalPaymentResult.Cancelled(message = cancelledText), ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS)
                 resumePcEcrAfterPayment("cancelled")
                 _events.send(PcCompactTipPaymentEvent.CancelledByUser)
             }
         }
     }
 
-    private suspend fun sendPcEcrFinalResultOnce(result: PcEcrFinalPaymentResult) {
+    private suspend fun sendPcEcrFinalResultOnce(result: PcEcrFinalPaymentResult): Boolean {
         if (pcEcrFinalResultSent) {
             Log.i(TAG, "Skip duplicate PC ECR final result send")
-            return
+            return true
         }
-        pcEcrFinalResultSent = true
-        stopArcus2StatusKeepAlive()
-        val commandId = sourceCommandId?.ifBlank { null }
-            ?: sourceOrderId?.ifBlank { null }
-            ?: "generated-${System.currentTimeMillis()}"
-        val state = _uiState.value
-        val frame = paymentResultMapper.map(
-            result = result,
-            commandId = commandId,
-            orderId = sourceOrderId?.ifBlank { null },
-            currency = commandCurrency,
-            billAmount = toMoneyAmount(state.billAmount, commandCurrency),
-            tipAmount = toMoneyAmount(state.selectedTipAmount, commandCurrency),
-            totalAmount = toMoneyAmount(state.totalAmount, commandCurrency),
-            terminalId = terminalId
-        )
-        Log.i(TAG, "PC ECR payment result prepared commandId=${frame.commandId} status=${frame.status}")
-        val sendResult = if ((sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name) {
-            pcPaymentCommandRepository.sendArcus2PaymentResult(
-                sourceCommand = PcPaymentCommand(
-                    amount = toMoneyAmount(state.billAmount, commandCurrency),
-                    commandId = commandId,
-                    currency = commandCurrency,
-                    orderId = sourceOrderId?.ifBlank { null },
-                    sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY
-                ),
+        if (pcEcrFinalResultSending) {
+            Log.i(TAG, "Skip duplicate PC ECR final result send while in-progress")
+            return false
+        }
+        pcEcrFinalResultSending = true
+        return try {
+            stopArcus2StatusKeepAlive()
+            val commandId = sourceCommandId?.ifBlank { null }
+                ?: sourceOrderId?.ifBlank { null }
+                ?: "generated-${System.currentTimeMillis()}"
+            val state = _uiState.value
+            val frame = paymentResultMapper.map(
                 result = result,
-                receiptText = when (result) {
-                    is PcEcrFinalPaymentResult.Approved -> result.receiptText
-                    is PcEcrFinalPaymentResult.Declined -> result.receiptText
-                    is PcEcrFinalPaymentResult.Cancelled -> result.receiptText
-                    is PcEcrFinalPaymentResult.Error -> result.receiptText
-                },
-                settings = observeSettingsUseCase().first().arcus2NewWaySettings,
+                commandId = commandId,
+                orderId = sourceOrderId?.ifBlank { null },
+                currency = commandCurrency,
+                billAmount = toMoneyAmount(state.billAmount, commandCurrency),
+                tipAmount = toMoneyAmount(state.selectedTipAmount, commandCurrency),
+                totalAmount = toMoneyAmount(state.totalAmount, commandCurrency),
                 terminalId = terminalId
             )
-        } else pcPaymentCommandRepository.sendPaymentResult(frame)
-        val isArcus = (sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name
-        if (sendResult.isSuccess) {
-            if (isArcus) {
-                Log.i(TAG, "PC ARCUS2 payment result sequence sent commandId=${frame.commandId} status=${frame.status}")
-                transactionLogRepository.save(frame, "SENT_ARCUS2", null)
+            Log.i(TAG, "PC ECR payment result prepared commandId=${frame.commandId} status=${frame.status}")
+            val sendResult = if ((sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name) {
+                pcPaymentCommandRepository.sendArcus2PaymentResult(
+                    sourceCommand = PcPaymentCommand(
+                        amount = toMoneyAmount(state.billAmount, commandCurrency),
+                        commandId = commandId,
+                        currency = commandCurrency,
+                        orderId = sourceOrderId?.ifBlank { null },
+                        sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY
+                    ),
+                    result = result,
+                    receiptText = when (result) {
+                        is PcEcrFinalPaymentResult.Approved -> result.receiptText
+                        is PcEcrFinalPaymentResult.Declined -> result.receiptText
+                        is PcEcrFinalPaymentResult.Cancelled -> result.receiptText
+                        is PcEcrFinalPaymentResult.Error -> result.receiptText
+                    },
+                    settings = observeSettingsUseCase().first().arcus2NewWaySettings,
+                    terminalId = terminalId
+                )
+            } else pcPaymentCommandRepository.sendPaymentResult(frame)
+            val isArcus = (sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name
+            val success = sendResult.isSuccess
+            if (success) {
+                pcEcrFinalResultSent = true
+                if (isArcus) {
+                    Log.i(TAG, "PC ARCUS2 payment result sequence sent commandId=${frame.commandId} status=${frame.status}")
+                    transactionLogRepository.save(frame, "SENT_ARCUS2", null)
+                } else {
+                    Log.i(TAG, "PC ECR payment result sent commandId=${frame.commandId} status=${frame.status}")
+                    transactionLogRepository.save(frame, "SENT", null)
+                }
             } else {
-                Log.i(TAG, "PC ECR payment result sent commandId=${frame.commandId} status=${frame.status}")
-                transactionLogRepository.save(frame, "SENT", null)
+                if (isArcus) {
+                    Log.e(TAG, "PC ARCUS2 payment result sequence send failed commandId=${frame.commandId} error=${sendResult.exceptionOrNull()?.message}")
+                    transactionLogRepository.save(frame, "FAILED_ARCUS2", sendResult.exceptionOrNull()?.message)
+                } else {
+                    Log.e(TAG, "PC ECR payment result send failed commandId=${frame.commandId} error=${sendResult.exceptionOrNull()?.message}")
+                    transactionLogRepository.save(frame, "FAILED", sendResult.exceptionOrNull()?.message)
+                }
             }
-        } else {
-            if (isArcus) {
-                Log.e(TAG, "PC ARCUS2 payment result sequence send failed commandId=${frame.commandId} error=${sendResult.exceptionOrNull()?.message}")
-                transactionLogRepository.save(frame, "FAILED_ARCUS2", sendResult.exceptionOrNull()?.message)
-            } else {
-                Log.e(TAG, "PC ECR payment result send failed commandId=${frame.commandId} error=${sendResult.exceptionOrNull()?.message}")
-                transactionLogRepository.save(frame, "FAILED", sendResult.exceptionOrNull()?.message)
-            }
+            Log.i(TAG, "PC ECR transaction log saved commandId=${frame.commandId}")
+            success
+        } finally {
+            pcEcrFinalResultSending = false
         }
-        Log.i(TAG, "PC ECR transaction log saved commandId=${frame.commandId}")
     }
 
     private fun scheduleDeclinedAutoClose() {
@@ -659,10 +865,12 @@ class PcCompactTipPaymentViewModel(
         stopArcus2StatusKeepAlive()
         if (isArcus2Source()) {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
-            sendArcus2StatusNowAwait(settings.cancellingStatusText, force = true)
+            if (!(isCancelPreviousOperation() && !settings.sendStatusOnCancelStart)) {
+                sendArcus2StatusNowAwait(settings.cancellingStatusText, force = true)
+            }
         }
         cancelEventSent = true
-        sendPcEcrFinalResultOnce(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"))
+        sendPcEcrFinalResultOnceWithTimeout(PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"), ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS)
         stopArcus2StatusKeepAlive()
         resumePcEcrAfterPayment("cancelled_by_user")
         _events.send(PcCompactTipPaymentEvent.CancelledByUser)
@@ -672,7 +880,13 @@ class PcCompactTipPaymentViewModel(
         (sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name
 
     private fun statusTextForStage(stage: CardPresentingStage, settings: com.chaiok.pos.domain.model.Arcus2NewWaySettings): String =
-        when (stage) {
+        if (isCancelPreviousOperation()) when (stage) {
+            CardPresentingStage.Preparing, CardPresentingStage.WaitingForCard, CardPresentingStage.Cancelling -> settings.cancellingStatusText
+            CardPresentingStage.CardDetected -> settings.cardDetectedStatusText
+            CardPresentingStage.Processing -> settings.processingStatusText
+            CardPresentingStage.PinRequired -> settings.pinRequiredStatusText
+            else -> settings.cancellingStatusText
+        } else when (stage) {
             CardPresentingStage.WaitingForCard,
             CardPresentingStage.Preparing -> settings.cardWaitingStatusText
             CardPresentingStage.CardDetected -> settings.cardDetectedStatusText
@@ -682,12 +896,16 @@ class PcCompactTipPaymentViewModel(
             else -> settings.cardWaitingStatusText
         }
 
+    private fun isCancelPreviousOperation(): Boolean =
+        operationType == PcEcrOperationType.CANCEL_PREVIOUS
+
     private fun startArcus2StatusKeepAlive() {
         if (!isArcus2Source()) return
         if (arcus2StatusKeepAliveJob?.isActive == true) return
         arcus2StatusKeepAliveJob = viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
             if (!settings.paymentStatusKeepAliveEnabled) return@launch
+            if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return@launch
             while (isActive && !pcEcrFinalResultSent && !userCancelInProgress) {
                 val statusText = statusTextForStage(_uiState.value.paymentStage, settings)
                 pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
@@ -705,6 +923,7 @@ class PcCompactTipPaymentViewModel(
         if (!isArcus2Source()) return
         viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
+            if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return@launch
             sendArcus2StatusNow(statusTextForStage(_uiState.value.paymentStage, settings))
         }
     }
@@ -727,9 +946,35 @@ class PcCompactTipPaymentViewModel(
         if (!force && lastArcus2StatusText == statusText) return
         lastArcus2StatusText = statusText
         val settings = observeSettingsUseCase().first().arcus2NewWaySettings
+        if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return
         val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
         result.onFailure {
             Log.w(TAG, "ARCUS2 immediate STATUS failed text=$statusText error=${it.message}", it)
+        }
+    }
+
+    private suspend fun sendPcEcrFinalResultOnceWithTimeout(
+        result: PcEcrFinalPaymentResult,
+        timeoutMs: Long
+    ): Boolean {
+        if (!isArcus2Source()) {
+            return sendPcEcrFinalResultOnce(result)
+        }
+        return supervisorScope {
+            Log.i(TAG, "ARCUS2 final result send start timeoutMs=$timeoutMs")
+            val sendDeferred = async { sendPcEcrFinalResultOnce(result) }
+            val completed = withTimeoutOrNull(timeoutMs) { sendDeferred.await() }
+            if (completed != null) {
+                if (completed) Log.i(TAG, "ARCUS2 final result send success")
+                else Log.w(TAG, "ARCUS2 final result send failed")
+                return@supervisorScope completed
+            }
+
+            Log.w(TAG, "ARCUS2 final result watchdog timeout (send continues in background)")
+            val retry = sendPcEcrFinalResultOnce(result)
+            if (retry) Log.i(TAG, "ARCUS2 final result retry success")
+            else Log.w(TAG, "ARCUS2 final result retry failed")
+            retry
         }
     }
 
@@ -811,6 +1056,8 @@ class PcCompactTipPaymentViewModel(
         private const val PC_USB_SAFETY_SETTLE_DELAY_MS = 150L
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
         private const val APPROVED_VISIBLE_MS = 1200L
+        private const val ARCUS2_RESULT_VISIBLE_MS = 900L
+        private const val ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS = 3_000L
         private const val DECLINED_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val USER_CANCEL_TERMINAL_TIMEOUT_MS = 2_500L
     }

@@ -85,6 +85,7 @@ import androidx.compose.ui.window.Dialog
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
+import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.delay
@@ -155,18 +156,19 @@ private fun ExistingPcCompactTipPaymentScreenContent(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
+    val isCancelPrevious = state.operationType == PcEcrOperationType.CANCEL_PREVIOUS
     val showStatusScreen = remember { mutableStateOf(false) }
     val visibleResultVisual = remember { mutableStateOf(PcCompactPaymentResultVisual.None) }
     val pendingResultVisual = remember { mutableStateOf<PcCompactPaymentResultVisual?>(null) }
 
-    val processingRequested = !state.canChangeTips &&
-            !state.isRestartingPayment &&
-            (
-                    state.paymentStage == CardPresentingStage.CardDetected ||
-                            state.paymentStage == CardPresentingStage.Processing ||
-                            state.paymentStage == CardPresentingStage.PinRequired ||
-                            state.paymentStage == CardPresentingStage.Cancelling
-                    )
+    val processingRequested =
+        !state.isRestartingPayment &&
+                state.paymentStage in setOf(
+            CardPresentingStage.CardDetected,
+            CardPresentingStage.Processing,
+            CardPresentingStage.PinRequired,
+            CardPresentingStage.Cancelling
+        )
 
     val realResultVisual = when {
         state.paymentStage == CardPresentingStage.Approved -> {
@@ -186,7 +188,19 @@ private fun ExistingPcCompactTipPaymentScreenContent(
         else -> PcCompactPaymentResultVisual.None
     }
 
-    val showTipSelection = state.canChangeTips || state.isRestartingPayment
+    val showCancelPreviousWaitingForCard =
+        isCancelPrevious &&
+            !state.isRestartingPayment &&
+            state.paymentStage in setOf(
+                CardPresentingStage.Idle,
+                CardPresentingStage.Preparing,
+                CardPresentingStage.WaitingForCard
+            )
+
+    val showTipSelection =
+        state.canChangeTips ||
+            state.isRestartingPayment ||
+            showCancelPreviousWaitingForCard
 
     LaunchedEffect(showTipSelection, processingRequested, realResultVisual) {
         if (showTipSelection && realResultVisual == PcCompactPaymentResultVisual.None) {
@@ -275,6 +289,7 @@ private fun PcCompactPaymentAnimatedRoot(
         )
         PcCompactAnimatedStatusHeader(
             amountText = state.amountText,
+            operationTitle = state.operationTitle,
             transition = transition,
             theme = theme
         )
@@ -368,6 +383,7 @@ private fun PcCompactPaymentBackground(
 @Composable
 private fun BoxScope.PcCompactAnimatedStatusHeader(
     amountText: String,
+    operationTitle: String,
     transition: Transition<PcCompactPaymentScreenPhase>,
     theme: PcCompactPaymentVisualTheme
 ) {
@@ -419,7 +435,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "оплата",
+                text = operationTitle.lowercase(),
                 color = theme.secondaryTextColor,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Medium,
@@ -454,6 +470,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
     onCancel: () -> Unit,
     onRetry: () -> Unit
 ) {
+    val isCancelPrevious = state.operationType == PcEcrOperationType.CANCEL_PREVIOUS
     val phase = transition.targetState
     val showCustomTipDialog = remember { mutableStateOf(false) }
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
@@ -525,7 +542,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             modifier = Modifier.padding(start = 32.dp, top = 158.dp)
         ) {
             Text(
-                text = "оплата",
+                text = state.operationTitle.lowercase(),
                 color = theme.secondaryTextColor,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
@@ -548,11 +565,44 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 .offset(x = 26.dp)
         )
 
-        val showServiceFeeRow = state.showServiceFeeToggle && state.serviceFeePercent > 0.0
+        if (isCancelPrevious) {
+            val title = when (state.paymentStage) {
+                CardPresentingStage.Preparing -> "Подготовка отмены"
+                CardPresentingStage.WaitingForCard -> "Предъявите карту"
+                else -> "Предъявите карту"
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(top = 80.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = title,
+                    color = theme.primaryTextColor,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "для отмены операции",
+                    color = theme.secondaryTextColor,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        val showServiceFeeRow = !isCancelPrevious && state.showServiceFeeToggle && state.serviceFeePercent > 0.0
         val tipsTitleTop = if (showServiceFeeRow) 214.dp else 262.dp
         val tipsRowTop = if (showServiceFeeRow) 244.dp else 302.dp
 
-        Text(
+        if (!isCancelPrevious) Text(
             text = "чаевые",
             color = theme.secondaryTextColor,
             fontSize = 20.sp,
@@ -568,6 +618,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         val tipsVisuallyEnabled = true
 
         val tipCards = buildList {
+            if (isCancelPrevious) return@buildList
             if (state.tipConfigLoaded && state.showCustomTipButton) {
                 add(PcCompactTipCardUiModel.CustomAmount)
             }
@@ -680,7 +731,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         }
         val noTipsButtonGap = if (showServiceFeeRow) 10.dp else 20.dp
         val noTipsButtonTop = tipsRowTop + PC_COMPACT_TIP_CARD_HEIGHT + noTipsButtonGap
-        PcCompactNoTipsButton(
+        if (!isCancelPrevious) PcCompactNoTipsButton(
             theme = theme,
             selected = state.isNoTipsSelected,
             enabled = tipsInteractive,
@@ -690,7 +741,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 .align(Alignment.TopCenter)
                 .padding(top = noTipsButtonTop)
         )
-        if (showServiceFeeRow) {
+        if (!isCancelPrevious && showServiceFeeRow) {
             PcCompactServiceFeeGlassRow(
                 theme = theme,
                 modifier = Modifier
@@ -717,6 +768,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
     }
 
     if (
+        !isCancelPrevious &&
         showCustomTipDialog.value &&
         phase == PcCompactPaymentScreenPhase.TipSelection &&
         state.tipConfigLoaded &&
