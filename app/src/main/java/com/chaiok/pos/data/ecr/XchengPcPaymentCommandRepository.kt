@@ -184,42 +184,44 @@ class XchengPcPaymentCommandRepository(
         Log.i(TAG, "ARCUS2 final result send start commandId=${sourceCommand.commandId ?: "-"} lifecycle=$lifecycleState active=$activeArcus2Transaction status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
 
         var storercSent = false
-        Arcus2CashRegisterSession.finalResultInProgress = true
-        val sendResult = runCatching {
-            sequence.forEach { cmd ->
-                val step = cmd.label
-                Log.i(TAG, "ARCUS2 final step=$step started")
-                val stepResult = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
-                    session.sendDataAndWaitOk(cmd.data, cmd.label)
-                } ?: Result.failure(IllegalStateException("ARCUS2 final step timeout: $step"))
-                if (stepResult.isSuccess) {
-                    if (step == "STORERC") storercSent = true
-                    Log.i(TAG, "ARCUS2 final step=$step success")
-                    return@forEach
-                }
-
-                val ex = stepResult.exceptionOrNull()
-                val message = ex?.message.orEmpty()
-                val transportFailure = isTransportFailure(message)
-                Log.w(TAG, "ARCUS2 final step=$step timeout/error: $message")
-                if (step == "SETTAGS" && !transportFailure && isCashRegisterRejection(message)) {
-                    Log.w(TAG, "ARCUS2 SETTAGS payload rejected; retry empty SETTAGS: $message")
-                    val fallback = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
-                        session.sendCommandAndWaitOk("SETTAGS:")
-                    } ?: Result.failure(IllegalStateException("ARCUS2 empty SETTAGS fallback timeout"))
-                    if (fallback.isSuccess) {
-                        Log.i(TAG, "ARCUS2 empty SETTAGS fallback accepted")
+        Arcus2CashRegisterSession.finalResultInProgress = true // TODO move from global flag to repository-scoped coordinator
+        val sendResult = try {
+            runCatching {
+                sequence.forEach { cmd ->
+                    val step = cmd.label
+                    Log.i(TAG, "ARCUS2 final step=$step started")
+                    val stepResult = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
+                        session.sendDataAndWaitOk(cmd.data, cmd.label)
+                    } ?: Result.failure(IllegalStateException("ARCUS2 final step timeout: $step"))
+                    if (stepResult.isSuccess) {
+                        if (step == "STORERC") storercSent = true
+                        Log.i(TAG, "ARCUS2 final step=$step success")
                         return@forEach
                     }
-                    Log.w(TAG, "ARCUS2 empty SETTAGS fallback failed: ${fallback.exceptionOrNull()?.message}")
-                }
 
-                val isEndtr = step == "ENDTR"
-                if ((cmd.critical || transportFailure) && !(storercSent && !isEndtr)) {
-                    throw ex ?: IllegalStateException("ARCUS2 critical command failed: $step")
+                    val ex = stepResult.exceptionOrNull()
+                    val message = ex?.message.orEmpty()
+                    val transportFailure = isTransportFailure(message)
+                    Log.w(TAG, "ARCUS2 final step=$step timeout/error: $message")
+                    if (step == "SETTAGS" && !transportFailure && isCashRegisterRejection(message)) {
+                        Log.w(TAG, "ARCUS2 SETTAGS payload rejected; retry empty SETTAGS: $message")
+                        val fallback = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
+                            session.sendCommandAndWaitOk("SETTAGS:")
+                        } ?: Result.failure(IllegalStateException("ARCUS2 empty SETTAGS fallback timeout"))
+                        if (fallback.isSuccess) {
+                            Log.i(TAG, "ARCUS2 empty SETTAGS fallback accepted")
+                            return@forEach
+                        }
+                        Log.w(TAG, "ARCUS2 empty SETTAGS fallback failed: ${fallback.exceptionOrNull()?.message}")
+                    }
+
+                    val isEndtr = step == "ENDTR"
+                    if ((cmd.critical || transportFailure) && !(storercSent && !isEndtr)) {
+                        throw ex ?: IllegalStateException("ARCUS2 critical command failed: $step")
+                    }
                 }
-            }
-        }.map { Unit }.also {
+            }.map { Unit }
+        } finally {
             Arcus2CashRegisterSession.finalResultInProgress = false
         }
 

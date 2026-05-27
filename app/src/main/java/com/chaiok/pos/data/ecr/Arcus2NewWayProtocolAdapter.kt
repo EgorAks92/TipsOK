@@ -339,7 +339,9 @@ class Arcus2CashRegisterSession(
         }
         val fastPathUsed = stop && !settings.additionalDataRequireEndTrBeforeBusinessStart && !endTrReceived
         if (fastPathUsed) {
-            launchAdditionalDataCleanup()
+            val quickDrainMs = settings.additionalDataGraceTimeoutAfterRequiredTagsMs.coerceIn(100L, 150L)
+            Log.i("Arcus2Session", "ARCUS2 fast-path skip cleanup; quick drain only drainMs=$quickDrainMs")
+            client.receiveOnce(quickDrainMs).getOrNull()
         } else {
             client.receiveOnce(settings.additionalDataGraceTimeoutAfterRequiredTagsMs).getOrNull()
         }
