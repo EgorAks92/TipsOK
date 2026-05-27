@@ -992,7 +992,7 @@ class XchengPcPaymentCommandRepository(
                 status.value = PcUsbConnectionStatus.Error(message)
             }
         }
-        result
+        return result
     }
 
     override suspend fun stopCompletely(): Result<Unit> {
