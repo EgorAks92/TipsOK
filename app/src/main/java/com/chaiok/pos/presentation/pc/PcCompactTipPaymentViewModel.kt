@@ -148,6 +148,7 @@ class PcCompactTipPaymentViewModel(
     private var userCancelInProgress = false
     private var cancelEventSent = false
     private var ignoreNextCancelledFromRestart = false
+    private var pcEcrFinalResultSending = false
     private var pcEcrFinalResultSent = false
     private var pendingFinalPcEcrResult: PcEcrFinalPaymentResult? = null
     private var arcus2StatusKeepAliveJob: Job? = null
@@ -761,12 +762,16 @@ class PcCompactTipPaymentViewModel(
         }
     }
 
-    private suspend fun sendPcEcrFinalResultOnce(result: PcEcrFinalPaymentResult) {
+    private suspend fun sendPcEcrFinalResultOnce(result: PcEcrFinalPaymentResult): Boolean {
         if (pcEcrFinalResultSent) {
             Log.i(TAG, "Skip duplicate PC ECR final result send")
-            return
+            return true
         }
-        pcEcrFinalResultSent = true
+        if (pcEcrFinalResultSending) {
+            Log.i(TAG, "Skip duplicate PC ECR final result send while in-progress")
+            return false
+        }
+        pcEcrFinalResultSending = true
         stopArcus2StatusKeepAlive()
         val commandId = sourceCommandId?.ifBlank { null }
             ?: sourceOrderId?.ifBlank { null }
@@ -804,7 +809,9 @@ class PcCompactTipPaymentViewModel(
             )
         } else pcPaymentCommandRepository.sendPaymentResult(frame)
         val isArcus = (sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name
-        if (sendResult.isSuccess) {
+        val success = sendResult.isSuccess
+        if (success) {
+            pcEcrFinalResultSent = true
             if (isArcus) {
                 Log.i(TAG, "PC ARCUS2 payment result sequence sent commandId=${frame.commandId} status=${frame.status}")
                 transactionLogRepository.save(frame, "SENT_ARCUS2", null)
@@ -821,7 +828,9 @@ class PcCompactTipPaymentViewModel(
                 transactionLogRepository.save(frame, "FAILED", sendResult.exceptionOrNull()?.message)
             }
         }
+        pcEcrFinalResultSending = false
         Log.i(TAG, "PC ECR transaction log saved commandId=${frame.commandId}")
+        return success
     }
 
     private fun scheduleDeclinedAutoClose() {
@@ -944,17 +953,21 @@ class PcCompactTipPaymentViewModel(
         timeoutMs: Long
     ): Boolean {
         if (!isArcus2Source()) {
-            sendPcEcrFinalResultOnce(result)
-            return true
+            return sendPcEcrFinalResultOnce(result)
         }
         Log.i(TAG, "ARCUS2 final result send start timeoutMs=$timeoutMs")
         val completed = withTimeoutOrNull(timeoutMs) {
             sendPcEcrFinalResultOnce(result)
-            true
         } ?: false
-        if (completed) Log.i(TAG, "ARCUS2 final result send success")
-        else Log.w(TAG, "ARCUS2 final result send timeout")
-        return completed
+        if (completed) {
+            Log.i(TAG, "ARCUS2 final result send success")
+            return true
+        }
+        Log.w(TAG, "ARCUS2 final result send timeout")
+        val retry = withTimeoutOrNull(timeoutMs) { sendPcEcrFinalResultOnce(result) } ?: false
+        if (retry) Log.i(TAG, "ARCUS2 final result retry success")
+        else Log.w(TAG, "ARCUS2 final result retry failed")
+        return retry
     }
 
     private suspend fun resumePcEcrAfterPayment(reason: String) {

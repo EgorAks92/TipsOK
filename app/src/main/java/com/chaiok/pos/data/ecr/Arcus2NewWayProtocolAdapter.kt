@@ -247,7 +247,17 @@ class Arcus2CashRegisterSession(
             val bytes = client.receiveOnce(readTimeoutMs).getOrNull()
             if (bytes != null && bytes.isNotEmpty()) {
                 Log.i("Arcus2Session", "ARCUS2 additional data recv bytes=${bytes.size}")
-                val frames = Arcus2BinLenCodec.decodeAll(bytes).getOrNull().orEmpty()
+                val framed = Arcus2BinLenCodec.decodeAll(bytes).getOrNull()
+                val frames = when {
+                    !framed.isNullOrEmpty() -> {
+                        Log.i("Arcus2Session", "ARCUS2 additional data decode mode=framed chunks=${framed.size}")
+                        framed
+                    }
+                    else -> {
+                        Log.w("Arcus2Session", "ARCUS2 additional data decode mode=raw fallback bytes=${bytes.size}")
+                        listOf(Arcus2BinLenCodec.Frame(data = bytes))
+                    }
+                }
                 for (frame in frames) {
                     val frameData = frame.data
                     val text = decodeWin1251(frameData).trim('\u0000', ' ', '\n', '\r', '\t')
@@ -278,6 +288,11 @@ class Arcus2CashRegisterSession(
                         }
 
                         normalized.startsWith("SETTAGS:", ignoreCase = true) -> {
+                            Log.i("Arcus2Session", "ARCUS2 additional SETTAGS received bytes=${frameData.size}")
+                            sendArcusControlText("OK", "additional-OK")
+                        }
+                        normalized.startsWith("STORERC:", ignoreCase = true) -> {
+                            Log.i("Arcus2Session", "ARCUS2 additional STORERC received value=${normalized.take(64)}")
                             sendArcusControlText("OK", "additional-OK")
                         }
 
