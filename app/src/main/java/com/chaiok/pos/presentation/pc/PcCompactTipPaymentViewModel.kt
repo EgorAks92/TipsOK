@@ -619,6 +619,9 @@ class PcCompactTipPaymentViewModel(
         rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
 
     private suspend fun onPaymentEvent(event: PosPaymentEvent) {
+        if (isCancelPreviousOperation()) {
+            Log.i(TAG, "CANCEL_PREVIOUS UI stage=${_uiState.value.paymentStage} event=${event.javaClass.simpleName}")
+        }
         when (event) {
             PosPaymentEvent.Preparing -> _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true) }
             PosPaymentEvent.WaitingForCard -> {
@@ -639,17 +642,22 @@ class PcCompactTipPaymentViewModel(
             }
             is PosPaymentEvent.Approved -> {
                 _uiState.update { it.copy(paymentStage = CardPresentingStage.Approved, canCancel = false, isRestartingPayment = false, errorMessage = null) }
-                delay(APPROVED_VISIBLE_MS)
-                sendPcEcrFinalResultOnce(
-                    PcEcrFinalPaymentResult.Approved(
-                        message = if (isCancelPreviousOperation()) (event.message ?: "Отмена выполнена") else event.message,
-                        externalTransactionId = event.transactionId,
-                        rrn = event.rrn,
-                        authCode = event.authCode,
-                        receiptText = event.receiptText
-                    )
+                val approvedResult = PcEcrFinalPaymentResult.Approved(
+                    message = if (isCancelPreviousOperation()) (event.message ?: "Отмена выполнена") else event.message,
+                    externalTransactionId = event.transactionId,
+                    rrn = event.rrn,
+                    authCode = event.authCode,
+                    receiptText = event.receiptText
                 )
-                resumePcEcrAfterPayment("approved")
+                if (isArcus2Source()) {
+                    sendPcEcrFinalResultOnce(approvedResult)
+                    resumePcEcrAfterPayment("approved")
+                    delay(APPROVED_VISIBLE_MS)
+                } else {
+                    delay(APPROVED_VISIBLE_MS)
+                    sendPcEcrFinalResultOnce(approvedResult)
+                    resumePcEcrAfterPayment("approved")
+                }
                 _events.send(PcCompactTipPaymentEvent.Approved)
             }
             is PosPaymentEvent.Declined -> {
@@ -676,7 +684,13 @@ class PcCompactTipPaymentViewModel(
                     },
                     receiptText = event.receiptText
                 )
-                scheduleDeclinedAutoClose()
+                if (isArcus2Source()) {
+                    pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnce(it) }
+                    resumePcEcrAfterPayment("declined_arcus2_immediate")
+                    _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+                } else {
+                    scheduleDeclinedAutoClose()
+                }
             }
             is PosPaymentEvent.Error -> {
                 Log.i(TAG, "Payment error")
@@ -698,7 +712,13 @@ class PcCompactTipPaymentViewModel(
                     message = errorText,
                     receiptText = event.receiptText
                 )
-                scheduleDeclinedAutoClose()
+                if (isArcus2Source()) {
+                    pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnce(it) }
+                    resumePcEcrAfterPayment("error_arcus2_immediate")
+                    _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
+                } else {
+                    scheduleDeclinedAutoClose()
+                }
             }
             PosPaymentEvent.Cancelled -> {
                 if (ignoreNextCancelledFromRestart) {

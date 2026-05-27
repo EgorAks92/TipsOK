@@ -163,15 +163,12 @@ private fun ExistingPcCompactTipPaymentScreenContent(
 
     val processingRequested =
         !state.isRestartingPayment &&
-                (
-                        isCancelPrevious ||
-                                state.paymentStage in setOf(
-                            CardPresentingStage.CardDetected,
-                            CardPresentingStage.Processing,
-                            CardPresentingStage.PinRequired,
-                            CardPresentingStage.Cancelling
-                        )
-                        )
+                state.paymentStage in setOf(
+            CardPresentingStage.CardDetected,
+            CardPresentingStage.Processing,
+            CardPresentingStage.PinRequired,
+            CardPresentingStage.Cancelling
+        )
 
     val realResultVisual = when {
         state.paymentStage == CardPresentingStage.Approved -> {
@@ -191,7 +188,19 @@ private fun ExistingPcCompactTipPaymentScreenContent(
         else -> PcCompactPaymentResultVisual.None
     }
 
-    val showTipSelection = state.canChangeTips || state.isRestartingPayment
+    val showCancelPreviousWaitingForCard =
+        isCancelPrevious &&
+            !state.isRestartingPayment &&
+            state.paymentStage in setOf(
+                CardPresentingStage.Idle,
+                CardPresentingStage.Preparing,
+                CardPresentingStage.WaitingForCard
+            )
+
+    val showTipSelection =
+        state.canChangeTips ||
+            state.isRestartingPayment ||
+            showCancelPreviousWaitingForCard
 
     LaunchedEffect(showTipSelection, processingRequested, realResultVisual) {
         if (showTipSelection && realResultVisual == PcCompactPaymentResultVisual.None) {
@@ -555,6 +564,39 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 .padding(top = 78.dp)
                 .offset(x = 26.dp)
         )
+
+        if (isCancelPrevious) {
+            val title = when (state.paymentStage) {
+                CardPresentingStage.Preparing -> "Подготовка отмены"
+                CardPresentingStage.WaitingForCard -> "Предъявите карту"
+                else -> "Предъявите карту"
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(top = 80.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = title,
+                    color = theme.primaryTextColor,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "для отмены операции",
+                    color = theme.secondaryTextColor,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
 
         val showServiceFeeRow = !isCancelPrevious && state.showServiceFeeToggle && state.serviceFeePercent > 0.0
         val tipsTitleTop = if (showServiceFeeRow) 214.dp else 262.dp
