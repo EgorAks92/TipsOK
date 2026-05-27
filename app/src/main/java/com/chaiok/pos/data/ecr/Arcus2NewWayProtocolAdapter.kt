@@ -209,6 +209,23 @@ class Arcus2CashRegisterSession(
     )
 
     suspend fun sendCommandAndWaitOk(dataText: String): Result<Unit> = sendDataAndWaitOk(encodeWin1251(dataText), dataText.substringBefore(':'))
+    suspend fun sendOptionalStatusAndDrain(statusText: String, operationTag: String): Result<Unit> = runCatching {
+        val frame = Arcus2BinLenCodec.encode(encodeWin1251("STATUS:$statusText"))
+        rawLogger.logOutgoing(frame, "STATUS")
+        client.send(frame).getOrThrow()
+        val response = client.receiveOnce(settings.waitOkTimeoutMs).getOrNull()
+        val responses = response
+            ?.let { Arcus2BinLenCodec.decodeAll(it).getOrNull() }
+            .orEmpty()
+            .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
+        when {
+            responses.any { it == "OK" } -> Unit
+            responses.any { it == "NAK" } -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got NAK, ignored for operationType=$operationTag")
+            responses.any { it == "ER" } -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got ER, ignored for operationType=$operationTag")
+            responses.isNotEmpty() -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got unknown response=${responses.joinToString(\"|\")}")
+            else -> Unit
+        }
+    }
     suspend fun sendCommandAndRunAdditionalDataSession(
         dataText: String,
         readTimeoutMs: Long,

@@ -264,15 +264,21 @@ class XchengPcPaymentCommandRepository(
 
     private suspend fun sendArcus2TransactionStartedWhileListening(
         settings: Arcus2NewWaySettings,
-        statusText: String = settings.paymentStartStatusText
+        statusText: String = settings.paymentStartStatusText,
+        sendStatus: Boolean = settings.sendStatusOnPaymentStart,
+        optionalStatus: Boolean = false
     ): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         return runCatching {
             if (settings.sendBeginTrOnPaymentStart) {
                 session.sendCommandAndWaitOk("BEGINTR:").getOrThrow()
             }
-            if (settings.sendStatusOnPaymentStart) {
-                session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
+            if (sendStatus) {
+                if (optionalStatus) {
+                    session.sendOptionalStatusAndDrain(statusText, "CANCEL_PREVIOUS").getOrThrow()
+                } else {
+                    session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
+                }
             }
         }.map { Unit }
     }
@@ -435,7 +441,12 @@ class XchengPcPaymentCommandRepository(
                                 updateArcusListeningState(r, "arcus2 reversal rrn missing")
                                 null
                             } else {
-                                val startResult = sendArcus2TransactionStartedWhileListening(settings.arcus2NewWaySettings, statusText = "Отмена")
+                                val startResult = sendArcus2TransactionStartedWhileListening(
+                                    settings = settings.arcus2NewWaySettings,
+                                    statusText = "Отмена",
+                                    sendStatus = settings.arcus2NewWaySettings.sendStatusOnCancelStart,
+                                    optionalStatus = true
+                                )
                                 if (startResult.isFailure) {
                                     updateArcusListeningState(startResult, "arcus2 reversal start response error")
                                     null

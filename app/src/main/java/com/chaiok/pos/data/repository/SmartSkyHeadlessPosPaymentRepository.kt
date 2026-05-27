@@ -46,6 +46,11 @@ class SmartSkyHeadlessPosPaymentRepository(
 
         val callback = object : TransactionCallback.Stub() {
             override fun onStateChanged(state: Int, message: String?) {
+                Log.i(
+                    PAYMENT_TAG,
+                    "[$operationId] SSP cancel onStateChanged code=$state name=${state.toStateLogName()} " +
+                        "messagePreview=${message.toPaymentMessagePreview()}"
+                )
                 val event = state.toNonTerminalPaymentEvent(message)
                 if (event != null && !terminalEventDelivered.get()) trySend(event)
             }

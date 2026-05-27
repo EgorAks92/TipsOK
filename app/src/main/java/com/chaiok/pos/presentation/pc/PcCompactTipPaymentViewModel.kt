@@ -215,7 +215,7 @@ class PcCompactTipPaymentViewModel(
         )
 
         pausePcEcrForPayment()
-        if (isArcus2Source()) {
+        if (isArcus2Source() && settings.arcus2NewWaySettings.cancelStatusKeepAliveEnabled) {
             startArcus2StatusKeepAlive()
         }
 
@@ -652,7 +652,7 @@ class PcCompactTipPaymentViewModel(
                 if (isArcus2Source()) {
                     sendPcEcrFinalResultOnce(approvedResult)
                     resumePcEcrAfterPayment("approved")
-                    delay(APPROVED_VISIBLE_MS)
+                    delay(ARCUS2_RESULT_VISIBLE_MS)
                 } else {
                     delay(APPROVED_VISIBLE_MS)
                     sendPcEcrFinalResultOnce(approvedResult)
@@ -687,6 +687,7 @@ class PcCompactTipPaymentViewModel(
                 if (isArcus2Source()) {
                     pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnce(it) }
                     resumePcEcrAfterPayment("declined_arcus2_immediate")
+                    delay(ARCUS2_RESULT_VISIBLE_MS)
                     _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
                 } else {
                     scheduleDeclinedAutoClose()
@@ -715,6 +716,7 @@ class PcCompactTipPaymentViewModel(
                 if (isArcus2Source()) {
                     pendingFinalPcEcrResult?.let { sendPcEcrFinalResultOnce(it) }
                     resumePcEcrAfterPayment("error_arcus2_immediate")
+                    delay(ARCUS2_RESULT_VISIBLE_MS)
                     _events.send(PcCompactTipPaymentEvent.DeclinedTimeout)
                 } else {
                     scheduleDeclinedAutoClose()
@@ -887,6 +889,7 @@ class PcCompactTipPaymentViewModel(
         arcus2StatusKeepAliveJob = viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
             if (!settings.paymentStatusKeepAliveEnabled) return@launch
+            if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return@launch
             while (isActive && !pcEcrFinalResultSent && !userCancelInProgress) {
                 val statusText = statusTextForStage(_uiState.value.paymentStage, settings)
                 pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
@@ -1010,6 +1013,7 @@ class PcCompactTipPaymentViewModel(
         private const val PC_USB_SAFETY_SETTLE_DELAY_MS = 150L
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
         private const val APPROVED_VISIBLE_MS = 1200L
+        private const val ARCUS2_RESULT_VISIBLE_MS = 900L
         private const val DECLINED_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val USER_CANCEL_TERMINAL_TIMEOUT_MS = 2_500L
     }
