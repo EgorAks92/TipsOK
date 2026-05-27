@@ -222,7 +222,7 @@ class Arcus2CashRegisterSession(
             responses.any { it == "OK" } -> Unit
             responses.any { it == "NAK" } -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got NAK, ignored for operationType=$operationTag")
             responses.any { it == "ER" } -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got ER, ignored for operationType=$operationTag")
-            responses.isNotEmpty() -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got unknown response=${responses.joinToString(\"|\")}")
+            responses.isNotEmpty() -> Log.w("Arcus2Session", "ARCUS2 optional STATUS got unknown response=${responses.joinToString("|")}")
             else -> Unit
         }
     }

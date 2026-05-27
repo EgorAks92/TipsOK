@@ -960,9 +960,6 @@ class XchengPcPaymentCommandRepository(
         }
     }
 
-    private fun ByteArray.toHexPreview(limit: Int = 96): String =
-        take(limit).joinToString(" ") { "%02X".format(it) }
-
     private fun isTransportFailure(message: String): Boolean =
         message.contains("USB service missing", ignoreCase = true) ||
             message.contains("USB device missing", ignoreCase = true) ||
