@@ -586,7 +586,7 @@ class PcCompactTipPaymentViewModel(
         Log.i(
             TAG,
             "CANCEL_PREVIOUS start requested reason=$reason generation=$expectedGeneration " +
-                "terminalIdBlank=${terminalId.isBlank()} rrnMasked=${maskRrn(sourceRrnNormalized)} " +
+                "terminalIdBlank=${terminalId.isBlank()} rrn=${sourceRrnNormalized ?: "<missing>"} " +
                 "amount=${_uiState.value.billAmount} currency=$commandCurrency"
         )
         if (terminalId.isBlank()) {
@@ -610,11 +610,11 @@ class PcCompactTipPaymentViewModel(
             currency = commandCurrency,
             terminalId = terminalId
         )
-        Log.i(TAG, "Start cancel previous SSP op rrn=***${rrn.takeLast(4)} reason=$reason generation=$expectedGeneration")
+        Log.i(TAG, "Start cancel previous SSP op rrn=$rrn reason=$reason generation=$expectedGeneration")
         paymentJob?.cancel()
         _uiState.update { it.copy(paymentStage = CardPresentingStage.Preparing, canCancel = true, errorMessage = null) }
         paymentJob = viewModelScope.launch {
-            Log.i(TAG, "CANCEL_PREVIOUS collecting SSP flow rrnMasked=${maskRrn(rrn)}")
+            Log.i(TAG, "CANCEL_PREVIOUS collecting SSP flow rrn=$rrn")
             startPosPaymentCancelPreviousUseCase(request).collect { event ->
                 if (expectedGeneration != generation) return@collect
                 Log.i(TAG, "CANCEL_PREVIOUS SSP event=${event.javaClass.simpleName} generation=$expectedGeneration current=$generation")
@@ -623,9 +623,6 @@ class PcCompactTipPaymentViewModel(
         }
         return true
     }
-
-    private fun maskRrn(rrn: String?): String =
-        rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
 
     private suspend fun onPaymentEvent(event: PosPaymentEvent) {
         if (isCancelPreviousOperation()) {

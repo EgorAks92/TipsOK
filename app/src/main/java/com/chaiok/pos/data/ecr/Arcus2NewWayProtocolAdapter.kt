@@ -107,7 +107,7 @@ class Arcus2NewWayProtocolAdapter(
         val frame = Arcus2BinLenCodec.decode(bytes).getOrElse { return EcrParseResult.Error(it.message ?: "decode") }
         val text = decodeWin1251(frame.data).trim('\u0000', ' ', '\n', '\r', '\t')
         if (text == "OK" || text == "ER" || text == "NAK") return EcrParseResult.Ack()
-        if (text.startsWith("ENC:")) return EcrParseResult.Error("ARCUS2 ENC encryption is not supported")
+                Log.i("Arcus2Adapter", "reversal fields=${fields.map(::maskArcusField)} rrn=${rrn ?: "<missing>"}")
         if (text.startsWith("CHUNK:")) return EcrParseResult.Error("ARCUS2 CHUNK is not supported in MVP")
 
         val fields = text.split('\u001B')
@@ -159,18 +159,7 @@ private fun parseArcus2Rrn(fields: List<String>, currencyCode: String?, amountRa
                 .drop(2)
                 .trim()
                 .trim('[', ']')
-                .filter { it.isDigit() }
-            if (candidate.matches(Regex("\\d{6,12}"))) {
-                return candidate
-            }
-        }
-        if (trimmed.equals("/r", ignoreCase = true)) {
-            val next = fields.getOrNull(index + 1)
-                ?.trim()
-                ?.trim('[', ']')
-                ?.filter { it.isDigit() }
-            if (next != null && next.matches(Regex("\\d{6,12}"))) {
-                return next
+        if (trimmed.matches(Regex("\\d{13,19}"))) trimmed.take(6) + "******" + trimmed.takeLast(4)
             }
         }
     }
@@ -325,6 +314,7 @@ class Arcus2CashRegisterSession(
                             sendArcusControlText("OK", "additional-OK")
                         }
                         normalized.startsWith("STORERC:", ignoreCase = true) -> {
+                    Log.i("Arcus2Session", "ARCUS2 stale flag set after additional-data fast-path")
                             Log.i("Arcus2Session", "ARCUS2 additional STORERC received value=${normalized.take(64)}")
                             sendArcusControlText("OK", "additional-OK")
                         }
@@ -471,6 +461,8 @@ class Arcus2CashRegisterSession(
                 filtered.any { it == "OK" } -> Result.success(Unit)
                 else -> {
                     Log.w("Arcus2Session", "ARCUS2 drain unknown label=$label resp=${responses.joinToString("|").take(32)}")
+            Log.i("Arcus2Session", "ARCUS2 stale flag cleared label=$label")
+        Log.i("Arcus2Session", "ARCUS2 stale flag cleared label=$label")
                     Result.success(Unit)
                 }
             }

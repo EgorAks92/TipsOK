@@ -295,6 +295,11 @@ class XchengPcPaymentCommandRepository(
         val session = Arcus2CashRegisterSession(client, rawLogger, settings, { arcus2StaleAdditionalDataResponseExpected }, { arcus2StaleAdditionalDataResponseExpected = it })
         return runCatching {
             val nonBlockingStartForCancelPrevious = optionalStatus
+            Log.i(
+                TAG,
+                if (nonBlockingStartForCancelPrevious) "ARCUS2 start sequence mode=fireAndForget operation=CANCEL_PREVIOUS"
+                else "ARCUS2 start sequence mode=waitOk operation=SALE"
+            )
             if (settings.sendBeginTrOnPaymentStart) {
                 if (nonBlockingStartForCancelPrevious) {
                     session.sendCommandFireAndForget("BEGINTR:").getOrThrow()
@@ -434,7 +439,7 @@ class XchengPcPaymentCommandRepository(
                             val resolved = resolveArcus2FinancialCommand(cmd, settings.arcus2NewWaySettings)
                             val amount = resolved.amount
                             val currency = resolved.currency
-                            Log.i(TAG, "ARCUS2 resolved financial command type=SALE amount=$amount currency=$currency orderId=${resolved.orderId ?: "-"} rrnMasked=${maskRrn(resolved.rrn)}")
+                            Log.i(TAG, "ARCUS2 resolved financial command type=SALE amount=$amount currency=$currency orderId=${resolved.orderId ?: "-"} rrn=${resolved.rrn ?: "<missing>"}")
                             if (amount == null || currency == null) {
                                 val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найдена сумма")
                                 updateArcusListeningState(r, "arcus2 sale amount missing")
@@ -465,7 +470,7 @@ class XchengPcPaymentCommandRepository(
                         }
                         is PcEcrCommand.Reversal -> {
                             val resolved = resolveArcus2FinancialCommand(cmd, settings.arcus2NewWaySettings)
-                            Log.i(TAG, "ARCUS2 resolved financial command type=REVERSAL amount=${resolved.amount} currency=${resolved.currency} orderId=${resolved.orderId ?: "-"} rrnMasked=${maskRrn(resolved.rrn)}")
+                            Log.i(TAG, "ARCUS2 resolved financial command type=REVERSAL amount=${resolved.amount} currency=${resolved.currency} orderId=${resolved.orderId ?: "-"} rrn=${resolved.rrn ?: "<missing>"}")
                             if (resolved.rrn.isNullOrBlank()) {
                                 Log.w(TAG, "ARCUS2 required data missing type=REVERSAL missing=rrn amount=${resolved.amount} currency=${resolved.currency}")
                                 val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найден RRN")
@@ -489,8 +494,8 @@ class XchengPcPaymentCommandRepository(
                                         lifecycleState = PcEcrLifecycleState.PausedForPayment
                                         status.value = PcUsbConnectionStatus.Idle
                                     }
-                                    Log.i(TAG, "ARCUS2 reversal accepted commandId=$finalCommandId rrnMasked=${maskRrn(resolved.rrn)}")
-                                    PcPaymentCommand(amount = resolved.amount ?: BigDecimal.ZERO, commandId = finalCommandId, orderId = resolved.orderId ?: cmd.orderId, currency = resolved.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=${resolved.rrn?.takeLast(4) ?: "missing"}", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = resolved.rrn)
+                                    Log.i(TAG, "ARCUS2 reversal accepted commandId=$finalCommandId rrn=${resolved.rrn ?: "<missing>"}")
+                                    PcPaymentCommand(amount = resolved.amount ?: BigDecimal.ZERO, commandId = finalCommandId, orderId = resolved.orderId ?: cmd.orderId, currency = resolved.currency ?: "RUB", rawPayloadPreview = "arcus2 reversal rrn=${resolved.rrn ?: "missing"}", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY, operationType = PcEcrOperationType.CANCEL_PREVIOUS, rrn = resolved.rrn)
                                 }
                             }
                         }
@@ -668,7 +673,7 @@ class XchengPcPaymentCommandRepository(
 
         val data = buildArcus2AdditionalData(tags, settings)
         val parsedLog = "ARCUS2 additional data parsed reason=$reason " +
-            "rrnMasked=${maskRrn(data.rrn)} " +
+            "rrn=${data.rrn ?: "<missing>"} " +
             "amount=${data.amount} currency=${data.currency} " +
             "orderId=${data.orderId ?: "-"} " +
             "tags=${maskArcusTags(tags)}"
@@ -851,15 +856,8 @@ class XchengPcPaymentCommandRepository(
         }
     }
 
-    private fun maskRrn(rrn: String?): String = rrn?.takeLast(4)?.padStart(rrn.length, '*') ?: "<missing>"
     private fun maskArcusText(text: String): String = text
-        .replace(Regex("(?i)(rrn=)\\d{6,12}")) { it.groupValues[1] + maskRrn(it.value.substringAfter("=")) }
-        .replace(Regex("(?i)(r=)\\d{6,12}")) { it.groupValues[1] + maskRrn(it.value.substringAfter("=")) }
-        .replace(Regex("(?i)/r\\[?\\d{6,12}\\]?")) {
-            val rrn = it.value.removePrefix("/r").removePrefix("/R").trim('[', ']')
-            "/r${maskRrn(rrn)}"
-        }
-        .replace(Regex("\\d{13,19}")) { it.value.takeLast(4).padStart(it.value.length, '*') }
+        .replace(Regex("\\d{13,19}")) { it.value.take(6) + "******" + it.value.takeLast(4) }
         .replace("\u001B", "<ESC>")
         .take(512)
     private fun maskArcusTags(tags: Map<String, String>): String =
@@ -869,7 +867,7 @@ class XchengPcPaymentCommandRepository(
                 k.equals("r", true) ||
                 k.equals("1f8431", true) ||
                 k.equals("1f03", true)
-            ) maskRrn(normalizeRrn(v)) else v.take(64)
+            ) normalizeRrn(v) ?: v.take(64) else v.take(64)
             "$k=$mv"
         }
 

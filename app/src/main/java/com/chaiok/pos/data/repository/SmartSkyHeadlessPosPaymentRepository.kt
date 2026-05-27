@@ -147,12 +147,12 @@ class SmartSkyHeadlessPosPaymentRepository(
         request: PosPaymentCancelPreviousRequest,
         callback: TransactionCallback
     ): TransactionResult {
-        Log.i(PAYMENT_TAG, "SSP cancel smartSkyPos.cancel call start rrn=***${request.rrn.takeLast(4)}")
+        Log.i(PAYMENT_TAG, "SSP cancel smartSkyPos.cancel call start rrn=${request.rrn}")
         val params = buildCancelPreviousParams(request)
         Log.i(
             PAYMENT_TAG,
             "SSP cancel params built terminalIdBlank=${params.terminalId?.isBlank() ?: true} " +
-                "currencyCode=${params.currencyCode ?: "-"} rrnMasked=***${request.rrn.takeLast(4)} amount=${request.amount}"
+                "currencyCode=${params.currencyCode ?: "-"} rrn=${request.rrn} amount=${request.amount}"
         )
         return smartSkyPos.cancel(params, callback)
     }
