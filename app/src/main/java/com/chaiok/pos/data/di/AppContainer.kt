@@ -42,6 +42,7 @@ import com.chaiok.pos.domain.usecase.ObserveCurrentStatusUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
+import com.chaiok.pos.domain.usecase.StartPosPaymentReconciliationUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentCancelPreviousUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcIdleImagesUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcCompactServiceFeeEnabledUseCase
@@ -112,6 +113,7 @@ class AppContainer(context: Context) {
     val addReviewUseCase by lazy { AddReviewUseCase(reviewRepository) }
     val startPosPaymentUseCase by lazy { StartPosPaymentUseCase(posPaymentRepository) }
     val startPosPaymentCancelPreviousUseCase by lazy { StartPosPaymentCancelPreviousUseCase(posPaymentRepository) }
+    val startPosPaymentReconciliationUseCase by lazy { StartPosPaymentReconciliationUseCase(posPaymentRepository) }
     val cancelPosPaymentUseCase by lazy { CancelPosPaymentUseCase(posPaymentRepository) }
 
     fun refreshTipRangeAfterLogin() {

@@ -114,6 +114,11 @@ class Arcus2NewWayProtocolAdapter(
                 if (amount == null || currency == null) EcrParseResult.Error("sale parse failed")
                 else EcrParseResult.Command(PcEcrCommand.Payment("ARCUS2-SALE-${System.currentTimeMillis()}", protocol, null, amount, currency))
             }
+            cls == "2" && op == "1" -> {
+                val commandId = "ARCUS2-RECONCILIATION-${System.currentTimeMillis()}"
+                Log.i("Arcus2Adapter", "ARCUS2 resolved financial command type=RECONCILIATION orderId=- rrnMasked=<not-required>")
+                EcrParseResult.Command(PcEcrCommand.Reconciliation(commandId, protocol))
+            }
             cls == s.pingClass && op == s.pingOp -> EcrParseResult.Command(PcEcrCommand.Ping(null, protocol))
             cls == s.settlementClass && op == s.settlementOp -> EcrParseResult.Command(PcEcrCommand.Settlement(null, protocol))
             cls == s.universalReversalClass && op == s.universalReversalOp -> {
@@ -617,6 +622,25 @@ object Arcus2TagsBuilder {
         return payloadBytes
     }
 
+
+    fun buildReconciliationTags(data: Arcus2ReconciliationTagData): ByteArray {
+        val pairs = linkedMapOf(
+            "RC" to data.responseCode,
+            "TERM" to data.terminalId,
+            "STATUS" to data.status,
+            "EXTID" to data.externalTransactionId
+        )
+        val sanitizedPairs = pairs
+            .mapNotNull { (key, value) ->
+                val sanitized = sanitizeTagValue(value)
+                if (sanitized.isNullOrBlank()) null else key to sanitized
+            }
+        val payload = sanitizedPairs.joinToString(ESC.toString()) { "${it.first}=${it.second}" }
+        val payloadBytes = if (payload.isBlank()) ByteArray(0) else encodeWin1251(payload)
+        Log.i("Arcus2Tags", "RECONCILIATION SETTAGS built keys=${sanitizedPairs.joinToString(",") { it.first }} bytes=${payloadBytes.size}")
+        return payloadBytes
+    }
+
     private fun formatAmount(amount: BigDecimal?, currency: String?): String? {
         if (amount == null) return null
         val scale = if (currency.equals("AMD", true)) 0 else 2
@@ -649,9 +673,63 @@ data class Arcus2PaymentTagData(
     val status: String
 )
 
+data class Arcus2ReconciliationTagData(
+    val responseCode: String?,
+    val terminalId: String?,
+    val externalTransactionId: String?,
+    val status: String = "success"
+)
+
 data class Arcus2OutgoingCommand(val label: String, val data: ByteArray, val critical: Boolean = true)
 
 object Arcus2NewWayResultSequenceBuilder {
+    fun buildReconciliationResultSequence(
+        sourceCommand: PcPaymentCommand,
+        result: PcEcrFinalPaymentResult,
+        receiptText: String?,
+        settings: Arcus2NewWaySettings,
+        terminalId: String? = null
+    ): List<Arcus2OutgoingCommand> {
+        val commands = mutableListOf<Arcus2OutgoingCommand>()
+        fun addText(label: String, text: String, critical: Boolean = true) { commands += Arcus2OutgoingCommand(label, encodeWin1251(text), critical) }
+
+        if (settings.sendPrintCommands && !receiptText.isNullOrBlank()) {
+            splitReceiptToPrintChunks(receiptText, settings.maxReceiptPrintBlockBytes).forEach { chunk ->
+                addText("PRINT", "PRINT:$chunk", critical = false)
+            }
+        }
+
+        val tagData = when (result) {
+            is PcEcrFinalPaymentResult.Approved -> {
+                addText("STORERC", "STORERC:00")
+                Arcus2ReconciliationTagData(
+                    responseCode = result.resultCode ?: "00",
+                    terminalId = terminalId,
+                    externalTransactionId = result.externalTransactionId
+                )
+            }
+            is PcEcrFinalPaymentResult.Declined -> {
+                val rc = result.resultCode ?: settings.declinedDefaultRc
+                addText("STORERC", "STORERC:$rc")
+                Arcus2ReconciliationTagData(rc, terminalId, null, "declined")
+            }
+            is PcEcrFinalPaymentResult.Cancelled -> {
+                addText("STORERC", "STORERC:${settings.cancelledRc}")
+                Arcus2ReconciliationTagData(settings.cancelledRc, terminalId, null, "cancelled")
+            }
+            is PcEcrFinalPaymentResult.Error -> {
+                val rc = result.resultCode ?: settings.errorRc
+                addText("STORERC", "STORERC:$rc")
+                Arcus2ReconciliationTagData(rc, terminalId, null, "error")
+            }
+        }
+        if (settings.sendSetTags) {
+            commands += Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildReconciliationTags(tagData))
+        }
+        addText("ENDTR", "ENDTR")
+        return commands
+    }
+
     fun buildPaymentResultSequence(
         sourceCommand: PcPaymentCommand,
         result: PcEcrFinalPaymentResult,

@@ -10,8 +10,10 @@ import android.util.Log
 import com.chaiok.pos.domain.model.PosPaymentEvent
 import com.chaiok.pos.domain.model.PosPaymentCancelPreviousRequest
 import com.chaiok.pos.domain.model.PosPaymentRequest
+import com.chaiok.pos.domain.model.PosPaymentReconciliationRequest
 import com.chaiok.pos.domain.repository.PosPaymentRepository
 import com.skytech.smartskyposlib.ISmartSkyPos
+import com.skytech.smartskyposlib.ReconciliationResult
 import com.skytech.smartskyposlib.State
 import com.skytech.smartskyposlib.TransactionCallback
 import com.skytech.smartskyposlib.TransactionParams
@@ -33,6 +35,107 @@ import org.json.JSONObject
 class SmartSkyHeadlessPosPaymentRepository(
     context: Context
 ) : PosPaymentRepository {
+
+    override fun reconciliation(request: PosPaymentReconciliationRequest): Flow<PosPaymentEvent> = callbackFlow {
+        cancellationRequested.set(false)
+        val operationId = System.currentTimeMillis().toString().takeLast(6)
+        val reconciliationCallFinished = AtomicBoolean(false)
+        val terminalEventDelivered = AtomicBoolean(false)
+        var isBound = false
+        var bindTimeoutJob: Job? = null
+
+        Log.i(PAYMENT_TAG, "[$operationId] reconciliation called terminalId=***${request.terminalId.takeLast(4)}")
+        trySend(PosPaymentEvent.Preparing)
+
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, serviceBinder: IBinder?) {
+                bindTimeoutJob?.cancel()
+                Log.i(PAYMENT_TAG, "[$operationId] SSP reconciliation service connected binderNull=${serviceBinder == null}")
+                val smartSkyPos = ISmartSkyPos.Stub.asInterface(serviceBinder)
+                if (smartSkyPos == null) {
+                    Log.e(PAYMENT_TAG, "[$operationId] SSP reconciliation smartSkyPos is null")
+                    if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error("Не удалось подключиться к платежному сервису"))
+                    close()
+                    return
+                }
+                activeService.set(smartSkyPos)
+                launch(Dispatchers.IO) {
+                    runCatching {
+                        trySend(PosPaymentEvent.Processing)
+                        Log.i(PAYMENT_TAG, "[$operationId] SSP reconciliation invoke start")
+                        smartSkyPos.reconciliation()
+                    }.onSuccess { result ->
+                        reconciliationCallFinished.set(true)
+                        Log.i(PAYMENT_TAG, "[$operationId] SSP reconciliation invoke returned ${result.toSafeReconciliationResultLog()}")
+                        val event = result.toPosPaymentEvent(operationId)
+                        if (terminalEventDelivered.compareAndSet(false, true)) trySend(event)
+                        close()
+                    }.onFailure { err ->
+                        reconciliationCallFinished.set(true)
+                        Log.e(PAYMENT_TAG, "[$operationId] SSP reconciliation invoke failure: ${err.message}", err)
+                        val msg = when (err) {
+                            is RemoteException -> "Ошибка связи с платежным сервисом"
+                            else -> err.message ?: "Сверка итогов не выполнена"
+                        }
+                        if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error(msg))
+                        close()
+                    }
+                }
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                activeService.set(null)
+                Log.w(PAYMENT_TAG, "[$operationId] SSP reconciliation service disconnected finished=${reconciliationCallFinished.get()} terminalDelivered=${terminalEventDelivered.get()}")
+            }
+
+            override fun onBindingDied(name: ComponentName?) {
+                activeService.set(null)
+                Log.w(PAYMENT_TAG, "[$operationId] SSP reconciliation binding died")
+                if (!reconciliationCallFinished.get() && terminalEventDelivered.compareAndSet(false, true)) {
+                    trySend(PosPaymentEvent.Error("Соединение с платежным сервисом потеряно"))
+                    close()
+                }
+            }
+
+            override fun onNullBinding(name: ComponentName?) {
+                activeService.set(null)
+                Log.e(PAYMENT_TAG, "[$operationId] SSP reconciliation null binding")
+                if (terminalEventDelivered.compareAndSet(false, true)) {
+                    trySend(PosPaymentEvent.Error("Платежный сервис недоступен"))
+                    close()
+                }
+            }
+        }
+
+        val bindIntent = Intent(SSP_SERVICE_ACTION).apply { setPackage(SSP_PACKAGE) }
+        Log.i(PAYMENT_TAG, "[$operationId] SSP reconciliation bind requested package=$SSP_PACKAGE")
+        isBound = runCatching { appContext.bindService(bindIntent, connection, Context.BIND_AUTO_CREATE) }.getOrDefault(false)
+        Log.i(PAYMENT_TAG, "[$operationId] SSP reconciliation bind result=$isBound")
+
+        if (!isBound) {
+            Log.e(PAYMENT_TAG, "[$operationId] SSP reconciliation bind failed")
+            if (terminalEventDelivered.compareAndSet(false, true)) trySend(PosPaymentEvent.Error("Платежное приложение не найдено"))
+            close()
+            return@callbackFlow
+        }
+
+        bindTimeoutJob = launch {
+            delay(SSP_BIND_TIMEOUT_MS)
+            if (terminalEventDelivered.compareAndSet(false, true)) {
+                Log.e(PAYMENT_TAG, "[$operationId] SSP reconciliation bind timeout")
+                trySend(PosPaymentEvent.Error("Таймаут подключения к платежному сервису"))
+                close()
+            }
+        }
+
+        awaitClose {
+            bindTimeoutJob?.cancel()
+            Log.i(PAYMENT_TAG, "[$operationId] SSP reconciliation awaitClose isBound=$isBound finished=${reconciliationCallFinished.get()}")
+            activeService.set(null)
+            if (isBound) runCatching { appContext.unbindService(connection) }
+        }
+    }
+
     override fun cancelPreviousPayment(request: PosPaymentCancelPreviousRequest): Flow<PosPaymentEvent> = callbackFlow {
         cancellationRequested.set(false)
         val operationId = System.currentTimeMillis().toString().takeLast(6)
@@ -665,6 +768,71 @@ class SmartSkyHeadlessPosPaymentRepository(
             .valueOf(this)
             .setScale(2, RoundingMode.HALF_UP)
             .toDouble()
+    }
+
+
+    private fun ReconciliationResult?.toPosPaymentEvent(operationId: String): PosPaymentEvent {
+        if (this == null) {
+            Log.e(PAYMENT_TAG, "[$operationId] ReconciliationResult is null")
+            return PosPaymentEvent.Error("Платежный сервис не вернул результат сверки итогов")
+        }
+        val receiptText = extractReceiptText()
+        val reportPresent = !slip.isNullOrBlank()
+        val receiptPresent = !receiptText.isNullOrBlank()
+        val mappedSuccess = receiptPresent || reportPresent || isApproved == true || code == APPROVED_CODE
+        Log.i(
+            PAYMENT_TAG,
+            "[$operationId] SSP reconciliation result mapped success=$mappedSuccess rc=${rc ?: "<blank>"} " +
+                "reportPresent=$reportPresent receiptPresent=$receiptPresent"
+        )
+        return if (mappedSuccess) {
+            PosPaymentEvent.Approved(
+                transactionId = datetime?.time?.toString(),
+                rrn = rrn,
+                authCode = null,
+                message = message ?: "Успешно",
+                receiptText = receiptText
+            )
+        } else {
+            PosPaymentEvent.Error(message ?: "Сверка итогов не выполнена", rawMessage = toString(), receiptText = receiptText)
+        }
+    }
+
+    private fun ReconciliationResult.extractReceiptText(): String? {
+        fun normalize(value: String?): String? = value
+            ?.replace("\r\n", "\n")
+            ?.replace('\r', '\n')
+            ?.trim()
+            ?.ifBlank { null }
+        val blocks = buildList {
+            normalize(slip)?.let { add(it) }
+            transactionLog?.takeIf { it.isNotEmpty() }?.let { log ->
+                add(
+                    log.joinToString("\n") { tx ->
+                        buildString {
+                            append(tx.type ?: "TRANSACTION")
+                            tx.amount?.let { append(" ").append(it.toPlainString()) }
+                            tx.rc?.let { append(" RC=").append(it) }
+                            tx.rrn?.let { append(" RRN=***").append(it.takeLast(4)) }
+                        }
+                    }
+                )
+            }
+        }
+        return blocks.distinct().joinToString("\n\n").ifBlank { null }
+    }
+
+    private fun ReconciliationResult?.toSafeReconciliationResultLog(): String {
+        if (this == null) return "null"
+        return "ReconciliationResult(" +
+            "approved=$isApproved, " +
+            "code=$code, " +
+            "rc=${rc ?: "<blank>"}, " +
+            "rrnPresent=${!rrn.isNullOrBlank()}, " +
+            "slipPresent=${!slip.isNullOrBlank()}, " +
+            "transactionLogSize=${transactionLog?.size ?: 0}, " +
+            "messagePreview=${message.toPaymentMessagePreview()}" +
+            ")"
     }
 
     private fun TransactionResult.extractReceiptText(): String? {

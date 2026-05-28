@@ -183,7 +183,12 @@ class XchengPcPaymentCommandRepository(
         }
 
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
-        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings, terminalId, tipAmount)
+        val isReconciliation = sourceCommand.operationType == PcEcrOperationType.RECONCILIATION
+        val sequence = if (isReconciliation) {
+            Arcus2NewWayResultSequenceBuilder.buildReconciliationResultSequence(sourceCommand, result, receiptText, settings, terminalId)
+        } else {
+            Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings, terminalId, tipAmount)
+        }
         val resultStatus = when (result) {
             is PcEcrFinalPaymentResult.Approved -> "approved"
             is PcEcrFinalPaymentResult.Declined -> "declined"
@@ -193,6 +198,9 @@ class XchengPcPaymentCommandRepository(
         if (result is PcEcrFinalPaymentResult.Cancelled) {
             Arcus2CashRegisterSession.arcus2CancelledFinalStorercStaleControlTailPossible = true
             Log.i(TAG, "ARCUS2 cancelled final STORERC stale control tail marked possible")
+        }
+        if (isReconciliation) {
+            Log.i(TAG, "ARCUS2 reconciliation final result send start commandId=${sourceCommand.commandId ?: "-"}")
         }
         Log.i(TAG, "ARCUS2 final result send start commandId=${sourceCommand.commandId ?: "-"} lifecycle=$lifecycleState active=$activeArcus2Transaction status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
 
@@ -243,6 +251,9 @@ class XchengPcPaymentCommandRepository(
                 lifecycleState = PcEcrLifecycleState.Listening
                 status.value = PcUsbConnectionStatus.WaitingForData
                 Log.i(TAG, "ARCUS2 final result sent commandId=${sourceCommand.commandId ?: "-"}")
+                if (isReconciliation) {
+                    Log.i(TAG, "ARCUS2 reconciliation final result send success")
+                }
             } else {
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(sendResult.exceptionOrNull()?.message ?: "arcus2 send error")
@@ -311,12 +322,13 @@ class XchengPcPaymentCommandRepository(
         settings: Arcus2NewWaySettings,
         statusText: String = settings.paymentStartStatusText,
         sendStatus: Boolean = settings.sendStatusOnPaymentStart,
-        optionalStatus: Boolean = false
+        optionalStatus: Boolean = false,
+        operationTag: String = "CANCEL_PREVIOUS"
     ): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         return runCatching {
             if (optionalStatus) {
-                Log.i(TAG, "ARCUS2 start sequence mode=fireAndForget operation=CANCEL_PREVIOUS")
+                Log.i(TAG, "ARCUS2 start sequence mode=fireAndForget operation=$operationTag")
                 if (settings.sendBeginTrOnPaymentStart) {
                     session.sendCommandFireAndForget("BEGINTR:").getOrThrow()
                 }
@@ -479,6 +491,37 @@ class XchengPcPaymentCommandRepository(
                                     Log.i(TAG, "ARCUS2 payment command accepted commandId=${cmd.commandId ?: "-"}")
                                     PcPaymentCommand(amount = amount, commandId = cmd.commandId, orderId = resolved.orderId ?: cmd.orderId, currency = currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
                                 }
+                            }
+                        }
+                        is PcEcrCommand.Reconciliation -> {
+                            Log.i(TAG, "ARCUS2 resolved financial command type=RECONCILIATION orderId=- rrnMasked=<not-required>")
+                            val startResult = sendArcus2TransactionStartedWhileListening(
+                                settings = settings.arcus2NewWaySettings,
+                                statusText = "Сверка итогов",
+                                sendStatus = false,
+                                optionalStatus = true,
+                                operationTag = "RECONCILIATION"
+                            )
+                            if (startResult.isFailure) {
+                                updateArcusListeningState(startResult, "arcus2 reconciliation start response error")
+                                null
+                            } else {
+                                lifecycleMutex.withLock {
+                                    activeArcus2Transaction = true
+                                    activeArcus2CommandId = cmd.commandId
+                                    lifecycleState = PcEcrLifecycleState.PausedForPayment
+                                    status.value = PcUsbConnectionStatus.Idle
+                                }
+                                Log.i(TAG, "ARCUS2 reconciliation accepted commandId=${cmd.commandId ?: "-"}")
+                                PcPaymentCommand(
+                                    amount = BigDecimal.ZERO,
+                                    commandId = cmd.commandId,
+                                    orderId = null,
+                                    currency = "RUB",
+                                    rawPayloadPreview = "arcus2 reconciliation",
+                                    sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY,
+                                    operationType = PcEcrOperationType.RECONCILIATION
+                                )
                             }
                         }
                         is PcEcrCommand.Ping -> {

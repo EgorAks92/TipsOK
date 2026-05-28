@@ -724,6 +724,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                         billAmount = billAmount,
                         startPosPaymentUseCase = container.startPosPaymentUseCase,
                         startPosPaymentCancelPreviousUseCase = container.startPosPaymentCancelPreviousUseCase,
+                        startPosPaymentReconciliationUseCase = container.startPosPaymentReconciliationUseCase,
                         cancelPosPaymentUseCase = container.cancelPosPaymentUseCase,
                         getTransactionRangeUseCase = container.getTransactionRangeUseCase,
                         observeSettingsUseCase = container.observeSettingsUseCase,

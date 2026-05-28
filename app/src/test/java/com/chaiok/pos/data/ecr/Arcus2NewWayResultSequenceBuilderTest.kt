@@ -134,4 +134,55 @@ class Arcus2NewWayResultSequenceBuilderTest {
         )
         assertTrue(decodeWin1251(seq.first { it.label == "SETTAGS" }.data).startsWith("SETTAGS:"))
     }
+
+    @Test fun reconciliationApprovedSequencePrintStorercSettagsEndtr() {
+        val seq = Arcus2NewWayResultSequenceBuilder.buildReconciliationResultSequence(
+            sourceCommand = cmd,
+            result = PcEcrFinalPaymentResult.Approved(externalTransactionId = "report-1"),
+            receiptText = "SHIFT REPORT",
+            settings = Arcus2NewWaySettings(sendSetTags = true),
+            terminalId = "TERM0804"
+        )
+        val labels = seq.map { it.label }
+        assertEquals(listOf("PRINT", "STORERC", "SETTAGS", "ENDTR"), labels)
+        val texts = seq.map { decodeWin1251(it.data) }
+        assertEquals("PRINT:SHIFT REPORT", texts[0])
+        assertEquals("STORERC:00", texts[1])
+        assertTrue(texts[2].startsWith("SETTAGS:"))
+        assertEquals("ENDTR", texts[3])
+    }
+
+    @Test fun reconciliationSetTagsAreMoneyNeutral() {
+        val seq = Arcus2NewWayResultSequenceBuilder.buildReconciliationResultSequence(
+            sourceCommand = cmd,
+            result = PcEcrFinalPaymentResult.Approved(externalTransactionId = "report-1"),
+            receiptText = null,
+            settings = Arcus2NewWaySettings(sendSetTags = true),
+            terminalId = "TERM0804"
+        )
+        val text = decodeWin1251(seq.first { it.label == "SETTAGS" }.data)
+        assertTrue(text.contains("RC=00"))
+        assertTrue(text.contains("TERM=TERM0804"))
+        assertTrue(text.contains("STATUS=success"))
+        assertTrue(text.contains("EXTID=report-1"))
+        assertFalse(text.contains("AMOUNT="))
+        assertFalse(text.contains("CURRENCY="))
+        assertFalse(text.contains("RRN="))
+        assertFalse(text.contains("TIP_AMOUNT="))
+    }
+
+    @Test fun reconciliationErrorSequenceUsesErrorStorercBeforeSettags() {
+        val seq = Arcus2NewWayResultSequenceBuilder.buildReconciliationResultSequence(
+            sourceCommand = cmd,
+            result = PcEcrFinalPaymentResult.Error("fatal"),
+            receiptText = null,
+            settings = Arcus2NewWaySettings(sendSetTags = true, errorRc = "777")
+        )
+        val texts = seq.map { decodeWin1251(it.data) }
+        assertEquals(listOf("STORERC", "SETTAGS", "ENDTR"), seq.map { it.label })
+        assertEquals("STORERC:777", texts[0])
+        assertTrue(texts[1].startsWith("SETTAGS:"))
+        assertEquals("ENDTR", texts[2])
+    }
+
 }
