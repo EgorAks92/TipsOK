@@ -280,6 +280,12 @@ class XchengPcPaymentCommandRepository(
                 "ARCUS2 keep-alive STATUS failed text=$statusText commandId=$safeCommandId error=${result.exceptionOrNull()?.message}",
                 result.exceptionOrNull()
             )
+            val failureText = result.exceptionOrNull()?.message.orEmpty()
+            val hasNak = failureText.contains("NAK", ignoreCase = true)
+            if (hasNak) {
+                Arcus2CashRegisterSession.arcus2StatusStaleControlTailPossible = true
+                Log.i(TAG, "ARCUS2 keep-alive STATUS stale control tail marked possible")
+            }
         }
         return result
     }

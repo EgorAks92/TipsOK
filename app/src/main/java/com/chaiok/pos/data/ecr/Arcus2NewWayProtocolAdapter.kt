@@ -210,6 +210,9 @@ class Arcus2CashRegisterSession(
 
         @Volatile
         var staleControlResponseExpectedAfterAdditionalDataFastPath: Boolean = false
+
+        @Volatile
+        var arcus2StatusStaleControlTailPossible: Boolean = false
     }
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     data class Arcus2ReceivedFrame(
@@ -486,11 +489,13 @@ class Arcus2CashRegisterSession(
     }
 
     private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
-        if (!staleControlResponseExpectedAfterAdditionalDataFastPath) return responses
+        if (!staleControlResponseExpectedAfterAdditionalDataFastPath && !arcus2StatusStaleControlTailPossible) return responses
 
         val isStorerc = label.equals("STORERC", ignoreCase = true)
         if (!isStorerc) {
-            Log.i("Arcus2Session", "ARCUS2 stale control pending context=afterAdditionalDataFastPath label=$label ignoredForNonFinalStep=true")
+            if (staleControlResponseExpectedAfterAdditionalDataFastPath) {
+                Log.i("Arcus2Session", "ARCUS2 stale control pending context=afterAdditionalDataFastPath label=$label ignoredForNonFinalStep=true")
+            }
             return responses
         }
 
@@ -500,13 +505,21 @@ class Arcus2CashRegisterSession(
         val controlOnly = normalized.all { it == "OK" || it == "NAK" }
         if (!controlOnly) {
             staleControlResponseExpectedAfterAdditionalDataFastPath = false
+            arcus2StatusStaleControlTailPossible = false
             return responses
         }
 
         val hasOk = normalized.any { it == "OK" }
         val hasNak = normalized.any { it == "NAK" }
 
+        val statusTailPossible = arcus2StatusStaleControlTailPossible
         staleControlResponseExpectedAfterAdditionalDataFastPath = false
+        arcus2StatusStaleControlTailPossible = false
+
+        if (statusTailPossible && hasOk && hasNak && normalized.size == 2 && normalized[0] == "NAK" && normalized[1] == "OK") {
+            Log.i("Arcus2Session", "ARCUS2 final STORERC mixed control NAK|OK treated as stale success")
+            return listOf("OK")
+        }
 
         if (hasOk && hasNak) {
             Log.i("Arcus2Session", "ARCUS2 stale mixed control response ignored context=afterAdditionalDataFastPath label=STORERC responses=${normalized.joinToString("|")}")
