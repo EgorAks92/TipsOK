@@ -329,7 +329,11 @@ class XchengWireEcrPortClient(context: Context) {
                 }
 
                 if (bytes != null && bytes.isNotEmpty()) {
-                    Log.i(TAG, "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}")
+                    if (isArcusWaiterLoginPayload(bytes)) {
+                        Log.i(TAG, "recv end bytes=${bytes.size} command=WAITER_LOGIN rawMasked=true")
+                    } else {
+                        Log.i(TAG, "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}")
+                    }
                     return@withContext Result.success(bytes)
                 }
 
@@ -940,6 +944,13 @@ class XchengWireEcrPortClient(context: Context) {
         }.getOrElse { throwable ->
             "<error: ${throwable.message}>"
         }
+    }
+
+
+    private fun isArcusWaiterLoginPayload(bytes: ByteArray): Boolean {
+        val payload = Arcus2BinLenCodec.decode(bytes).getOrNull()?.data ?: bytes
+        val fields = decodeWin1251(payload).trim('\u0000', ' ', '\n', '\r', '\t').split('\u001B')
+        return fields.getOrNull(0) == "2" && fields.getOrNull(1) == "9"
     }
 
     private fun ByteArray.toHexPreview(limit: Int = 96): String =

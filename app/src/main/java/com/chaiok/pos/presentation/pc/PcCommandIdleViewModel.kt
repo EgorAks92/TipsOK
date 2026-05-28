@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.domain.model.PcEcrProtocol
+import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
+import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import java.math.BigDecimal
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -39,7 +42,8 @@ data class PcCommandIdleUiState(
     val unlockPin: String = "",
     val isUnlocking: Boolean = false,
     val unlockError: String? = null,
-    val unlockPinMaxLength: Int = UNLOCK_PIN_MAX_LENGTH
+    val unlockPinMaxLength: Int = UNLOCK_PIN_MAX_LENGTH,
+    val statusMessage: String? = null
 )
 
 private data class UnlockState(
@@ -52,7 +56,8 @@ private data class UnlockState(
 class PcCommandIdleViewModel(
     private val repository: PcPaymentCommandRepository,
     private val observeSettingsUseCase: ObserveSettingsUseCase,
-    private val loginWithPinUseCase: LoginWithPinUseCase
+    private val loginWithPinUseCase: LoginWithPinUseCase,
+    private val sessionRepository: SessionRepository
 ) : ViewModel() {
 
     private val listeningEnabled = MutableStateFlow(false)
@@ -80,6 +85,7 @@ class PcCommandIdleViewModel(
     private var lastNoIdFingerprint: String? = null
     private var lastNoIdAtMs: Long = 0L
     private var resumeListeningJob: Job? = null
+    private val pcStatusMessage = MutableStateFlow<String?>(null)
 
     init {
         observeStatus()
@@ -199,8 +205,12 @@ class PcCommandIdleViewModel(
             combine(
                 _status,
                 observeSettingsUseCase(),
-                unlockState
-            ) { status, settings, unlock ->
+                unlockState,
+                pcStatusMessage,
+                combine(sessionRepository.profileId, sessionRepository.accessToken) { profileId, token ->
+                    profileId != null && !token.isNullOrBlank()
+                }
+            ) { status, settings, unlock, pcMessage, waiterAuthorized ->
                 val configuredImages = settings.pcIdleImages.filter { it.isNotBlank() }
                 PcCommandIdleUiState(
                     connectionStatus = status,
@@ -209,7 +219,8 @@ class PcCommandIdleViewModel(
                     unlockPin = unlock.pin,
                     isUnlocking = unlock.isLoading,
                     unlockError = unlock.error,
-                    unlockPinMaxLength = UNLOCK_PIN_MAX_LENGTH
+                    unlockPinMaxLength = UNLOCK_PIN_MAX_LENGTH,
+                    statusMessage = pcMessage ?: if (waiterAuthorized) null else "Ожидание авторизации официанта"
                 )
             }.collect { nextState ->
                 _uiState.value = nextState
@@ -259,6 +270,10 @@ class PcCommandIdleViewModel(
 
         listeningEnabled.value = false
 
+        if (command.operationType == PcEcrOperationType.WAITER_LOGIN) {
+            handleWaiterLogin(command)
+            return
+        }
 
         _events.emit(
             PcCommandIdleEvent.OpenTipSelection(
@@ -273,6 +288,53 @@ class PcCommandIdleViewModel(
         )
     }
 
+
+    private suspend fun handleWaiterLogin(command: PcPaymentCommand) {
+        val pin = command.waiterPin
+        Log.i(TAG, "WAITER_LOGIN started waiterPinPresent=${!pin.isNullOrBlank()} waiterPinMasked=****")
+        pcStatusMessage.value = "Авторизация официанта"
+        val result = if (pin.isNullOrBlank()) {
+            Result.failure(IllegalArgumentException("missing pin"))
+        } else {
+            Log.i(TAG, "WAITER_LOGIN terminalLogin start")
+            loginWithPinUseCase(pin)
+        }
+
+        val finalResult = result.fold(
+            onSuccess = { profile ->
+                val profileId = sessionRepository.profileId.first()
+                val waiterId = sessionRepository.activeWaiterId.first()
+                Log.i(
+                    TAG,
+                    "WAITER_LOGIN terminalLogin success profileId=${profileId ?: "-"} waiterId=${waiterId ?: profile.id} nicknamePresent=${profile.firstName.isNotBlank() || profile.lastName.isNotBlank()}"
+                )
+                pcStatusMessage.value = "Официант авторизован"
+                PcEcrFinalPaymentResult.Approved(resultCode = "00")
+            },
+            onFailure = { error ->
+                Log.w(TAG, "WAITER_LOGIN terminalLogin failed reason=${safeLoginError(error)}")
+                pcStatusMessage.value = "Ошибка авторизации официанта"
+                PcEcrFinalPaymentResult.Error(message = "waiter login failed")
+            }
+        )
+
+        Log.i(TAG, "WAITER_LOGIN pin cleared from memory")
+        val settings = observeSettingsUseCase().first()
+        repository.sendArcus2PaymentResult(
+            sourceCommand = command.copy(waiterPin = null),
+            result = finalResult,
+            receiptText = null,
+            settings = settings.arcus2NewWaySettings,
+            terminalId = null,
+            tipAmount = null
+        ).onFailure { Log.e(TAG, "WAITER_LOGIN final result send failed", it) }
+
+        delay(WAITER_LOGIN_STATUS_VISIBLE_MS)
+        pcStatusMessage.value = null
+        resumeListening()
+    }
+
+    private fun safeLoginError(error: Throwable): String = error::class.simpleName ?: "login_failed"
     private fun shouldIgnoreDuplicate(command: PcPaymentCommand): Boolean {
         val commandId = command.commandId
 
@@ -320,6 +382,7 @@ class PcCommandIdleViewModel(
         private const val LISTEN_LOOP_DELAY_MS = 300L
         private const val NO_ID_DEDUPE_WINDOW_MS = 5_000L
         private const val DEFAULT_IMAGE = "default"
+        private const val WAITER_LOGIN_STATUS_VISIBLE_MS = 1_200L
     }
 }
 

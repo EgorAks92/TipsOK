@@ -26,6 +26,14 @@ class Arcus2NewWayProtocolAdapterTest {
         assertTrue(r is EcrParseResult.Command)
     }
 
+    @Test fun parseWaiterLogin() {
+        val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
+        val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("291111")))
+        val cmd = (r as EcrParseResult.Command).command as PcEcrCommand.WaiterLogin
+        assertEquals("1111", cmd.waiterPin)
+        assertTrue(cmd.commandId?.startsWith("ARCUS2-WAITER-LOGIN-") == true)
+    }
+
     @Test fun parseReconciliation() {
         val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
         val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("2\u001B1")))

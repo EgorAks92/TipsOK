@@ -87,7 +87,7 @@ class AppContainer(context: Context) {
         BackendTipRangeRepository(terminalApi, sessionRepository, appDataStore)
     }
     val settingsRepository: SettingsRepository by lazy { DataStoreSettingsRepository(appDataStore) }
-    val pcPaymentCommandRepository by lazy { XchengPcPaymentCommandRepository(XchengWireEcrPortClient(appContext), settingsRepository, appContext) }
+    val pcPaymentCommandRepository by lazy { XchengPcPaymentCommandRepository(XchengWireEcrPortClient(appContext), settingsRepository, sessionRepository, appContext) }
     val pcEcrPaymentResultMapper by lazy { PcEcrPaymentResultMapper() }
     val pcPaymentTransactionLogRepository by lazy { PcPaymentTransactionLogRepository(appContext) }
     val reviewRepository: ReviewRepository by lazy { BackendReviewRepository(terminalApi, sessionRepository) }

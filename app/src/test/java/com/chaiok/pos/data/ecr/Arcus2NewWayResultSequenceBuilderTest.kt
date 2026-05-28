@@ -2,6 +2,7 @@ package com.chaiok.pos.data.ecr
 
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
+import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -133,6 +134,30 @@ class Arcus2NewWayResultSequenceBuilderTest {
             Arcus2NewWaySettings(minimalResultMode = true)
         )
         assertTrue(decodeWin1251(seq.first { it.label == "SETTAGS" }.data).startsWith("SETTAGS:"))
+    }
+
+    @Test fun waiterLoginApprovedSequenceIsMinimalWithoutSetTags() {
+        val waiterCmd = cmd.copy(operationType = PcEcrOperationType.WAITER_LOGIN)
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(
+            waiterCmd,
+            PcEcrFinalPaymentResult.Approved(),
+            null,
+            Arcus2NewWaySettings(minimalResultMode = true)
+        )
+        assertEquals(listOf("STORERC", "ENDTR"), seq.map { it.label })
+        assertEquals(listOf("STORERC:00", "ENDTR"), seq.map { decodeWin1251(it.data) })
+    }
+
+    @Test fun waiterLoginErrorSequenceIsMinimalWithoutSetTags() {
+        val waiterCmd = cmd.copy(operationType = PcEcrOperationType.WAITER_LOGIN)
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(
+            waiterCmd,
+            PcEcrFinalPaymentResult.Error("bad"),
+            null,
+            Arcus2NewWaySettings(minimalResultMode = true, errorRc = "999")
+        )
+        assertEquals(listOf("STORERC", "ENDTR"), seq.map { it.label })
+        assertEquals(listOf("STORERC:999", "ENDTR"), seq.map { decodeWin1251(it.data) })
     }
 
     @Test fun reconciliationApprovedSequencePrintStorercSettagsEndtr() {

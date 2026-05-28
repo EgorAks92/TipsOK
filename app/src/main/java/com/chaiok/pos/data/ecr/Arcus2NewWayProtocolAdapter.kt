@@ -6,6 +6,7 @@ import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcEcrCommand
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcEcrProtocol
+import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import org.json.JSONObject
 import java.io.File
@@ -39,8 +40,14 @@ class Arcus2RawFrameLogger(
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun logIncoming(bytes: ByteArray) {
-        Log.i("Arcus2Raw", "ARCUS2 IN length=${bytes.size} hexPreview=${bytes.toHexPreview(48)}")
-        ioScope.launch { write("IN", bytes, "incoming") }
+        val waiterLogin = isWaiterLoginFrame(bytes)
+        if (waiterLogin) {
+            Log.i("Arcus2Raw", "ARCUS2 IN length=${bytes.size} command=WAITER_LOGIN rawMasked=true")
+            ioScope.launch { write("IN", bytes, "incoming", forceMaskedPayload = true) }
+        } else {
+            Log.i("Arcus2Raw", "ARCUS2 IN length=${bytes.size} hexPreview=${bytes.toHexPreview(48)}")
+            ioScope.launch { write("IN", bytes, "incoming") }
+        }
     }
 
     override fun logOutgoing(bytes: ByteArray, note: String) {
@@ -48,17 +55,17 @@ class Arcus2RawFrameLogger(
         ioScope.launch { write("OUT", bytes, note) }
     }
 
-    private fun write(direction: String, bytes: ByteArray, note: String) {
+    private fun write(direction: String, bytes: ByteArray, note: String, forceMaskedPayload: Boolean = false) {
         runCatching {
             val obj = JSONObject()
                 .put("receivedAt", Instant.now().toString())
                 .put("direction", direction)
                 .put("length", bytes.size)
-                .put("hexPreview", bytes.toHexPreview(96))
-                .put("win1251Preview", sanitize(extractWin1251Preview(bytes)))
-                .put("asciiPreview", sanitize(extractAsciiPreview(bytes)))
+                .put("hexPreview", if (forceMaskedPayload) "<masked waiter login>" else bytes.toHexPreview(96))
+                .put("win1251Preview", if (forceMaskedPayload) "2<ESC>9<ESC>****" else sanitize(extractWin1251Preview(bytes)))
+                .put("asciiPreview", if (forceMaskedPayload) "2<ESC>9<ESC>****" else sanitize(extractAsciiPreview(bytes)))
                 .put("note", sanitize(note))
-            if (enableFullRawLog) obj.put("fullHex", bytes.toHexPreview(bytes.size))
+            if (enableFullRawLog && !forceMaskedPayload) obj.put("fullHex", bytes.toHexPreview(bytes.size))
             File(dir, "arcus2_raw_${LocalDate.now()}.jsonl").appendText(obj.toString() + "\n")
         }
     }
@@ -71,6 +78,12 @@ class Arcus2RawFrameLogger(
     private fun extractAsciiPreview(bytes: ByteArray): String {
         val payload = Arcus2BinLenCodec.decode(bytes).getOrNull()?.data ?: bytes
         return payload.toString(Charsets.US_ASCII).take(256)
+    }
+
+    private fun isWaiterLoginFrame(bytes: ByteArray): Boolean {
+        val payload = Arcus2BinLenCodec.decode(bytes).getOrNull()?.data ?: bytes
+        val fields = decodeWin1251(payload).trim('\u0000', ' ', '\n', '\r', '\t').split('\u001B')
+        return fields.getOrNull(0) == "2" && fields.getOrNull(1) == "9"
     }
 
     private fun sanitize(text: String): String {
@@ -113,6 +126,16 @@ class Arcus2NewWayProtocolAdapter(
                 // TODO: Make PcEcrCommand.Payment amount/currency nullable for full primary+additional-data resolution.
                 if (amount == null || currency == null) EcrParseResult.Error("sale parse failed")
                 else EcrParseResult.Command(PcEcrCommand.Payment("ARCUS2-SALE-${System.currentTimeMillis()}", protocol, null, amount, currency))
+            }
+            cls == "2" && op == "9" -> {
+                val commandId = "ARCUS2-WAITER-LOGIN-${System.currentTimeMillis()}"
+                val waiterPin = fields.getOrNull(2)?.trim()
+                Log.i(
+                    "Arcus2Adapter",
+                    "ARCUS2 resolved technical command type=WAITER_LOGIN waiterPinPresent=${!waiterPin.isNullOrBlank()} waiterPinMasked=****"
+                )
+                Log.i("Arcus2Adapter", "ARCUS2 waiter login accepted commandId=$commandId")
+                EcrParseResult.Command(PcEcrCommand.WaiterLogin(commandId, protocol, waiterPin))
             }
             cls == "2" && op == "1" -> {
                 val commandId = "ARCUS2-RECONCILIATION-${System.currentTimeMillis()}"
@@ -740,6 +763,15 @@ object Arcus2NewWayResultSequenceBuilder {
     ): List<Arcus2OutgoingCommand> {
         val commands = mutableListOf<Arcus2OutgoingCommand>()
         fun addText(label: String, text: String, critical: Boolean = true) { commands += Arcus2OutgoingCommand(label, encodeWin1251(text), critical) }
+
+        if (sourceCommand.operationType == PcEcrOperationType.WAITER_LOGIN) {
+            when (result) {
+                is PcEcrFinalPaymentResult.Approved -> addText("STORERC", "STORERC:00")
+                else -> addText("STORERC", "STORERC:${settings.errorRc}")
+            }
+            addText("ENDTR", "ENDTR")
+            return commands
+        }
 
         if (settings.minimalResultMode) {
             val shouldPrintReceipt = settings.sendReceiptInMinimalMode && settings.sendPrintCommands && !receiptText.isNullOrBlank()

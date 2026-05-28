@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 object TerminalNetworkFactory {
     fun createTerminalApi(): TerminalApi {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.HEADERS else HttpLoggingInterceptor.Level.NONE
             redactHeader("Authorization")
         }
 

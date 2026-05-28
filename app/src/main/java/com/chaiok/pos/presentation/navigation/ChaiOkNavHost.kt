@@ -79,6 +79,17 @@ fun ChaiOkNavHost(container: AppContainer) {
     ) {
         composable(Routes.Launch) {
             LaunchedEffect(Unit) {
+                val settings = container.observeSettingsUseCase().first()
+                Log.i("StartupTrace", "Settings first value received")
+
+                if (settings.pcUsbModeEnabled) {
+                    navController.navigate(Routes.PcCommandIdle) {
+                        popUpTo(Routes.Launch) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    return@LaunchedEffect
+                }
+
                 Log.i("StartupTrace", "Session check start")
                 val hasSession = container.sessionRepository.accessToken.first() != null
                 Log.i("StartupTrace", "Session check end hasSession=$hasSession")
@@ -91,14 +102,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                     return@LaunchedEffect
                 }
 
-                val settings = container.observeSettingsUseCase().first()
-                Log.i("StartupTrace", "Settings first value received")
-
-                val target = if (settings.pcUsbModeEnabled) {
-                    Routes.PcCommandIdle
-                } else {
-                    Routes.Home
-                }
+                val target = Routes.Home
 
                 navController.navigate(target) {
                     popUpTo(Routes.Launch) { inclusive = true }
@@ -615,7 +619,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                     PcCommandIdleViewModel(
                         repository = container.pcPaymentCommandRepository,
                         observeSettingsUseCase = container.observeSettingsUseCase,
-                        loginWithPinUseCase = container.loginWithPinUseCase
+                        loginWithPinUseCase = container.loginWithPinUseCase,
+                        sessionRepository = container.sessionRepository
                     )
                 }
             )
