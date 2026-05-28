@@ -511,8 +511,15 @@ class Arcus2CashRegisterSession(
         if (cancelledFinalTailPossible) {
             // Cancelled-final STORERC context is one-shot for the nearest STORERC.
             arcus2CancelledFinalStorercStaleControlTailPossible = false
-            if (normalized == listOf("NAK", "OK")) {
-                Log.i("Arcus2Session", "ARCUS2 cancelled final STORERC NAK|OK treated as stale success")
+            val isNakTailThenOk =
+                normalized.size >= 2 &&
+                normalized.last() == "OK" &&
+                normalized.dropLast(1).all { it == "NAK" }
+            if (isNakTailThenOk) {
+                Log.i(
+                    "Arcus2Session",
+                    "ARCUS2 cancelled final STORERC NAK-tail|OK treated as stale success responses=${normalized.joinToString("|")}"
+                )
                 return listOf("OK")
             }
         }
