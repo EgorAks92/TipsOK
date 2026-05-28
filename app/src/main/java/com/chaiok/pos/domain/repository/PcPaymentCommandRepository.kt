@@ -12,6 +12,7 @@ import java.math.BigDecimal
 interface PcPaymentCommandRepository {
     fun observeCommands(): Flow<PcPaymentCommand>
     fun observeStatus(): Flow<PcUsbConnectionStatus>
+    val lastListenConsumedIdleStandaloneControl: Boolean get() = false
     suspend fun sendResponse(response: PcPaymentResponse): Result<Unit>
     suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit>
     suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String? = null, tipAmount: BigDecimal? = null): Result<Unit>
