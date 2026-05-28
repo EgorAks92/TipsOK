@@ -155,6 +155,8 @@ class PcCompactTipPaymentViewModel(
     private var pcEcrFinalResultSent = false
     private var pendingFinalPcEcrResult: PcEcrFinalPaymentResult? = null
     private var arcus2StatusKeepAliveJob: Job? = null
+    private val arcus2StatusSendMutex = Mutex()
+    private var arcus2StatusInFlight: Boolean = false
     private var lastArcus2StatusText: String? = null
     private var lastArcus2StatusSentAt: Long = 0L
     private var commandCurrency: String = "RUB"
@@ -923,6 +925,7 @@ class PcCompactTipPaymentViewModel(
         cancelEventSent = true
         cancelDeclinedAutoClose()
         stopArcus2StatusKeepAlive()
+        awaitArcus2StatusInFlightBeforeFinalResult()
         val sent = sendPcEcrFinalResultOnceWithTimeout(
             PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"),
             ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS
@@ -1011,32 +1014,58 @@ class PcCompactTipPaymentViewModel(
         settings: com.chaiok.pos.domain.model.Arcus2NewWaySettings,
         force: Boolean = false
     ) {
-        if (internalRestartInProgress) {
-            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: internal restart")
+        if (!arcus2StatusSendMutex.tryLock()) {
+            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: in-flight")
             return
         }
-        if (pcEcrFinalResultSending || pcEcrFinalResultSent || pcPaymentCommandRepository.isPcEcrFinalResultInProgress()) {
-            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: final result in progress")
-            return
+        try {
+            arcus2StatusInFlight = true
+            if (internalRestartInProgress) {
+                Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: internal restart")
+                return
+            }
+            if (pcEcrFinalResultSending || pcEcrFinalResultSent || pcPaymentCommandRepository.isPcEcrFinalResultInProgress()) {
+                Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: final result in progress")
+                return
+            }
+            val now = System.currentTimeMillis()
+            if (!force && lastArcus2StatusText == statusText && now - lastArcus2StatusSentAt < ARCUS2_STATUS_DUPLICATE_INTERVAL_MS) {
+                Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: duplicate text")
+                return
+            }
+            lastArcus2StatusText = statusText
+            lastArcus2StatusSentAt = now
+            val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+            if (result.isSuccess) {
+                return
+            }
+            val throwable = result.exceptionOrNull()
+            val message = throwable?.message.orEmpty()
+            val isNak = message.contains("NAK", ignoreCase = true) || message.contains("cash register returned nak", ignoreCase = true)
+            if (isNak) {
+                Log.w(TAG, "ARCUS2 keep-alive STATUS NAK ignored as best-effort text=$statusText error=$message")
+            } else {
+                Log.w(TAG, "ARCUS2 keep-alive STATUS failed as best-effort text=$statusText error=$message", throwable)
+            }
+        } finally {
+            arcus2StatusInFlight = false
+            arcus2StatusSendMutex.unlock()
         }
-        val now = System.currentTimeMillis()
-        if (!force && lastArcus2StatusText == statusText && now - lastArcus2StatusSentAt < ARCUS2_STATUS_DUPLICATE_INTERVAL_MS) {
-            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: duplicate text")
-            return
+    }
+
+    private suspend fun awaitArcus2StatusInFlightBeforeFinalResult() {
+        if (!isArcus2Source()) return
+        if (!arcus2StatusInFlight) return
+        Log.i(TAG, "ARCUS2 final result waiting for STATUS in-flight")
+        withTimeoutOrNull(300L) {
+            while (arcus2StatusInFlight) {
+                delay(25L)
+            }
         }
-        val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
-        lastArcus2StatusText = statusText
-        lastArcus2StatusSentAt = now
-        if (result.isSuccess) {
-            return
-        }
-        val throwable = result.exceptionOrNull()
-        val message = throwable?.message.orEmpty()
-        val isNak = message.contains("NAK", ignoreCase = true) || message.contains("cash register returned nak", ignoreCase = true)
-        if (isNak) {
-            Log.w(TAG, "ARCUS2 keep-alive STATUS NAK ignored as best-effort text=$statusText error=$message")
+        if (arcus2StatusInFlight) {
+            Log.w(TAG, "ARCUS2 final result continues while STATUS still in-flight")
         } else {
-            Log.w(TAG, "ARCUS2 keep-alive STATUS failed as best-effort text=$statusText error=$message", throwable)
+            Log.i(TAG, "ARCUS2 STATUS in-flight finished before final result")
         }
     }
 
@@ -1047,6 +1076,7 @@ class PcCompactTipPaymentViewModel(
         if (!isArcus2Source()) {
             return sendPcEcrFinalResultOnce(result)
         }
+        awaitArcus2StatusInFlightBeforeFinalResult()
         return supervisorScope {
             Log.i(TAG, "ARCUS2 final result send start timeoutMs=$timeoutMs")
             val sendDeferred = async { sendPcEcrFinalResultOnce(result) }
