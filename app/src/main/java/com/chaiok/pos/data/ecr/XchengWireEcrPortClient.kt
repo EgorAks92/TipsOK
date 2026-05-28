@@ -312,6 +312,9 @@ class XchengWireEcrPortClient(context: Context) {
                         bytes = chunk
                         break
                     }
+                    if (coroutineContext.isActive) {
+                        delay(RECEIVE_EMPTY_POLL_DELAY_MS)
+                    }
                 }
 
                 val elapsed = SystemClock.elapsedRealtime() - startedAt
@@ -853,6 +856,7 @@ class XchengWireEcrPortClient(context: Context) {
         private const val RECV_TIMEOUT_MS = 3000
         private const val RECV_BUFFER_SIZE = 2048
         private const val RECEIVE_POLL_CHUNK_MS = 200L
+        private const val RECEIVE_EMPTY_POLL_DELAY_MS = 10L
         private const val RECEIVE_TIMEOUT_GRACE_MS = 100L
         private const val RECEIVE_TIMEOUT_WARN_DELTA_MS = 300L
 
