@@ -599,7 +599,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             Column(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .padding(top = 80.dp),
+                    .padding(top = 300.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
