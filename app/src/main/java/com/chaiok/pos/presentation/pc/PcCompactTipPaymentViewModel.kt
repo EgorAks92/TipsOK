@@ -26,6 +26,7 @@ import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -545,11 +546,22 @@ class PcCompactTipPaymentViewModel(
                     activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
                     activeSelectedTip = _uiState.value.currentSelectedTip()
                     Log.i(TAG, "SALE restart new payment started generation=$newGeneration")
+                } else {
+                    ignoreNextCancelledFromRestart = false
+                    Log.w(TAG, "SALE restart new payment was not started generation=$newGeneration")
                 }
                 _uiState.update { curr ->
-                    curr.copy(isRestartingPayment = false, errorMessage = if (started) null else curr.errorMessage)
+                    curr.copy(
+                        isRestartingPayment = false,
+                        errorMessage = if (started) {
+                            null
+                        } else {
+                            curr.errorMessage ?: "Не удалось обновить сумму"
+                        }
+                    )
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 if (!started) {
                     ignoreNextCancelledFromRestart = false
                 }
