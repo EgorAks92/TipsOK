@@ -14,6 +14,7 @@ import com.chaiok.pos.domain.model.PosPaymentCancelPreviousRequest
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
 import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
+import com.chaiok.pos.data.ecr.Arcus2CashRegisterSession
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.CancelPosPaymentUseCase
@@ -155,6 +156,8 @@ class PcCompactTipPaymentViewModel(
     private var pendingFinalPcEcrResult: PcEcrFinalPaymentResult? = null
     private var arcus2StatusKeepAliveJob: Job? = null
     private var lastArcus2StatusText: String? = null
+    private var lastArcus2StatusSentAt: Long = 0L
+    private var restartCancelIssued = false
     private var commandCurrency: String = "RUB"
 
     private var waiterId: String = ""
@@ -512,39 +515,44 @@ class PcCompactTipPaymentViewModel(
             cancelDeclinedAutoClose()
 
             internalRestartInProgress = true
+            restartCancelIssued = false
             ignoreNextCancelledFromRestart = true
-            _uiState.update { it.copy(isRestartingPayment = true, errorMessage = null) }
+            Log.i(TAG, "SALE restart state started reason=$reason")
+            try {
+                _uiState.update { it.copy(isRestartingPayment = true, errorMessage = null) }
+                Log.i(TAG, "Restart payment reason=$reason old=${before.totalAmount} new=${_uiState.value.totalAmount}")
 
-            Log.i(TAG, "Restart payment reason=$reason old=${before.totalAmount} new=${_uiState.value.totalAmount}")
-
-            val cancelResult = runCatching { cancelPosPaymentUseCase() }
-            if (cancelResult.isFailure) {
-                internalRestartInProgress = false
-                ignoreNextCancelledFromRestart = false
-                Log.e(TAG, "Cancel before restart failed", cancelResult.exceptionOrNull())
-                _uiState.update {
-                    it.withSelectedTip(activeSelectedTip)
-                        .copy(
-                            isServiceFeeEnabled = activePaymentServiceFeeEnabled,
-                            isRestartingPayment = false,
-                            errorMessage = "Не удалось обновить сумму"
-                        )
+                restartCancelIssued = true
+                val cancelResult = runCatching { cancelPosPaymentUseCase() }
+                if (cancelResult.isFailure) {
+                    ignoreNextCancelledFromRestart = false
+                    Log.e(TAG, "Cancel before restart failed", cancelResult.exceptionOrNull())
+                    _uiState.update {
+                        it.withSelectedTip(activeSelectedTip)
+                            .copy(
+                                isServiceFeeEnabled = activePaymentServiceFeeEnabled,
+                                isRestartingPayment = false,
+                                errorMessage = "Не удалось обновить сумму"
+                            )
+                    }
+                    return
                 }
-                return
-            }
 
-            Log.i(TAG, "Cancel before restart success")
-            generation += 1
-            val newGeneration = generation
-            val started = startPaymentCurrentAmount("restart:$reason", newGeneration)
-            if (started) {
-                activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
-                activeSelectedTip = _uiState.value.currentSelectedTip()
-            }
-
-            internalRestartInProgress = false
-            _uiState.update { curr ->
-                curr.copy(isRestartingPayment = false, errorMessage = if (started) null else curr.errorMessage)
+                Log.i(TAG, "Cancel before restart success")
+                generation += 1
+                val newGeneration = generation
+                val started = startPaymentCurrentAmount("restart:$reason", newGeneration)
+                if (started) {
+                    activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+                    activeSelectedTip = _uiState.value.currentSelectedTip()
+                }
+                _uiState.update { curr ->
+                    curr.copy(isRestartingPayment = false, errorMessage = if (started) null else curr.errorMessage)
+                }
+            } finally {
+                internalRestartInProgress = false
+                restartCancelIssued = false
+                Log.i(TAG, "SALE restart state finished")
             }
         }
     }
@@ -930,7 +938,7 @@ class PcCompactTipPaymentViewModel(
             if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return@launch
             while (isActive && !pcEcrFinalResultSent && !userCancelInProgress) {
                 val statusText = statusTextForStage(_uiState.value.paymentStage, settings)
-                pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+                sendArcus2StatusBestEffort(statusText, settings)
                 delay(settings.paymentStatusKeepAliveIntervalMs.coerceAtLeast(3_000L))
             }
         }
@@ -952,11 +960,9 @@ class PcCompactTipPaymentViewModel(
 
     private fun sendArcus2StatusNow(statusText: String) {
         if (!isArcus2Source()) return
-        if (lastArcus2StatusText == statusText) return
-        lastArcus2StatusText = statusText
         viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
-            pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+            sendArcus2StatusBestEffort(statusText, settings)
         }
     }
 
@@ -965,14 +971,33 @@ class PcCompactTipPaymentViewModel(
         force: Boolean = false
     ) {
         if (!isArcus2Source()) return
-        if (!force && lastArcus2StatusText == statusText) return
-        lastArcus2StatusText = statusText
         val settings = observeSettingsUseCase().first().arcus2NewWaySettings
         if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return
-        val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
-        result.onFailure {
-            Log.w(TAG, "ARCUS2 immediate STATUS failed text=$statusText error=${it.message}", it)
+        sendArcus2StatusBestEffort(statusText, settings, force = force)
+    }
+
+    private suspend fun sendArcus2StatusBestEffort(
+        statusText: String,
+        settings: com.chaiok.pos.domain.model.Arcus2NewWaySettings,
+        force: Boolean = false
+    ) {
+        if (internalRestartInProgress || restartCancelIssued) {
+            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: internal restart")
+            return
         }
+        if (pcEcrFinalResultSending || pcEcrFinalResultSent || Arcus2CashRegisterSession.finalResultInProgress) return
+        val now = System.currentTimeMillis()
+        if (!force && lastArcus2StatusText == statusText && now - lastArcus2StatusSentAt < ARCUS2_STATUS_DUPLICATE_INTERVAL_MS) {
+            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: duplicate text")
+            return
+        }
+        val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+        if (result.isSuccess) {
+            lastArcus2StatusText = statusText
+            lastArcus2StatusSentAt = now
+            return
+        }
+        Log.w(TAG, "ARCUS2 keep-alive STATUS NAK ignored as best-effort text=$statusText error=${result.exceptionOrNull()?.message}")
     }
 
     private suspend fun sendPcEcrFinalResultOnceWithTimeout(
@@ -1079,6 +1104,7 @@ class PcCompactTipPaymentViewModel(
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
         private const val APPROVED_VISIBLE_MS = 1200L
         private const val ARCUS2_RESULT_VISIBLE_MS = 900L
+        private const val ARCUS2_STATUS_DUPLICATE_INTERVAL_MS = 2_000L
         private const val ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS = 3_000L
         private const val DECLINED_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val USER_CANCEL_TERMINAL_TIMEOUT_MS = 2_500L
