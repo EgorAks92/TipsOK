@@ -155,7 +155,7 @@ class XchengPcPaymentCommandRepository(
 
     override fun isPcEcrFinalResultInProgress(): Boolean = Arcus2CashRegisterSession.finalResultInProgress
 
-    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> {
+    override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?, tipAmount: BigDecimal?): Result<Unit> {
         return withContext(Dispatchers.IO) {
         lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.Stopped && !activeArcus2Transaction) {
@@ -176,7 +176,7 @@ class XchengPcPaymentCommandRepository(
         }
 
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
-        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings, terminalId)
+        val sequence = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(sourceCommand, result, receiptText, settings, terminalId, tipAmount)
         val resultStatus = when (result) {
             is PcEcrFinalPaymentResult.Approved -> "approved"
             is PcEcrFinalPaymentResult.Declined -> "declined"

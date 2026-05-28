@@ -75,6 +75,20 @@ class Arcus2NewWayResultSequenceBuilderTest {
         assertTrue(text.contains("AMOUNT=100.00"))
         assertTrue(text.contains("CURRENCY=RUB"))
         assertTrue(text.contains("STATUS=approved"))
+        assertFalse(text.contains("TIP_AMOUNT="))
+    }
+
+    @Test fun minimalApprovedSetTagsContainsTipAmountWhenPositive() {
+        val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(
+            cmd,
+            PcEcrFinalPaymentResult.Approved(),
+            null,
+            Arcus2NewWaySettings(minimalResultMode = true),
+            tipAmount = BigDecimal("200.00")
+        )
+        val text = decodeWin1251(seq.first { it.label == "SETTAGS" }.data)
+        assertTrue(text.contains("AMOUNT=100.00"))
+        assertTrue(text.contains("TIP_AMOUNT=200.00"))
     }
 
     @Test fun minimalDeclinedSetTagsContainsRc() {
@@ -86,7 +100,7 @@ class Arcus2NewWayResultSequenceBuilderTest {
 
     @Test fun setTagsSanitizesEscAndNewlines() {
         val payload = Arcus2TagsBuilder.buildPaymentTags(
-            Arcus2PaymentTagData("00", "123\u001B45\n67", null, null, null, null, null, "RUB", "approved")
+            Arcus2PaymentTagData("00", "123\u001B45\n67", null, null, null, null, null, null, "RUB", "approved")
         )
         val text = decodeWin1251(payload)
         assertFalse(text.contains("\n"))
@@ -109,7 +123,7 @@ class Arcus2NewWayResultSequenceBuilderTest {
 
     @Test fun setTagsEmptyStillSendsPrefix() {
         val tags = Arcus2TagsBuilder.buildPaymentTags(
-            Arcus2PaymentTagData(null, null, null, null, null, null, null, null, "")
+            Arcus2PaymentTagData(null, null, null, null, null, null, null, null, null, "")
         )
         assertEquals(0, tags.size)
         val seq = Arcus2NewWayResultSequenceBuilder.buildPaymentResultSequence(
