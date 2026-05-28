@@ -66,6 +66,10 @@ class XchengPcPaymentCommandRepository(
     private var idleStandaloneControlCount = 0
     private var lastIdleStandaloneControlAt = 0L
 
+    @Volatile
+    override var lastListenConsumedIdleStandaloneControl: Boolean = false
+        private set
+
     override fun observeCommands(): Flow<PcPaymentCommand> = commands
 
     override fun observeStatus(): Flow<PcUsbConnectionStatus> = status
@@ -361,6 +365,8 @@ class XchengPcPaymentCommandRepository(
     }
 
     override suspend fun listenOnce() {
+        lastListenConsumedIdleStandaloneControl = false
+
         val ensureResult = lifecycleMutex.withLock {
             if (lifecycleState == PcEcrLifecycleState.PausedForPayment) {
                 Log.i(TAG, "Ignore ECR command while payment is active")
@@ -525,6 +531,7 @@ class XchengPcPaymentCommandRepository(
                     is EcrParseResult.Ack -> {
                         parsedHandled = true
                         idleStandaloneControlIgnored = true
+                        lastListenConsumedIdleStandaloneControl = true
 
                         val now = System.currentTimeMillis()
                         if (now - lastIdleStandaloneControlAt > 3000L) idleStandaloneControlCount = 0

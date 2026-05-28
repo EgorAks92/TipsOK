@@ -227,6 +227,11 @@ class PcCommandIdleViewModel(
                 while (isActive && listeningEnabled.value) {
                     repository.listenOnce()
 
+                    if (repository.lastListenConsumedIdleStandaloneControl) {
+                        Log.i(TAG, "ARCUS2 idle standalone control consumed; continue listening immediately")
+                        continue
+                    }
+
                     if (listeningEnabled.value) {
                         delay(LISTEN_LOOP_DELAY_MS)
                     }
