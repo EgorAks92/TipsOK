@@ -489,11 +489,13 @@ class Arcus2CashRegisterSession(
     }
 
     private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
-        if (!staleControlResponseExpectedAfterAdditionalDataFastPath && !arcus2StatusStaleControlTailPossible) return responses
+        val additionalDataTailPossible = staleControlResponseExpectedAfterAdditionalDataFastPath
+        val statusTailPossible = arcus2StatusStaleControlTailPossible
+        if (!additionalDataTailPossible && !statusTailPossible) return responses
 
         val isStorerc = label.equals("STORERC", ignoreCase = true)
         if (!isStorerc) {
-            if (staleControlResponseExpectedAfterAdditionalDataFastPath) {
+            if (additionalDataTailPossible) {
                 Log.i("Arcus2Session", "ARCUS2 stale control pending context=afterAdditionalDataFastPath label=$label ignoredForNonFinalStep=true")
             }
             return responses
@@ -503,24 +505,35 @@ class Arcus2CashRegisterSession(
         if (normalized.isEmpty()) return responses
 
         val controlOnly = normalized.all { it == "OK" || it == "NAK" }
-        if (!controlOnly) {
-            staleControlResponseExpectedAfterAdditionalDataFastPath = false
-            arcus2StatusStaleControlTailPossible = false
-            return responses
-        }
-
         val hasOk = normalized.any { it == "OK" }
         val hasNak = normalized.any { it == "NAK" }
 
-        val statusTailPossible = arcus2StatusStaleControlTailPossible
-        staleControlResponseExpectedAfterAdditionalDataFastPath = false
+        // STATUS-tail context is one-shot for the nearest STORERC.
         arcus2StatusStaleControlTailPossible = false
 
-        if (statusTailPossible && hasOk && hasNak && normalized.size == 2 && normalized[0] == "NAK" && normalized[1] == "OK") {
-            Log.i("Arcus2Session", "ARCUS2 final STORERC mixed control NAK|OK treated as stale success")
-            return listOf("OK")
+        if (statusTailPossible) {
+            if (!controlOnly) return responses
+            if (normalized == listOf("NAK", "OK")) {
+                Log.i("Arcus2Session", "ARCUS2 final STORERC mixed control NAK|OK treated as STATUS stale success")
+                return listOf("OK")
+            }
+            if (hasOk && hasNak) {
+                Log.i("Arcus2Session", "ARCUS2 final STORERC mixed control from STATUS tail not recognized responses=${normalized.joinToString("|")}")
+                return responses
+            }
+            return responses
         }
 
+        if (!additionalDataTailPossible) {
+            return responses
+        }
+
+        if (!controlOnly) {
+            staleControlResponseExpectedAfterAdditionalDataFastPath = false
+            return responses
+        }
+
+        staleControlResponseExpectedAfterAdditionalDataFastPath = false
         if (hasOk && hasNak) {
             Log.i("Arcus2Session", "ARCUS2 stale mixed control response ignored context=afterAdditionalDataFastPath label=STORERC responses=${normalized.joinToString("|")}")
             return listOf("OK")

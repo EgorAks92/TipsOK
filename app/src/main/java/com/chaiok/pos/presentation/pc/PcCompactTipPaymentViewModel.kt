@@ -499,6 +499,8 @@ class PcCompactTipPaymentViewModel(
             } else {
                 Log.i(TAG, "USER_CANCEL terminal cancel success")
             }
+            Log.i(TAG, "USER_CANCEL stop Arcus2 keep-alive before final result")
+            stopArcus2StatusKeepAlive()
             Log.i(TAG, "USER_CANCEL arcus final cancelled send start")
             sendCancelledByUserOnce()
             Log.i(TAG, "USER_CANCEL paymentJob cancel after terminal cancel/final result")
