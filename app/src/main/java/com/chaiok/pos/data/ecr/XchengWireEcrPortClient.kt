@@ -5,13 +5,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.xcheng.wiredecr.IComm
 import java.io.File
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -280,22 +284,37 @@ class XchengWireEcrPortClient(context: Context) {
 
     suspend fun receiveOnce(timeoutMs: Long): Result<ByteArray?> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 val usbComm = usb ?: error("USB service missing")
                 val device = currentUsbDevice ?: error("USB device missing")
 
-                runCatching {
-                    usbComm.setRecvTimeout(timeoutMs.toInt().coerceAtLeast(1))
-                }.onFailure {
-                    Log.w(TAG, "setRecvTimeout before recv failed", it)
+                Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE timeoutMs=$timeoutMs")
+                val startedAt = SystemClock.elapsedRealtime()
+                val deadlineAt = startedAt + timeoutMs.coerceAtLeast(1L)
+
+                var bytes: ByteArray? = null
+                while (coroutineContext.isActive) {
+                    val now = SystemClock.elapsedRealtime()
+                    val remaining = deadlineAt - now
+                    if (remaining <= 0L) break
+
+                    val chunkTimeoutMs = minOf(RECEIVE_POLL_CHUNK_MS, remaining).coerceAtLeast(1L)
+                    runCatching {
+                        usbComm.setRecvTimeout(chunkTimeoutMs.toInt())
+                    }.onFailure {
+                        Log.w(TAG, "setRecvTimeout before recv failed", it)
+                    }
+
+                    val chunk = withTimeoutOrNull(chunkTimeoutMs + RECEIVE_TIMEOUT_GRACE_MS) {
+                        usbComm.recv(RECV_BUFFER_SIZE)
+                    }
+                    if (!chunk.isNullOrEmpty()) {
+                        bytes = chunk
+                        break
+                    }
                 }
 
-                Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE timeoutMs=$timeoutMs")
-                val startedAt = System.currentTimeMillis()
-                val bytes = withTimeoutOrNull(timeoutMs + RECEIVE_TIMEOUT_GRACE_MS) {
-                    usbComm.recv(RECV_BUFFER_SIZE)
-                }
-                val elapsed = System.currentTimeMillis() - startedAt
+                val elapsed = SystemClock.elapsedRealtime() - startedAt
                 Log.i(TAG, "recv requested timeoutMs=$timeoutMs actualElapsedMs=$elapsed bytes=${bytes?.size ?: 0}")
                 if (elapsed > timeoutMs + RECEIVE_TIMEOUT_WARN_DELTA_MS) {
                     Log.w(TAG, "recv elapsed exceeded timeout requested=$timeoutMs actual=$elapsed")
@@ -303,13 +322,19 @@ class XchengWireEcrPortClient(context: Context) {
 
                 if (bytes != null && bytes.isNotEmpty()) {
                     Log.i(TAG, "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}")
-                    return@runCatching bytes
+                    return@withContext Result.success(bytes)
                 }
 
+                Log.i(TAG, "recv hard timeout requested=$timeoutMs actual=$elapsed no data")
+                if (elapsed > timeoutMs + RECEIVE_TIMEOUT_GRACE_MS) {
+                    Log.w(TAG, "recv hard timeout exceeded requested=$timeoutMs actual=$elapsed")
+                }
                 Log.i(TAG, "recv end empty")
-                null
-            }.onFailure { throwable ->
+                Result.success(null)
+            } catch (throwable: Throwable) {
+                if (throwable is CancellationException) throw throwable
                 Log.e(TAG, "receiveOnce failed", throwable)
+                Result.failure(throwable)
             }
         }
 
@@ -827,6 +852,7 @@ class XchengWireEcrPortClient(context: Context) {
 
         private const val RECV_TIMEOUT_MS = 3000
         private const val RECV_BUFFER_SIZE = 2048
+        private const val RECEIVE_POLL_CHUNK_MS = 200L
         private const val RECEIVE_TIMEOUT_GRACE_MS = 100L
         private const val RECEIVE_TIMEOUT_WARN_DELTA_MS = 300L
 
