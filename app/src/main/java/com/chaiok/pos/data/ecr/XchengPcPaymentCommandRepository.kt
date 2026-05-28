@@ -535,23 +535,35 @@ class XchengPcPaymentCommandRepository(
                                 updateArcusListeningState(r, "arcus2 waiter login missing pin")
                                 null
                             } else {
-                                lifecycleMutex.withLock {
-                                    activeArcus2Transaction = true
-                                    activeArcus2CommandId = cmd.commandId
-                                    lifecycleState = PcEcrLifecycleState.PausedForPayment
-                                    status.value = PcUsbConnectionStatus.Idle
-                                }
-                                Log.i(TAG, "ARCUS2 waiter login command emitted commandId=${cmd.commandId ?: "-"} pinLength=${cmd.waiterPin.length}")
-                                PcPaymentCommand(
-                                    amount = BigDecimal.ZERO,
-                                    commandId = cmd.commandId,
-                                    orderId = null,
-                                    currency = "RUB",
-                                    rawPayloadPreview = "arcus2 waiter login",
-                                    sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY,
-                                    operationType = PcEcrOperationType.WAITER_LOGIN,
-                                    waiterPin = cmd.waiterPin
+                                val startResult = sendArcus2TransactionStartedWhileListening(
+                                    settings = settings.arcus2NewWaySettings,
+                                    statusText = "Авторизация официанта",
+                                    sendStatus = true,
+                                    optionalStatus = true,
+                                    operationTag = "WAITER_LOGIN"
                                 )
+                                if (startResult.isFailure) {
+                                    updateArcusListeningState(startResult, "arcus2 waiter login start response error")
+                                    null
+                                } else {
+                                    lifecycleMutex.withLock {
+                                        activeArcus2Transaction = true
+                                        activeArcus2CommandId = cmd.commandId
+                                        lifecycleState = PcEcrLifecycleState.PausedForPayment
+                                        status.value = PcUsbConnectionStatus.Idle
+                                    }
+                                    Log.i(TAG, "ARCUS2 waiter login command emitted commandId=${cmd.commandId ?: "-"} pinLength=${cmd.waiterPin.length}")
+                                    PcPaymentCommand(
+                                        amount = BigDecimal.ZERO,
+                                        commandId = cmd.commandId,
+                                        orderId = null,
+                                        currency = "RUB",
+                                        rawPayloadPreview = "arcus2 waiter login",
+                                        sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY,
+                                        operationType = PcEcrOperationType.WAITER_LOGIN,
+                                        waiterPin = cmd.waiterPin
+                                    )
+                                }
                             }
                         }
                         is PcEcrCommand.Reconciliation -> {
