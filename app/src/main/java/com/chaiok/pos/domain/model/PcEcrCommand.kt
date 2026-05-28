@@ -10,6 +10,7 @@ sealed interface PcEcrCommand {
     data class Reversal(override val commandId: String?, override val rawProtocol: PcEcrProtocol, val orderId: String?, val rrn: String?, val amount: BigDecimal?, val currency: String?) : PcEcrCommand
     data class Refund(override val commandId: String?, override val rawProtocol: PcEcrProtocol, val amount: BigDecimal?, val currency: String?) : PcEcrCommand
     data class Settlement(override val commandId: String?, override val rawProtocol: PcEcrProtocol) : PcEcrCommand
+    data class Reconciliation(override val commandId: String?, override val rawProtocol: PcEcrProtocol) : PcEcrCommand
     data class Ping(override val commandId: String?, override val rawProtocol: PcEcrProtocol) : PcEcrCommand
     data class Unknown(override val commandId: String?, override val rawProtocol: PcEcrProtocol, val reason: String, val rawHexPreview: String) : PcEcrCommand
 }

@@ -18,3 +18,7 @@ data class PosPaymentCancelPreviousRequest(
     val currency: String,
     val terminalId: String
 )
+
+data class PosPaymentReconciliationRequest(
+    val terminalId: String
+)

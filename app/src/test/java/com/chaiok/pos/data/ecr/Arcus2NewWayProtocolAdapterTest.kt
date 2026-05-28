@@ -26,11 +26,11 @@ class Arcus2NewWayProtocolAdapterTest {
         assertTrue(r is EcrParseResult.Command)
     }
 
-    @Test fun parseSettlement() {
+    @Test fun parseReconciliation() {
         val adapter = Arcus2NewWayProtocolAdapter({ Arcus2NewWaySettings() }, logger)
         val r = adapter.parseIncoming(Arcus2BinLenCodec.encode(encodeWin1251("2\u001B1")))
         val cmd = (r as EcrParseResult.Command).command
-        assertTrue(cmd is PcEcrCommand.Settlement)
+        assertTrue(cmd is PcEcrCommand.Reconciliation)
     }
 
     @Test fun parsePing() {
