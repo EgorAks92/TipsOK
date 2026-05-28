@@ -28,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.chaiok.pos.data.di.AppContainer
+import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
@@ -277,6 +278,23 @@ fun ChaiOkNavHost(container: AppContainer) {
             )
 
             val settingsState by vm.uiState.collectAsStateWithLifecycle()
+
+            LaunchedEffect(Unit) {
+                var previousPcUsbMode: Boolean? = null
+                container.observeSettingsUseCase().collect(
+                    object : FlowCollector<AppSettings> {
+                        override suspend fun emit(value: AppSettings) {
+                            val wasEnabled = previousPcUsbMode
+                            previousPcUsbMode = value.pcUsbModeEnabled
+
+                            if (wasEnabled == true && !value.pcUsbModeEnabled) {
+                                Log.i(PAYMENT_TAG, "PC USB mode disabled from PC settings; stop ECR completely")
+                                container.pcPaymentCommandRepository.stopCompletely()
+                            }
+                        }
+                    }
+                )
+            }
 
             SettingsRoute(
                 viewModel = vm,
@@ -630,7 +648,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                                     if (enabled) {
                                         vm.resumeListening()
                                     } else {
-                                        vm.pauseListening()
+                                        vm.stopListeningCompletely()
 
                                         navController.navigate(Routes.Home) {
                                             popUpTo(Routes.PcCommandIdle) {

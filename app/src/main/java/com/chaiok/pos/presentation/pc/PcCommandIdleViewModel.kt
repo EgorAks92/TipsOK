@@ -113,7 +113,19 @@ class PcCommandIdleViewModel(
         }
 
         viewModelScope.launch(Dispatchers.IO) {
+            repository.pauseForPayment()
+                .onFailure { Log.w(TAG, "PC idle pause ECR failed", it) }
+        }
+    }
+
+    fun stopListeningCompletely() {
+        if (listeningEnabled.value) {
+            listeningEnabled.value = false
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
             repository.stopCompletely()
+                .onFailure { Log.e(TAG, "PC idle full ECR stop failed", it) }
         }
     }
 
