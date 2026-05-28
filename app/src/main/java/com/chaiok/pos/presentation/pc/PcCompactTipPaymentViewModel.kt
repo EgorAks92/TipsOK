@@ -487,7 +487,7 @@ class PcCompactTipPaymentViewModel(
             if (isArcus2Source()) {
                 val settings = observeSettingsUseCase().first().arcus2NewWaySettings
                 if (settings.sendStatusOnCancelStart) {
-                    sendArcus2StatusNowAwait(statusText = settings.cancellingStatusText, force = true)
+                    Log.i(TAG, "USER_CANCEL Arcus2 cancel STATUS skipped before final result")
                 }
             }
             Log.i(TAG, "USER_CANCEL terminal cancel start")
