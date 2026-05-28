@@ -476,7 +476,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = if (operationTitle == "Сверка итогов") operationTitle else operationTitle.lowercase(),
+                text = if (operationTitle == "сверка итогов") operationTitle else operationTitle.lowercase(),
                 color = theme.secondaryTextColor,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Medium,
