@@ -439,10 +439,9 @@ class XchengPcPaymentCommandRepository(
             PcEcrProtocol.CHAIOK_JSON -> PcPaymentCommandParser.parse(bytes)
             PcEcrProtocol.ARCUS2_NEWWAY -> {
                 val adapter = Arcus2NewWayProtocolAdapter({ settings.arcus2NewWaySettings }, rawLogger)
-                when (val parsed = adapter.parseIncoming(bytes)) {
-                    is EcrParseResult.Command -> {
-                        parsedHandled = true
-                        when (val cmd = parsed.command) {
+                suspend fun handleArcus2Command(cmd: PcEcrCommand): PcPaymentCommand? {
+                    parsedHandled = true
+                    return when (cmd) {
                         is PcEcrCommand.Payment -> {
                             val resolved = resolveArcus2FinancialCommand(cmd, settings.arcus2NewWaySettings)
                             val amount = resolved.amount
@@ -515,54 +514,69 @@ class XchengPcPaymentCommandRepository(
                             updateArcusListeningState(r, "arcus2 unsupported error")
                             null
                         }
+                    }
                         else -> null
                     }
-                    }
-                    is EcrParseResult.Ack -> {
-                        val control = extractArcus2StandaloneControl(bytes) ?: "UNKNOWN"
-                        Log.i(TAG, "ARCUS2 idle standalone control received control=$control; draining control tail")
-                        when (val drainResult = drainStandaloneControlFramesAfterIdleControl(control)) {
-                            is IdleControlDrainResult.NoCommand -> {
-                                parsedHandled = false
-                                skipNullPayloadLog = true
-                                null
-                            }
-                            is IdleControlDrainResult.CommandBytes -> {
-                                bytes = drainResult.bytes
-                                Log.i(TAG, "ARCUS2 idle control drain found command bytes=${bytes.toHexPreview()}; processing without next listen cycle")
-                                parsedHandled = false
-                                skipNullPayloadLog = false
-                                null
-                            }
-                        }
-                    }
-                    is EcrParseResult.Error -> {
-                        parsedHandled = true
-                        val r = if (parsed.reason.contains("RRN missing", ignoreCase = true)) {
-                            sendArcus2ErrorWhileListening(
-                                settings.arcus2NewWaySettings,
-                                "Не найден RRN"
-                            )
-                        } else {
-                            sendArcus2UnsupportedWhileListening(
-                                settings.arcus2NewWaySettings,
-                                "ARCUS2 parse/protocol error: ${parsed.reason}"
-                            )
-                        }
-                        updateArcusListeningState(r, "arcus2 parse error")
-                        null
-                    }
-                    is EcrParseResult.Unknown -> {
-                        parsedHandled = true
-                        val r = sendArcus2UnsupportedWhileListening(
-                            settings.arcus2NewWaySettings,
-                            "ARCUS2 unknown command: ${parsed.reason}"
-                        )
-                        updateArcusListeningState(r, "arcus2 unknown error")
-                        null
-                    }
-                    else -> null
                 }
+
+                var currentBytes = bytes
+                var attempts = 0
+                var resultCommand: PcPaymentCommand? = null
+                while (attempts < 2) {
+                    attempts += 1
+                    when (val parsed = adapter.parseIncoming(currentBytes)) {
+                        is EcrParseResult.Command -> {
+                            resultCommand = handleArcus2Command(parsed.command)
+                            break
+                        }
+                        is EcrParseResult.Ack -> {
+                            val control = extractArcus2StandaloneControl(currentBytes) ?: "UNKNOWN"
+                            Log.i(TAG, "ARCUS2 idle standalone control received control=$control; draining control tail")
+                            when (val drainResult = drainStandaloneControlFramesAfterIdleControl(control)) {
+                                is IdleControlDrainResult.NoCommand -> {
+                                    parsedHandled = true
+                                    skipNullPayloadLog = true
+                                    break
+                                }
+                                is IdleControlDrainResult.CommandBytes -> {
+                                    currentBytes = drainResult.bytes
+                                    bytes = drainResult.bytes
+                                    Log.i(TAG, "ARCUS2 idle control drain found command bytes=${currentBytes.toHexPreview()}; processing without next listen cycle")
+                                    continue
+                                }
+                            }
+                        }
+                        is EcrParseResult.Error -> {
+                            parsedHandled = true
+                            val r = if (parsed.reason.contains("RRN missing", ignoreCase = true)) {
+                                sendArcus2ErrorWhileListening(
+                                    settings.arcus2NewWaySettings,
+                                    "Не найден RRN"
+                                )
+                            } else {
+                                sendArcus2UnsupportedWhileListening(
+                                    settings.arcus2NewWaySettings,
+                                    "ARCUS2 parse/protocol error: ${parsed.reason}"
+                                )
+                            }
+                            updateArcusListeningState(r, "arcus2 parse error")
+                            break
+                        }
+                        is EcrParseResult.Unknown -> {
+                            parsedHandled = true
+                            val r = sendArcus2UnsupportedWhileListening(
+                                settings.arcus2NewWaySettings,
+                                "ARCUS2 unknown command: ${parsed.reason}"
+                            )
+                            updateArcusListeningState(r, "arcus2 unknown error")
+                            break
+                        }
+                    }
+                }
+                if (attempts >= 2 && resultCommand == null && !skipNullPayloadLog) {
+                    Log.w(TAG, "ARCUS2 bounded parse loop finished without command. hex=${currentBytes.toHexPreview()}")
+                }
+                resultCommand
             }
         }
         if (command != null) {
@@ -581,7 +595,7 @@ class XchengPcPaymentCommandRepository(
     private fun extractArcus2StandaloneControl(bytes: ByteArray): String? {
         val decoded = Arcus2BinLenCodec.decode(bytes).getOrNull() ?: return null
         val text = decodeWin1251(decoded.data).trim('\u0000', ' ', '\n', '\r', '\t')
-        return text.takeIf { it == "OK" || it == "NAK" || it == "ER" }
+        return text.takeIf { it == "OK" || it == "NAK" }
     }
 
     private suspend fun drainStandaloneControlFramesAfterIdleControl(firstControl: String): IdleControlDrainResult {
@@ -590,7 +604,7 @@ class XchengPcPaymentCommandRepository(
         var drained = 0
         repeat(maxFrames) { index ->
             val nextBytes = client.receiveOnce(perReadTimeoutMs).getOrNull()
-            if (nextBytes.isNullOrEmpty()) {
+            if (nextBytes == null || nextBytes.isEmpty()) {
                 Log.i(TAG, "ARCUS2 idle control drain finished no command drained=$drained firstControl=$firstControl")
                 return IdleControlDrainResult.NoCommand
             }
