@@ -153,6 +153,8 @@ class XchengPcPaymentCommandRepository(
             sendResult
         }
 
+    override fun isPcEcrFinalResultInProgress(): Boolean = Arcus2CashRegisterSession.finalResultInProgress
+
     override suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String?): Result<Unit> {
         return withContext(Dispatchers.IO) {
         lifecycleMutex.withLock {

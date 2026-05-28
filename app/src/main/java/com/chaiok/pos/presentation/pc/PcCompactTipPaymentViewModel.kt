@@ -26,6 +26,7 @@ import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -155,6 +156,7 @@ class PcCompactTipPaymentViewModel(
     private var pendingFinalPcEcrResult: PcEcrFinalPaymentResult? = null
     private var arcus2StatusKeepAliveJob: Job? = null
     private var lastArcus2StatusText: String? = null
+    private var lastArcus2StatusSentAt: Long = 0L
     private var commandCurrency: String = "RUB"
 
     private var waiterId: String = ""
@@ -513,38 +515,71 @@ class PcCompactTipPaymentViewModel(
 
             internalRestartInProgress = true
             ignoreNextCancelledFromRestart = true
-            _uiState.update { it.copy(isRestartingPayment = true, errorMessage = null) }
-
-            Log.i(TAG, "Restart payment reason=$reason old=${before.totalAmount} new=${_uiState.value.totalAmount}")
-
-            val cancelResult = runCatching { cancelPosPaymentUseCase() }
-            if (cancelResult.isFailure) {
-                internalRestartInProgress = false
-                ignoreNextCancelledFromRestart = false
-                Log.e(TAG, "Cancel before restart failed", cancelResult.exceptionOrNull())
-                _uiState.update {
-                    it.withSelectedTip(activeSelectedTip)
-                        .copy(
-                            isServiceFeeEnabled = activePaymentServiceFeeEnabled,
-                            isRestartingPayment = false,
-                            errorMessage = "Не удалось обновить сумму"
-                        )
+            Log.i(TAG, "SALE restart state started reason=$reason")
+            var started = false
+            try {
+                _uiState.update { it.copy(isRestartingPayment = true, errorMessage = null) }
+                Log.i(TAG, "Restart payment reason=$reason old=${before.totalAmount} new=${_uiState.value.totalAmount}")
+                Log.i(TAG, "SALE restart cancel old payment start")
+                val cancelResult = runCatching { cancelPosPaymentUseCase() }
+                val cancelFailure = cancelResult.exceptionOrNull()
+                if (cancelFailure is CancellationException) {
+                    throw cancelFailure
                 }
-                return
-            }
+                if (cancelResult.isFailure) {
+                    ignoreNextCancelledFromRestart = false
+                    Log.e(TAG, "Cancel before restart failed", cancelResult.exceptionOrNull())
+                    _uiState.update {
+                        it.withSelectedTip(activeSelectedTip)
+                            .copy(
+                                isServiceFeeEnabled = activePaymentServiceFeeEnabled,
+                                isRestartingPayment = false,
+                                canCancel = true,
+                                errorMessage = "Не удалось обновить сумму"
+                            )
+                    }
+                    return
+                }
 
-            Log.i(TAG, "Cancel before restart success")
-            generation += 1
-            val newGeneration = generation
-            val started = startPaymentCurrentAmount("restart:$reason", newGeneration)
-            if (started) {
-                activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
-                activeSelectedTip = _uiState.value.currentSelectedTip()
-            }
-
-            internalRestartInProgress = false
-            _uiState.update { curr ->
-                curr.copy(isRestartingPayment = false, errorMessage = if (started) null else curr.errorMessage)
+                Log.i(TAG, "SALE restart cancel old payment success")
+                generation += 1
+                val newGeneration = generation
+                Log.i(TAG, "SALE restart new payment start generation=$newGeneration")
+                started = startPaymentCurrentAmount("restart:$reason", newGeneration)
+                if (started) {
+                    activePaymentServiceFeeEnabled = _uiState.value.isServiceFeeEnabled
+                    activeSelectedTip = _uiState.value.currentSelectedTip()
+                    Log.i(TAG, "SALE restart new payment started generation=$newGeneration")
+                } else {
+                    ignoreNextCancelledFromRestart = false
+                    Log.w(TAG, "SALE restart new payment was not started generation=$newGeneration")
+                }
+                _uiState.update { curr ->
+                    curr.copy(
+                        isRestartingPayment = false,
+                        errorMessage = if (started) {
+                            null
+                        } else {
+                            curr.errorMessage ?: "Не удалось обновить сумму"
+                        }
+                    )
+                }
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
+                if (!started) {
+                    ignoreNextCancelledFromRestart = false
+                }
+                _uiState.update { curr ->
+                    curr.copy(
+                        isRestartingPayment = false,
+                        canCancel = true,
+                        errorMessage = "Не удалось обновить сумму"
+                    )
+                }
+                Log.e(TAG, "SALE restart failed reason=$reason", t)
+            } finally {
+                internalRestartInProgress = false
+                Log.i(TAG, "SALE restart state finished")
             }
         }
     }
@@ -930,7 +965,7 @@ class PcCompactTipPaymentViewModel(
             if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return@launch
             while (isActive && !pcEcrFinalResultSent && !userCancelInProgress) {
                 val statusText = statusTextForStage(_uiState.value.paymentStage, settings)
-                pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+                sendArcus2StatusBestEffort(statusText, settings)
                 delay(settings.paymentStatusKeepAliveIntervalMs.coerceAtLeast(3_000L))
             }
         }
@@ -952,11 +987,9 @@ class PcCompactTipPaymentViewModel(
 
     private fun sendArcus2StatusNow(statusText: String) {
         if (!isArcus2Source()) return
-        if (lastArcus2StatusText == statusText) return
-        lastArcus2StatusText = statusText
         viewModelScope.launch {
             val settings = observeSettingsUseCase().first().arcus2NewWaySettings
-            pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+            sendArcus2StatusBestEffort(statusText, settings)
         }
     }
 
@@ -965,13 +998,42 @@ class PcCompactTipPaymentViewModel(
         force: Boolean = false
     ) {
         if (!isArcus2Source()) return
-        if (!force && lastArcus2StatusText == statusText) return
-        lastArcus2StatusText = statusText
         val settings = observeSettingsUseCase().first().arcus2NewWaySettings
         if (isCancelPreviousOperation() && !settings.cancelStatusKeepAliveEnabled) return
+        sendArcus2StatusBestEffort(statusText, settings, force = force)
+    }
+
+    private suspend fun sendArcus2StatusBestEffort(
+        statusText: String,
+        settings: com.chaiok.pos.domain.model.Arcus2NewWaySettings,
+        force: Boolean = false
+    ) {
+        if (internalRestartInProgress) {
+            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: internal restart")
+            return
+        }
+        if (pcEcrFinalResultSending || pcEcrFinalResultSent || pcPaymentCommandRepository.isPcEcrFinalResultInProgress()) {
+            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: final result in progress")
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (!force && lastArcus2StatusText == statusText && now - lastArcus2StatusSentAt < ARCUS2_STATUS_DUPLICATE_INTERVAL_MS) {
+            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: duplicate text")
+            return
+        }
         val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
-        result.onFailure {
-            Log.w(TAG, "ARCUS2 immediate STATUS failed text=$statusText error=${it.message}", it)
+        if (result.isSuccess) {
+            lastArcus2StatusText = statusText
+            lastArcus2StatusSentAt = now
+            return
+        }
+        val throwable = result.exceptionOrNull()
+        val message = throwable?.message.orEmpty()
+        val isNak = message.contains("NAK", ignoreCase = true) || message.contains("cash register returned nak", ignoreCase = true)
+        if (isNak) {
+            Log.w(TAG, "ARCUS2 keep-alive STATUS NAK ignored as best-effort text=$statusText error=$message")
+        } else {
+            Log.w(TAG, "ARCUS2 keep-alive STATUS failed as best-effort text=$statusText error=$message", throwable)
         }
     }
 
@@ -1079,6 +1141,7 @@ class PcCompactTipPaymentViewModel(
         private const val TIP_SELECTION_DEBOUNCE_MS = 300L
         private const val APPROVED_VISIBLE_MS = 1200L
         private const val ARCUS2_RESULT_VISIBLE_MS = 900L
+        private const val ARCUS2_STATUS_DUPLICATE_INTERVAL_MS = 5_000L
         private const val ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS = 3_000L
         private const val DECLINED_AUTO_CLOSE_DELAY_MS = 10_000L
         private const val USER_CANCEL_TERMINAL_TIMEOUT_MS = 2_500L
