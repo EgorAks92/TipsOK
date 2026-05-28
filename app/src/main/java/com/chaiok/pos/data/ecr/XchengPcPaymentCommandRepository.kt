@@ -1008,6 +1008,10 @@ class XchengPcPaymentCommandRepository(
                 Log.i(TAG, "ECR pause for SSP payment skipped: already paused")
                 return@withLock Result.success(Unit)
             }
+            if (lifecycleState == PcEcrLifecycleState.Stopped) {
+                Log.i(TAG, "ECR pause for SSP payment skipped: already stopped")
+                return@withLock Result.success(Unit)
+            }
             Log.i(TAG, "ECR pause for SSP payment")
 
             lifecycleState = PcEcrLifecycleState.PausedForPayment

@@ -278,6 +278,19 @@ fun ChaiOkNavHost(container: AppContainer) {
 
             val settingsState by vm.uiState.collectAsStateWithLifecycle()
 
+            LaunchedEffect(Unit) {
+                var previousPcUsbMode: Boolean? = null
+                container.observeSettingsUseCase().collect { value ->
+                    val wasEnabled = previousPcUsbMode
+                    previousPcUsbMode = value.pcUsbModeEnabled
+
+                    if (wasEnabled == true && !value.pcUsbModeEnabled) {
+                        Log.i(PAYMENT_TAG, "PC USB mode disabled from PC settings; stop ECR completely")
+                        container.pcPaymentCommandRepository.stopCompletely()
+                    }
+                }
+            }
+
             SettingsRoute(
                 viewModel = vm,
                 onBack = {
@@ -630,7 +643,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                                     if (enabled) {
                                         vm.resumeListening()
                                     } else {
-                                        vm.pauseListening()
+                                        vm.stopListeningCompletely()
 
                                         navController.navigate(Routes.Home) {
                                             popUpTo(Routes.PcCommandIdle) {
