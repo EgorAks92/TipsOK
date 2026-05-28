@@ -700,14 +700,28 @@ object Arcus2NewWayResultSequenceBuilder {
         }
 
         val tagData = when (result) {
-            is PcEcrFinalPaymentResult.Approved -> Arcus2ReconciliationTagData(
-                responseCode = result.resultCode ?: "00",
-                terminalId = terminalId,
-                externalTransactionId = result.externalTransactionId
-            )
-            is PcEcrFinalPaymentResult.Declined -> Arcus2ReconciliationTagData(result.resultCode ?: "05", terminalId, null, "declined")
-            is PcEcrFinalPaymentResult.Cancelled -> Arcus2ReconciliationTagData(settings.cancelledRc, terminalId, null, "cancelled")
-            is PcEcrFinalPaymentResult.Error -> Arcus2ReconciliationTagData(result.resultCode ?: settings.errorRc, terminalId, null, "error")
+            is PcEcrFinalPaymentResult.Approved -> {
+                addText("STORERC", "STORERC:00")
+                Arcus2ReconciliationTagData(
+                    responseCode = result.resultCode ?: "00",
+                    terminalId = terminalId,
+                    externalTransactionId = result.externalTransactionId
+                )
+            }
+            is PcEcrFinalPaymentResult.Declined -> {
+                val rc = result.resultCode ?: settings.declinedDefaultRc
+                addText("STORERC", "STORERC:$rc")
+                Arcus2ReconciliationTagData(rc, terminalId, null, "declined")
+            }
+            is PcEcrFinalPaymentResult.Cancelled -> {
+                addText("STORERC", "STORERC:${settings.cancelledRc}")
+                Arcus2ReconciliationTagData(settings.cancelledRc, terminalId, null, "cancelled")
+            }
+            is PcEcrFinalPaymentResult.Error -> {
+                val rc = result.resultCode ?: settings.errorRc
+                addText("STORERC", "STORERC:$rc")
+                Arcus2ReconciliationTagData(rc, terminalId, null, "error")
+            }
         }
         if (settings.sendSetTags) {
             commands += Arcus2OutgoingCommand("SETTAGS", encodeWin1251("SETTAGS:") + Arcus2TagsBuilder.buildReconciliationTags(tagData))
