@@ -863,7 +863,8 @@ class PcCompactTipPaymentViewModel(
                         is PcEcrFinalPaymentResult.Error -> result.receiptText
                     },
                     settings = observeSettingsUseCase().first().arcus2NewWaySettings,
-                    terminalId = terminalId
+                    terminalId = terminalId,
+                    tipAmount = toMoneyAmount(state.selectedTipAmount, commandCurrency)
                 )
             } else pcPaymentCommandRepository.sendPaymentResult(frame)
             val isArcus = (sourceProtocol ?: "CHAIOK_JSON") == PcEcrProtocol.ARCUS2_NEWWAY.name
