@@ -156,6 +156,7 @@ class PcCompactTipPaymentViewModel(
     private var pendingFinalPcEcrResult: PcEcrFinalPaymentResult? = null
     private var arcus2StatusKeepAliveJob: Job? = null
     private val arcus2StatusSendMutex = Mutex()
+    private var arcus2StatusInFlight: Boolean = false
     private var lastArcus2StatusText: String? = null
     private var lastArcus2StatusSentAt: Long = 0L
     private var commandCurrency: String = "RUB"
@@ -924,6 +925,7 @@ class PcCompactTipPaymentViewModel(
         cancelEventSent = true
         cancelDeclinedAutoClose()
         stopArcus2StatusKeepAlive()
+        awaitArcus2StatusInFlightBeforeFinalResult()
         val sent = sendPcEcrFinalResultOnceWithTimeout(
             PcEcrFinalPaymentResult.Cancelled(message = "Cancelled by user"),
             ARCUS2_FINAL_RESULT_SEND_TIMEOUT_MS
@@ -1017,6 +1019,7 @@ class PcCompactTipPaymentViewModel(
             return
         }
         try {
+            arcus2StatusInFlight = true
             if (internalRestartInProgress) {
                 Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: internal restart")
                 return
@@ -1045,7 +1048,24 @@ class PcCompactTipPaymentViewModel(
                 Log.w(TAG, "ARCUS2 keep-alive STATUS failed as best-effort text=$statusText error=$message", throwable)
             }
         } finally {
+            arcus2StatusInFlight = false
             arcus2StatusSendMutex.unlock()
+        }
+    }
+
+    private suspend fun awaitArcus2StatusInFlightBeforeFinalResult() {
+        if (!isArcus2Source()) return
+        if (!arcus2StatusInFlight) return
+        Log.i(TAG, "ARCUS2 final result waiting for STATUS in-flight")
+        withTimeoutOrNull(300L) {
+            while (arcus2StatusInFlight) {
+                delay(25L)
+            }
+        }
+        if (arcus2StatusInFlight) {
+            Log.w(TAG, "ARCUS2 final result continues while STATUS still in-flight")
+        } else {
+            Log.i(TAG, "ARCUS2 STATUS in-flight finished before final result")
         }
     }
 
@@ -1056,6 +1076,7 @@ class PcCompactTipPaymentViewModel(
         if (!isArcus2Source()) {
             return sendPcEcrFinalResultOnce(result)
         }
+        awaitArcus2StatusInFlightBeforeFinalResult()
         return supervisorScope {
             Log.i(TAG, "ARCUS2 final result send start timeoutMs=$timeoutMs")
             val sendDeferred = async { sendPcEcrFinalResultOnce(result) }
