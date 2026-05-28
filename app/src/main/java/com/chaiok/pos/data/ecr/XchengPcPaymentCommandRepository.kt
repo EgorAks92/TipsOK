@@ -276,6 +276,11 @@ class XchengPcPaymentCommandRepository(
         }
         val safeCommandId = commandId?.ifBlank { "-" } ?: "-"
 
+        if (!ARCUS2_KEEP_ALIVE_STATUS_ENABLED) {
+            Log.i(TAG, "ARCUS2 keep-alive STATUS skipped: disabled during active SSP payment")
+            return Result.success(Unit)
+        }
+
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         Log.i(TAG, "ARCUS2 keep-alive STATUS send text=$statusText commandId=$safeCommandId")
         val result = runCatching {
@@ -1074,5 +1079,6 @@ class XchengPcPaymentCommandRepository(
         private const val TAG = "PcUsbEcrFlow"
         private const val LISTEN_LOOP_DELAY_MS = 300L
         private const val ERROR_VISIBLE_DELAY_MS = 2_500L
+        private const val ARCUS2_KEEP_ALIVE_STATUS_ENABLED = false
     }
 }
