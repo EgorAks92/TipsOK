@@ -494,6 +494,16 @@ class Arcus2CashRegisterSession(
     private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
         val additionalDataTailPossible = staleControlResponseExpectedAfterAdditionalDataFastPath
         val statusTailPossible = arcus2StatusStaleControlTailPossible
+        val cancelledFinalTailPossible = arcus2CancelledFinalStorercStaleControlTailPossible
+        val normalized = responses.map { it.trim().uppercase() }.filter { it.isNotBlank() }
+        Log.i(
+            "Arcus2Session",
+            "ARCUS2 stale filter check label=$label responses=${normalized.joinToString("|")} " +
+                "additional=$additionalDataTailPossible status=$statusTailPossible " +
+                "cancelledFinalTailPossible=$cancelledFinalTailPossible " +
+                "cancelled=$arcus2CancelledFinalStorercStaleControlTailPossible"
+        )
+
         if (!additionalDataTailPossible && !statusTailPossible && !arcus2CancelledFinalStorercStaleControlTailPossible) return responses
 
         val isStorerc = label.equals("STORERC", ignoreCase = true)
@@ -504,16 +514,15 @@ class Arcus2CashRegisterSession(
             return responses
         }
 
-        val normalized = responses.map { it.trim().uppercase() }.filter { it.isNotBlank() }
         if (normalized.isEmpty()) return responses
 
         if (isStorerc && arcus2CancelledFinalStorercStaleControlTailPossible) {
             // Cancelled-final STORERC context is one-shot for the nearest STORERC.
-            arcus2CancelledFinalStorercStaleControlTailPossible = false
             val isNakTailThenOk =
                 normalized.size >= 2 &&
                 normalized.last() == "OK" &&
                 normalized.dropLast(1).all { it == "NAK" }
+            arcus2CancelledFinalStorercStaleControlTailPossible = false
             if (isNakTailThenOk) {
                 Log.i(
                     "Arcus2Session",
@@ -521,6 +530,10 @@ class Arcus2CashRegisterSession(
                 )
                 return listOf("OK")
             }
+            Log.w(
+                "Arcus2Session",
+                "ARCUS2 cancelled final STORERC stale flag consumed but pattern not matched responses=${normalized.joinToString("|")}"
+            )
         }
 
         val controlOnly = normalized.all { it == "OK" || it == "NAK" }
