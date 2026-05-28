@@ -1024,9 +1024,9 @@ class PcCompactTipPaymentViewModel(
             return
         }
         val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+        lastArcus2StatusText = statusText
+        lastArcus2StatusSentAt = now
         if (result.isSuccess) {
-            lastArcus2StatusText = statusText
-            lastArcus2StatusSentAt = now
             return
         }
         val throwable = result.exceptionOrNull()

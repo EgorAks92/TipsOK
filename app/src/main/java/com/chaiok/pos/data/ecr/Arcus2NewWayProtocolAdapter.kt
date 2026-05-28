@@ -535,8 +535,15 @@ class Arcus2CashRegisterSession(
             // STATUS-tail context is one-shot for the nearest STORERC.
             arcus2StatusStaleControlTailPossible = false
             if (!controlOnly) return responses
-            if (normalized == listOf("NAK", "OK")) {
-                Log.i("Arcus2Session", "ARCUS2 final STORERC mixed control NAK|OK treated as STATUS stale success")
+            val isNakTailThenOk =
+                normalized.size >= 2 &&
+                    normalized.last() == "OK" &&
+                    normalized.dropLast(1).all { it == "NAK" }
+            if (isNakTailThenOk) {
+                Log.i(
+                    "Arcus2Session",
+                    "ARCUS2 final STORERC NAK-tail followed by OK treated as STATUS stale success responses=${normalized.joinToString("|")}"
+                )
                 return listOf("OK")
             }
             if (hasOk && hasNak) {
