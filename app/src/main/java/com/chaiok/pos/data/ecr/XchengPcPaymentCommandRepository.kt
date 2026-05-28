@@ -599,8 +599,8 @@ class XchengPcPaymentCommandRepository(
     }
 
     private suspend fun drainStandaloneControlFramesAfterIdleControl(firstControl: String): IdleControlDrainResult {
-        val maxFrames = 12
-        val perReadTimeoutMs = 120L
+        val maxFrames = 4
+        val perReadTimeoutMs = 350L
         var drained = 0
         repeat(maxFrames) { index ->
             val nextBytes = client.receiveOnce(perReadTimeoutMs).getOrNull()
