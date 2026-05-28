@@ -10,6 +10,8 @@ import android.util.Log
 import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.xcheng.wiredecr.IComm
 import java.io.File
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
@@ -24,7 +26,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 
 class XchengWireEcrPortClient(context: Context) {
 
@@ -45,11 +46,9 @@ class XchengWireEcrPortClient(context: Context) {
     private var transportPausedForPayment: Boolean = false
 
     private val transportMutex = Mutex()
-    private val recvExecutor = Executors.newSingleThreadExecutor(
-        ThreadFactory { runnable ->
-            Thread(runnable, "PcUsbEcrRecvWorker").apply { isDaemon = true }
-        }
-    )
+    private val recvExecutorMutex = Mutex()
+    @Volatile
+    private var recvExecutor: ExecutorService = newRecvExecutor()
 
     @Volatile
     private var lastRecvStuckRecoveryAtMs: Long = 0L
@@ -366,8 +365,18 @@ class XchengWireEcrPortClient(context: Context) {
         lastRecvStuckRecoveryAtMs = now
         Log.w(TAG, "recv hard timeout stuck; recovering transport")
         safeClosePort(comm = usbComm, reason = "recv stuck timeout on $device")
+        rotateRecvExecutorAfterStuck()
         transportReady = false
         currentUsbDevice = null
+    }
+
+    private suspend fun rotateRecvExecutorAfterStuck() {
+        recvExecutorMutex.withLock {
+            val old = recvExecutor
+            recvExecutor = newRecvExecutor()
+            old.shutdownNow()
+            Log.w(TAG, "recv worker executor rotated after stuck recv")
+        }
     }
 
     private fun blockingRecvWithHardTimeout(
@@ -381,7 +390,8 @@ class XchengWireEcrPortClient(context: Context) {
         }
 
         val startedAt = SystemClock.elapsedRealtime()
-        val future = recvExecutor.submit<ByteArray?> {
+        val executor = recvExecutor
+        val future = executor.submit<ByteArray?> {
             usbComm.recv(RECV_BUFFER_SIZE)
         }
 
@@ -401,6 +411,14 @@ class XchengWireEcrPortClient(context: Context) {
                         "blocking recv did not return"
             )
             RecvAttemptResult.TimeoutStuck
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            future.cancel(true)
+            Log.w(TAG, "recv worker interrupted requested=$timeoutMs", e)
+            RecvAttemptResult.TimeoutStuck
+        } catch (e: ExecutionException) {
+            Log.e(TAG, "recv worker failed", e.cause ?: e)
+            throw (e.cause ?: e)
         }
     }
 
@@ -885,6 +903,13 @@ class XchengWireEcrPortClient(context: Context) {
     companion object {
         private const val TAG = "PcUsbEcrFlow"
 
+        private fun newRecvExecutor(): ExecutorService =
+            Executors.newSingleThreadExecutor(
+                ThreadFactory { runnable ->
+                    Thread(runnable, "PcUsbEcrRecvWorker").apply { isDaemon = true }
+                }
+            )
+
         private const val PKG = "com.xcheng.wiredecr"
 
         private const val ACTION_USB = "com.xcheng.wiredecr.IWireEcrService"
@@ -944,4 +969,5 @@ class XchengWireEcrPortClient(context: Context) {
         data object TimeoutNoData : RecvAttemptResult
         data object TimeoutStuck : RecvAttemptResult
     }
+
 }
