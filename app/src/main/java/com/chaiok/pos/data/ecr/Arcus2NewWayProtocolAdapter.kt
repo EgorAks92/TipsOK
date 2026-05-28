@@ -213,6 +213,9 @@ class Arcus2CashRegisterSession(
 
         @Volatile
         var arcus2StatusStaleControlTailPossible: Boolean = false
+
+        @Volatile
+        var arcus2CancelledFinalStorercStaleControlTailPossible: Boolean = false
     }
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     data class Arcus2ReceivedFrame(
@@ -491,7 +494,8 @@ class Arcus2CashRegisterSession(
     private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
         val additionalDataTailPossible = staleControlResponseExpectedAfterAdditionalDataFastPath
         val statusTailPossible = arcus2StatusStaleControlTailPossible
-        if (!additionalDataTailPossible && !statusTailPossible) return responses
+        val cancelledFinalTailPossible = arcus2CancelledFinalStorercStaleControlTailPossible
+        if (!additionalDataTailPossible && !statusTailPossible && !cancelledFinalTailPossible) return responses
 
         val isStorerc = label.equals("STORERC", ignoreCase = true)
         if (!isStorerc) {
@@ -503,6 +507,15 @@ class Arcus2CashRegisterSession(
 
         val normalized = responses.map { it.trim().uppercase() }.filter { it.isNotBlank() }
         if (normalized.isEmpty()) return responses
+
+        if (cancelledFinalTailPossible) {
+            // Cancelled-final STORERC context is one-shot for the nearest STORERC.
+            arcus2CancelledFinalStorercStaleControlTailPossible = false
+            if (normalized == listOf("NAK", "OK")) {
+                Log.i("Arcus2Session", "ARCUS2 cancelled final STORERC NAK|OK treated as stale success")
+                return listOf("OK")
+            }
+        }
 
         val controlOnly = normalized.all { it == "OK" || it == "NAK" }
         val hasOk = normalized.any { it == "OK" }

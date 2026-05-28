@@ -183,6 +183,10 @@ class XchengPcPaymentCommandRepository(
             is PcEcrFinalPaymentResult.Cancelled -> "cancelled"
             is PcEcrFinalPaymentResult.Error -> "error"
         }
+        if (result is PcEcrFinalPaymentResult.Cancelled) {
+            Arcus2CashRegisterSession.arcus2CancelledFinalStorercStaleControlTailPossible = true
+            Log.i(TAG, "ARCUS2 cancelled final STORERC stale control tail marked possible")
+        }
         Log.i(TAG, "ARCUS2 final result send start commandId=${sourceCommand.commandId ?: "-"} lifecycle=$lifecycleState active=$activeArcus2Transaction status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
 
         var storercSent = false
