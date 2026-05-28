@@ -10,6 +10,10 @@ import android.util.Log
 import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.xcheng.wiredecr.IComm
 import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -41,6 +45,14 @@ class XchengWireEcrPortClient(context: Context) {
     private var transportPausedForPayment: Boolean = false
 
     private val transportMutex = Mutex()
+    private val recvExecutor = Executors.newSingleThreadExecutor(
+        ThreadFactory { runnable ->
+            Thread(runnable, "PcUsbEcrRecvWorker").apply { isDaemon = true }
+        }
+    )
+
+    @Volatile
+    private var lastRecvStuckRecoveryAtMs: Long = 0L
 
     suspend fun ensureConnected(): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -290,30 +302,21 @@ class XchengWireEcrPortClient(context: Context) {
 
                 Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE timeoutMs=$timeoutMs")
                 val startedAt = SystemClock.elapsedRealtime()
-                val deadlineAt = startedAt + timeoutMs.coerceAtLeast(1L)
+                val recvResult = blockingRecvWithHardTimeout(
+                    usbComm = usbComm,
+                    timeoutMs = timeoutMs.coerceAtLeast(1L)
+                )
 
-                var bytes: ByteArray? = null
-                while (coroutineContext.isActive) {
-                    val now = SystemClock.elapsedRealtime()
-                    val remaining = deadlineAt - now
-                    if (remaining <= 0L) break
-
-                    val chunkTimeoutMs = minOf(RECEIVE_POLL_CHUNK_MS, remaining).coerceAtLeast(1L)
-                    runCatching {
-                        usbComm.setRecvTimeout(chunkTimeoutMs.toInt())
-                    }.onFailure {
-                        Log.w(TAG, "setRecvTimeout before recv failed", it)
-                    }
-
-                    val chunk = withTimeoutOrNull(chunkTimeoutMs + RECEIVE_TIMEOUT_GRACE_MS) {
-                        usbComm.recv(RECV_BUFFER_SIZE)
-                    }
-                    if (chunk != null && chunk.isNotEmpty()) {
-                        bytes = chunk
-                        break
-                    }
-                    if (coroutineContext.isActive) {
-                        delay(RECEIVE_EMPTY_POLL_DELAY_MS)
+                val bytes = when (recvResult) {
+                    is RecvAttemptResult.Bytes -> recvResult.data
+                    RecvAttemptResult.TimeoutNoData -> null
+                    RecvAttemptResult.TimeoutStuck -> {
+                        maybeRecoverAfterStuckRecv(
+                            timeoutMs = timeoutMs,
+                            usbComm = usbComm,
+                            device = device
+                        )
+                        null
                     }
                 }
 
@@ -340,6 +343,66 @@ class XchengWireEcrPortClient(context: Context) {
                 Result.failure(throwable)
             }
         }
+
+    private suspend fun maybeRecoverAfterStuckRecv(
+        timeoutMs: Long,
+        usbComm: IComm,
+        device: String
+    ) {
+        if (timeoutMs < RECEIVE_STUCK_RECOVERY_MIN_TIMEOUT_MS) {
+            return
+        }
+        val now = SystemClock.elapsedRealtime()
+        val sinceLastRecovery = now - lastRecvStuckRecoveryAtMs
+        if (sinceLastRecovery < RECEIVE_STUCK_RECOVERY_COOLDOWN_MS) {
+            Log.w(
+                TAG,
+                "recv hard timeout stuck; skip recovery due to cooldown " +
+                        "timeoutMs=$timeoutMs sinceLastRecovery=$sinceLastRecovery"
+            )
+            return
+        }
+
+        lastRecvStuckRecoveryAtMs = now
+        Log.w(TAG, "recv hard timeout stuck; recovering transport")
+        safeClosePort(comm = usbComm, reason = "recv stuck timeout on $device")
+        transportReady = false
+        currentUsbDevice = null
+    }
+
+    private fun blockingRecvWithHardTimeout(
+        usbComm: IComm,
+        timeoutMs: Long
+    ): RecvAttemptResult {
+        runCatching {
+            usbComm.setRecvTimeout(timeoutMs.toInt().coerceAtLeast(1))
+        }.onFailure {
+            Log.w(TAG, "setRecvTimeout before worker recv failed", it)
+        }
+
+        val startedAt = SystemClock.elapsedRealtime()
+        val future = recvExecutor.submit<ByteArray?> {
+            usbComm.recv(RECV_BUFFER_SIZE)
+        }
+
+        return try {
+            val chunk = future.get(timeoutMs + RECEIVE_TIMEOUT_GRACE_MS, TimeUnit.MILLISECONDS)
+            if (chunk != null && chunk.isNotEmpty()) {
+                RecvAttemptResult.Bytes(chunk)
+            } else {
+                RecvAttemptResult.TimeoutNoData
+            }
+        } catch (_: TimeoutException) {
+            val elapsed = SystemClock.elapsedRealtime() - startedAt
+            future.cancel(true)
+            Log.w(
+                TAG,
+                "recv worker hard timeout requested=$timeoutMs actual=$elapsed; " +
+                        "blocking recv did not return"
+            )
+            RecvAttemptResult.TimeoutStuck
+        }
+    }
 
     suspend fun send(bytes: ByteArray): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -855,10 +918,10 @@ class XchengWireEcrPortClient(context: Context) {
 
         private const val RECV_TIMEOUT_MS = 3000
         private const val RECV_BUFFER_SIZE = 2048
-        private const val RECEIVE_POLL_CHUNK_MS = 200L
-        private const val RECEIVE_EMPTY_POLL_DELAY_MS = 10L
         private const val RECEIVE_TIMEOUT_GRACE_MS = 100L
         private const val RECEIVE_TIMEOUT_WARN_DELTA_MS = 300L
+        private const val RECEIVE_STUCK_RECOVERY_MIN_TIMEOUT_MS = 1000L
+        private const val RECEIVE_STUCK_RECOVERY_COOLDOWN_MS = 1000L
 
         private const val BIND_TIMEOUT_MS = 3000L
 
@@ -874,5 +937,11 @@ class XchengWireEcrPortClient(context: Context) {
         private const val PORT_CLOSE_SETTLE_DELAY_MS = 120L
 
         private const val AFTER_CLOSE_ALL_DELAY_MS = 500L
+    }
+
+    private sealed interface RecvAttemptResult {
+        data class Bytes(val data: ByteArray) : RecvAttemptResult
+        data object TimeoutNoData : RecvAttemptResult
+        data object TimeoutStuck : RecvAttemptResult
     }
 }
