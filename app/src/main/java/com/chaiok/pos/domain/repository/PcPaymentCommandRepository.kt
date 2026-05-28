@@ -15,6 +15,7 @@ interface PcPaymentCommandRepository {
     suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit>
     suspend fun sendArcus2PaymentResult(sourceCommand: PcPaymentCommand, result: PcEcrFinalPaymentResult, receiptText: String?, settings: Arcus2NewWaySettings, terminalId: String? = null): Result<Unit>
     suspend fun sendArcus2StatusIfActive(statusText: String, settings: Arcus2NewWaySettings): Result<Unit>
+    fun isPcEcrFinalResultInProgress(): Boolean
     suspend fun listenOnce()
     suspend fun pauseForPayment(): Result<Unit>
     suspend fun resumeAfterPayment(): Result<Unit>
