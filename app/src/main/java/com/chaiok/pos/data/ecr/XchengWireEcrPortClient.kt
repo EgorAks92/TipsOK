@@ -5,18 +5,28 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.xcheng.wiredecr.IComm
 import java.io.File
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 
 class XchengWireEcrPortClient(context: Context) {
 
@@ -37,6 +47,13 @@ class XchengWireEcrPortClient(context: Context) {
     private var transportPausedForPayment: Boolean = false
 
     private val transportMutex = Mutex()
+    @Volatile
+    private var recvExecutor: ExecutorService = newRecvExecutor()
+    private val pendingRecvLock = Any()
+    @Volatile
+    private var pendingIdleRecvFuture: Future<ByteArray?>? = null
+    @Volatile
+    private var pendingIdleRecvDevice: String? = null
 
     suspend fun ensureConnected(): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -280,22 +297,32 @@ class XchengWireEcrPortClient(context: Context) {
 
     suspend fun receiveOnce(timeoutMs: Long): Result<ByteArray?> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 val usbComm = usb ?: error("USB service missing")
                 val device = currentUsbDevice ?: error("USB device missing")
 
-                runCatching {
-                    usbComm.setRecvTimeout(timeoutMs.toInt().coerceAtLeast(1))
-                }.onFailure {
-                    Log.w(TAG, "setRecvTimeout before recv failed", it)
+                Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE timeoutMs=$timeoutMs")
+                val startedAt = SystemClock.elapsedRealtime()
+                val isIdleListenReceive = timeoutMs == IDLE_LISTEN_RECV_TIMEOUT_MS.toLong()
+                val recvResult = if (isIdleListenReceive) {
+                    blockingRecvWithIdlePending(
+                        usbComm = usbComm,
+                        device = device,
+                        timeoutMs = timeoutMs.coerceAtLeast(1L)
+                    )
+                } else {
+                    blockingRecvOneShot(
+                        usbComm = usbComm,
+                        timeoutMs = timeoutMs.coerceAtLeast(1L)
+                    )
                 }
 
-                Log.i(TAG, "recv start USB=$device buffer=$RECV_BUFFER_SIZE timeoutMs=$timeoutMs")
-                val startedAt = System.currentTimeMillis()
-                val bytes = withTimeoutOrNull(timeoutMs + RECEIVE_TIMEOUT_GRACE_MS) {
-                    usbComm.recv(RECV_BUFFER_SIZE)
+                val bytes = when (recvResult) {
+                    is RecvAttemptResult.Bytes -> recvResult.data
+                    RecvAttemptResult.TimeoutNoData -> null
                 }
-                val elapsed = System.currentTimeMillis() - startedAt
+
+                val elapsed = SystemClock.elapsedRealtime() - startedAt
                 Log.i(TAG, "recv requested timeoutMs=$timeoutMs actualElapsedMs=$elapsed bytes=${bytes?.size ?: 0}")
                 if (elapsed > timeoutMs + RECEIVE_TIMEOUT_WARN_DELTA_MS) {
                     Log.w(TAG, "recv elapsed exceeded timeout requested=$timeoutMs actual=$elapsed")
@@ -303,15 +330,143 @@ class XchengWireEcrPortClient(context: Context) {
 
                 if (bytes != null && bytes.isNotEmpty()) {
                     Log.i(TAG, "recv end bytes=${bytes.size} hex=${bytes.toHexPreview()}")
-                    return@runCatching bytes
+                    return@withContext Result.success(bytes)
                 }
 
+                Log.i(TAG, "recv hard timeout requested=$timeoutMs actual=$elapsed no data")
+                if (elapsed > timeoutMs + RECEIVE_TIMEOUT_GRACE_MS) {
+                    Log.w(TAG, "recv hard timeout exceeded requested=$timeoutMs actual=$elapsed")
+                }
                 Log.i(TAG, "recv end empty")
-                null
-            }.onFailure { throwable ->
+                Result.success(null)
+            } catch (throwable: Throwable) {
+                if (throwable is CancellationException) throw throwable
                 Log.e(TAG, "receiveOnce failed", throwable)
+                Result.failure(throwable)
             }
         }
+
+    private fun cancelPendingIdleRecv(reason: String) {
+        val future = synchronized(pendingRecvLock) {
+            val old = pendingIdleRecvFuture
+            pendingIdleRecvFuture = null
+            pendingIdleRecvDevice = null
+            old
+        }
+        future?.cancel(true)
+        Log.i(TAG, "recv idle pending read cancelled reason=$reason")
+    }
+
+    private fun getOrCreatePendingIdleRecv(
+        usbComm: IComm,
+        device: String
+    ): PendingIdleRecv {
+        synchronized(pendingRecvLock) {
+            val current = pendingIdleRecvFuture
+            if (current != null && !current.isDone && pendingIdleRecvDevice == device) {
+                return PendingIdleRecv(future = current, reused = true)
+            }
+            if (current != null && !current.isDone && pendingIdleRecvDevice != device) {
+                current.cancel(true)
+            }
+            runCatching {
+                usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
+            }.onFailure {
+                Log.w(TAG, "setRecvTimeout before idle pending recv failed", it)
+            }
+            val executor = recvExecutor
+            val created = executor.submit<ByteArray?> {
+                usbComm.recv(RECV_BUFFER_SIZE)
+            }
+            pendingIdleRecvFuture = created
+            pendingIdleRecvDevice = device
+            return PendingIdleRecv(future = created, reused = false)
+        }
+    }
+
+    private fun clearPendingIdleRecv(future: Future<ByteArray?>) {
+        synchronized(pendingRecvLock) {
+            if (pendingIdleRecvFuture === future) {
+                pendingIdleRecvFuture = null
+                pendingIdleRecvDevice = null
+            }
+        }
+    }
+
+    private fun blockingRecvOneShot(
+        usbComm: IComm,
+        timeoutMs: Long
+    ): RecvAttemptResult {
+        runCatching {
+            usbComm.setRecvTimeout(timeoutMs.toInt().coerceAtLeast(1))
+        }.onFailure {
+            Log.w(TAG, "setRecvTimeout before worker recv failed", it)
+        }
+
+        val startedAt = SystemClock.elapsedRealtime()
+        val executor = recvExecutor
+        val future = executor.submit<ByteArray?> {
+            usbComm.recv(RECV_BUFFER_SIZE)
+        }
+
+        return try {
+            val chunk = future.get(timeoutMs + RECEIVE_TIMEOUT_GRACE_MS, TimeUnit.MILLISECONDS)
+            if (chunk != null && chunk.isNotEmpty()) {
+                RecvAttemptResult.Bytes(chunk)
+            } else {
+                RecvAttemptResult.TimeoutNoData
+            }
+        } catch (_: TimeoutException) {
+            future.cancel(true)
+            RecvAttemptResult.TimeoutNoData
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            future.cancel(true)
+            Log.w(TAG, "recv worker interrupted requested=$timeoutMs", e)
+            RecvAttemptResult.TimeoutNoData
+        } catch (e: ExecutionException) {
+            Log.e(TAG, "recv worker failed", e.cause ?: e)
+            throw (e.cause ?: e)
+        }
+    }
+
+    private fun blockingRecvWithIdlePending(
+        usbComm: IComm,
+        device: String,
+        timeoutMs: Long
+    ): RecvAttemptResult {
+        val startedAt = SystemClock.elapsedRealtime()
+        val pending = getOrCreatePendingIdleRecv(usbComm = usbComm, device = device)
+        val future = pending.future
+        val pendingState = if (pending.reused) "reused" else "created"
+        Log.i(TAG, "recv idle pending read $pendingState device=$device timeoutMs=$timeoutMs")
+        return try {
+            val chunk = future.get(timeoutMs + RECEIVE_TIMEOUT_GRACE_MS, TimeUnit.MILLISECONDS)
+            clearPendingIdleRecv(future)
+            if (chunk != null && chunk.isNotEmpty()) {
+                RecvAttemptResult.Bytes(chunk)
+            } else {
+                RecvAttemptResult.TimeoutNoData
+            }
+        } catch (_: TimeoutException) {
+            val elapsed = SystemClock.elapsedRealtime() - startedAt
+            Log.i(
+                TAG,
+                "recv idle wait timeout requested=$timeoutMs actual=$elapsed; pending recv kept alive"
+            )
+            RecvAttemptResult.TimeoutNoData
+        } catch (e: InterruptedException) {
+            clearPendingIdleRecv(future)
+            Thread.currentThread().interrupt()
+            future.cancel(true)
+            Log.w(TAG, "recv idle pending interrupted requested=$timeoutMs", e)
+            RecvAttemptResult.TimeoutNoData
+        } catch (e: ExecutionException) {
+            clearPendingIdleRecv(future)
+            Log.e(TAG, "recv idle pending failed", e.cause ?: e)
+            throw (e.cause ?: e)
+        }
+    }
 
     suspend fun send(bytes: ByteArray): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -598,6 +753,7 @@ class XchengWireEcrPortClient(context: Context) {
         comm: IComm,
         reason: String
     ) {
+        cancelPendingIdleRecv(reason = "safeClosePort:$reason")
         Log.i(TAG, "safeClosePort start reason=$reason")
 
         runCatching {
@@ -794,6 +950,13 @@ class XchengWireEcrPortClient(context: Context) {
     companion object {
         private const val TAG = "PcUsbEcrFlow"
 
+        private fun newRecvExecutor(): ExecutorService =
+            Executors.newSingleThreadExecutor(
+                ThreadFactory { runnable ->
+                    Thread(runnable, "PcUsbEcrRecvWorker").apply { isDaemon = true }
+                }
+            )
+
         private const val PKG = "com.xcheng.wiredecr"
 
         private const val ACTION_USB = "com.xcheng.wiredecr.IWireEcrService"
@@ -829,6 +992,7 @@ class XchengWireEcrPortClient(context: Context) {
         private const val RECV_BUFFER_SIZE = 2048
         private const val RECEIVE_TIMEOUT_GRACE_MS = 100L
         private const val RECEIVE_TIMEOUT_WARN_DELTA_MS = 300L
+        private const val IDLE_LISTEN_RECV_TIMEOUT_MS = RECV_TIMEOUT_MS
 
         private const val BIND_TIMEOUT_MS = 3000L
 
@@ -845,4 +1009,15 @@ class XchengWireEcrPortClient(context: Context) {
 
         private const val AFTER_CLOSE_ALL_DELAY_MS = 500L
     }
+
+    private sealed interface RecvAttemptResult {
+        data class Bytes(val data: ByteArray) : RecvAttemptResult
+        data object TimeoutNoData : RecvAttemptResult
+    }
+
+    private data class PendingIdleRecv(
+        val future: Future<ByteArray?>,
+        val reused: Boolean
+    )
+
 }
