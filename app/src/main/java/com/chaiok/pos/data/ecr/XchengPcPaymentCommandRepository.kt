@@ -31,6 +31,10 @@ class XchengPcPaymentCommandRepository(
     private val settingsRepository: SettingsRepository,
     context: Context
 ) : PcPaymentCommandRepository {
+    private sealed class IdleControlDrainResult {
+        data object NoCommand : IdleControlDrainResult()
+        data class CommandBytes(val bytes: ByteArray) : IdleControlDrainResult()
+    }
     private data class Arcus2AdditionalData(
         val rrn: String? = null,
         val amount: BigDecimal? = null,
@@ -410,7 +414,7 @@ class XchengPcPaymentCommandRepository(
             return
         }
 
-        val bytes = received.getOrNull()
+        var bytes = received.getOrNull()
         if (bytes == null || bytes.isEmpty()) {
             delay(LISTEN_LOOP_DELAY_MS)
             return
@@ -430,6 +434,7 @@ class XchengPcPaymentCommandRepository(
 
         val settings = settingsRepository.observeSettings().first()
         var parsedHandled = false
+        var skipNullPayloadLog = false
         val command = when (settings.pcEcrProtocol) {
             PcEcrProtocol.CHAIOK_JSON -> PcPaymentCommandParser.parse(bytes)
             PcEcrProtocol.ARCUS2_NEWWAY -> {
@@ -514,9 +519,22 @@ class XchengPcPaymentCommandRepository(
                     }
                     }
                     is EcrParseResult.Ack -> {
-                        parsedHandled = true
-                        Log.i(TAG, "ARCUS2 standalone control response ignored")
-                        null
+                        val control = extractArcus2StandaloneControl(bytes) ?: "UNKNOWN"
+                        Log.i(TAG, "ARCUS2 idle standalone control received control=$control; draining control tail")
+                        when (val drainResult = drainStandaloneControlFramesAfterIdleControl(control)) {
+                            is IdleControlDrainResult.NoCommand -> {
+                                parsedHandled = false
+                                skipNullPayloadLog = true
+                                null
+                            }
+                            is IdleControlDrainResult.CommandBytes -> {
+                                bytes = drainResult.bytes
+                                Log.i(TAG, "ARCUS2 idle control drain found command bytes=${bytes.toHexPreview()}; processing without next listen cycle")
+                                parsedHandled = false
+                                skipNullPayloadLog = false
+                                null
+                            }
+                        }
                     }
                     is EcrParseResult.Error -> {
                         parsedHandled = true
@@ -553,11 +571,39 @@ class XchengPcPaymentCommandRepository(
                 "ECR command received commandId=${command.commandId ?: "-"} currency=${command.currency}"
             )
             commands.emit(command)
-        } else if (!parsedHandled) {
+        } else if (!parsedHandled && !skipNullPayloadLog) {
             Log.w(TAG, "payload received but parser returned null. hex=${bytes.toHexPreview()}")
         } else {
             Log.i(TAG, "ECR payload handled without opening payment flow")
         }
+    }
+
+    private fun extractArcus2StandaloneControl(bytes: ByteArray): String? {
+        val decoded = Arcus2BinLenCodec.decode(bytes).getOrNull() ?: return null
+        val text = decodeWin1251(decoded.data).trim('\u0000', ' ', '\n', '\r', '\t')
+        return text.takeIf { it == "OK" || it == "NAK" || it == "ER" }
+    }
+
+    private suspend fun drainStandaloneControlFramesAfterIdleControl(firstControl: String): IdleControlDrainResult {
+        val maxFrames = 12
+        val perReadTimeoutMs = 120L
+        var drained = 0
+        repeat(maxFrames) { index ->
+            val nextBytes = client.receiveOnce(perReadTimeoutMs).getOrNull()
+            if (nextBytes.isNullOrEmpty()) {
+                Log.i(TAG, "ARCUS2 idle control drain finished no command drained=$drained firstControl=$firstControl")
+                return IdleControlDrainResult.NoCommand
+            }
+            val control = extractArcus2StandaloneControl(nextBytes)
+            if (control != null) {
+                drained += 1
+                Log.i(TAG, "ARCUS2 idle standalone control drained control=$control index=${index + 1}")
+            } else {
+                return IdleControlDrainResult.CommandBytes(nextBytes)
+            }
+        }
+        Log.i(TAG, "ARCUS2 idle control drain finished no command drained=$drained firstControl=$firstControl")
+        return IdleControlDrainResult.NoCommand
     }
 
     private suspend fun resolveArcus2FinancialCommand(
