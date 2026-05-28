@@ -487,7 +487,7 @@ class PcCompactTipPaymentViewModel(
             if (isArcus2Source()) {
                 val settings = observeSettingsUseCase().first().arcus2NewWaySettings
                 if (settings.sendStatusOnCancelStart) {
-                    sendArcus2StatusNowAwait(statusText = settings.cancellingStatusText, force = true)
+                    Log.i(TAG, "USER_CANCEL Arcus2 cancel STATUS skipped before final result")
                 }
             }
             Log.i(TAG, "USER_CANCEL terminal cancel start")
@@ -499,6 +499,8 @@ class PcCompactTipPaymentViewModel(
             } else {
                 Log.i(TAG, "USER_CANCEL terminal cancel success")
             }
+            Log.i(TAG, "USER_CANCEL stop Arcus2 keep-alive before final result")
+            stopArcus2StatusKeepAlive()
             Log.i(TAG, "USER_CANCEL arcus final cancelled send start")
             sendCancelledByUserOnce()
             Log.i(TAG, "USER_CANCEL paymentJob cancel after terminal cancel/final result")
@@ -1022,9 +1024,9 @@ class PcCompactTipPaymentViewModel(
             return
         }
         val result = pcPaymentCommandRepository.sendArcus2StatusIfActive(statusText, settings)
+        lastArcus2StatusText = statusText
+        lastArcus2StatusSentAt = now
         if (result.isSuccess) {
-            lastArcus2StatusText = statusText
-            lastArcus2StatusSentAt = now
             return
         }
         val throwable = result.exceptionOrNull()
