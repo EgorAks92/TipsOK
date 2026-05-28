@@ -63,6 +63,9 @@ class XchengPcPaymentCommandRepository(
     @Volatile
     private var activeArcus2CommandId: String? = null
 
+    private var idleStandaloneControlCount = 0
+    private var lastIdleStandaloneControlAt = 0L
+
     override fun observeCommands(): Flow<PcPaymentCommand> = commands
 
     override fun observeStatus(): Flow<PcUsbConnectionStatus> = status
@@ -430,6 +433,7 @@ class XchengPcPaymentCommandRepository(
 
         val settings = settingsRepository.observeSettings().first()
         var parsedHandled = false
+        var idleStandaloneControlIgnored = false
         val command = when (settings.pcEcrProtocol) {
             PcEcrProtocol.CHAIOK_JSON -> PcPaymentCommandParser.parse(bytes)
             PcEcrProtocol.ARCUS2_NEWWAY -> {
@@ -515,7 +519,23 @@ class XchengPcPaymentCommandRepository(
                     }
                     is EcrParseResult.Ack -> {
                         parsedHandled = true
-                        Log.i(TAG, "ARCUS2 standalone control response ignored")
+                        idleStandaloneControlIgnored = true
+
+                        val now = System.currentTimeMillis()
+                        if (now - lastIdleStandaloneControlAt > 3000L) idleStandaloneControlCount = 0
+                        lastIdleStandaloneControlAt = now
+                        idleStandaloneControlCount += 1
+
+                        Log.i(TAG, "ARCUS2 idle standalone control ignored count=$idleStandaloneControlCount")
+
+                        if (idleStandaloneControlCount >= 3) {
+                            Log.w(
+                                TAG,
+                                "ARCUS2 idle standalone control burst detected " +
+                                        "count=$idleStandaloneControlCount; keep listening"
+                            )
+                        }
+
                         null
                     }
                     is EcrParseResult.Error -> {
@@ -555,7 +575,7 @@ class XchengPcPaymentCommandRepository(
             commands.emit(command)
         } else if (!parsedHandled) {
             Log.w(TAG, "payload received but parser returned null. hex=${bytes.toHexPreview()}")
-        } else {
+        } else if (!idleStandaloneControlIgnored) {
             Log.i(TAG, "ECR payload handled without opening payment flow")
         }
     }
