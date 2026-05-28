@@ -10,5 +10,6 @@ data class PcPaymentCommand(
     val rawPayloadPreview: String? = null,
     val sourceProtocol: PcEcrProtocol = PcEcrProtocol.CHAIOK_JSON,
     val operationType: PcEcrOperationType = PcEcrOperationType.SALE,
-    val rrn: String? = null
+    val rrn: String? = null,
+    val waiterPin: String? = null
 )

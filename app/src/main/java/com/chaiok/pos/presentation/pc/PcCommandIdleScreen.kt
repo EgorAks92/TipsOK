@@ -92,6 +92,7 @@ fun PcCommandIdleScreen(
 
         StatusChip(
             status = state.connectionStatus,
+            message = state.statusMessage,
             onClick = onRequestUnlock,
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -257,10 +258,11 @@ private fun PremiumIdleSlideshow(
 @Composable
 private fun StatusChip(
     status: PcUsbConnectionStatus,
+    message: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val text = when (status) {
+    val text = message ?: when (status) {
         PcUsbConnectionStatus.Idle -> "USB готов"
         PcUsbConnectionStatus.WaitingForData -> "Ожидание команды"
         is PcUsbConnectionStatus.Error -> "Ошибка USB"

@@ -14,6 +14,7 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.repository.SettingsRepository
+import com.chaiok.pos.domain.repository.SessionRepository
 import android.content.Context
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
@@ -29,6 +30,7 @@ import kotlinx.coroutines.sync.withLock
 class XchengPcPaymentCommandRepository(
     private val client: XchengWireEcrPortClient,
     private val settingsRepository: SettingsRepository,
+    private val sessionRepository: SessionRepository,
     context: Context
 ) : PcPaymentCommandRepository {
     private data class Arcus2AdditionalData(
@@ -139,6 +141,7 @@ class XchengPcPaymentCommandRepository(
             if (sendResult.isSuccess) {
                 lifecycleState = PcEcrLifecycleState.Listening
                 status.value = PcUsbConnectionStatus.WaitingForData
+                Log.i(TAG, "ECR resumed listening")
 
                 Log.i(
                     TAG,
@@ -202,6 +205,9 @@ class XchengPcPaymentCommandRepository(
         if (isReconciliation) {
             Log.i(TAG, "ARCUS2 reconciliation final result send start commandId=${sourceCommand.commandId ?: "-"}")
         }
+        if (sourceCommand.operationType == PcEcrOperationType.WAITER_LOGIN) {
+            Log.i(TAG, "ARCUS2 waiter login final result send start status=$resultStatus")
+        }
         Log.i(TAG, "ARCUS2 final result send start commandId=${sourceCommand.commandId ?: "-"} lifecycle=$lifecycleState active=$activeArcus2Transaction status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
 
         var storercSent = false
@@ -254,6 +260,10 @@ class XchengPcPaymentCommandRepository(
                 if (isReconciliation) {
                     Log.i(TAG, "ARCUS2 reconciliation final result send success")
                 }
+                if (sourceCommand.operationType == PcEcrOperationType.WAITER_LOGIN) {
+                    Log.i(TAG, "ARCUS2 waiter login final result send success")
+                }
+                Log.i(TAG, "ECR resumed listening")
             } else {
                 lifecycleState = PcEcrLifecycleState.Error
                 status.value = PcUsbConnectionStatus.Error(sendResult.exceptionOrNull()?.message ?: "arcus2 send error")
@@ -366,14 +376,21 @@ class XchengPcPaymentCommandRepository(
 
     private suspend fun sendArcus2ErrorWhileListening(
         settings: Arcus2NewWaySettings,
-        statusText: String
+        statusText: String,
+        sendStatus: Boolean = true
     ): Result<Unit> {
         val session = Arcus2CashRegisterSession(client, rawLogger, settings)
         return runCatching {
-            session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
+            if (sendStatus) session.sendCommandAndWaitOk("STATUS:$statusText").getOrThrow()
             session.sendCommandAndWaitOk("STORERC:${settings.errorRc}").getOrThrow()
             session.sendCommandAndWaitOk("ENDTR").getOrThrow()
         }.map { Unit }
+    }
+
+    private suspend fun hasAuthorizedWaiter(): Boolean {
+        val profileId = sessionRepository.profileId.first()
+        val accessToken = sessionRepository.accessToken.first()
+        return profileId != null && !accessToken.isNullOrBlank()
     }
 
     override suspend fun listenOnce() {
@@ -452,7 +469,11 @@ class XchengPcPaymentCommandRepository(
             return
         }
 
-        Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
+        if (isArcusWaiterLoginPayload(bytes)) {
+            Log.i(TAG, "recv command=WAITER_LOGIN rawMasked=true length=${bytes.size}")
+        } else {
+            Log.i(TAG, "recv hex=${bytes.toHexPreview()}")
+        }
 
         val settings = settingsRepository.observeSettings().first()
         var parsedHandled = false
@@ -474,6 +495,16 @@ class XchengPcPaymentCommandRepository(
                                 val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найдена сумма")
                                 updateArcusListeningState(r, "arcus2 sale amount missing")
                                 null
+                            } else if (!hasAuthorizedWaiter()) {
+                                Log.w(TAG, "SALE rejected: waiter is not authorized in PC mode")
+                                val r = sendArcus2ErrorWhileListening(
+                                    settings.arcus2NewWaySettings,
+                                    "Официант не авторизован. Выполните логин с кассы.",
+                                    sendStatus = false
+                                )
+                                updateArcusListeningState(r, "arcus2 unauthorized sale error")
+                                if (r.isSuccess) Log.i(TAG, "ARCUS2 unauthorized sale final result sent")
+                                null
                             } else {
                                 Log.i(TAG, "ARCUS2 start sequence commandId=${cmd.commandId ?: "-"} commands=BEGINTR,STATUS waitOk=${settings.arcus2NewWaySettings.waitOkAfterEachCommand}")
                                 val startResult = sendArcus2TransactionStartedWhileListening(settings.arcus2NewWaySettings)
@@ -491,6 +522,36 @@ class XchengPcPaymentCommandRepository(
                                     Log.i(TAG, "ARCUS2 payment command accepted commandId=${cmd.commandId ?: "-"}")
                                     PcPaymentCommand(amount = amount, commandId = cmd.commandId, orderId = resolved.orderId ?: cmd.orderId, currency = currency, rawPayloadPreview = "arcus2", sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY)
                                 }
+                            }
+                        }
+                        is PcEcrCommand.WaiterLogin -> {
+                            if (cmd.waiterPin.isNullOrBlank()) {
+                                Log.w(TAG, "WAITER_LOGIN rejected: missing pin commandId=${cmd.commandId ?: "-"}")
+                                val r = sendArcus2ErrorWhileListening(
+                                    settings.arcus2NewWaySettings,
+                                    "Ошибка авторизации официанта",
+                                    sendStatus = false
+                                )
+                                updateArcusListeningState(r, "arcus2 waiter login missing pin")
+                                null
+                            } else {
+                                lifecycleMutex.withLock {
+                                    activeArcus2Transaction = true
+                                    activeArcus2CommandId = cmd.commandId
+                                    lifecycleState = PcEcrLifecycleState.PausedForPayment
+                                    status.value = PcUsbConnectionStatus.Idle
+                                }
+                                Log.i(TAG, "ARCUS2 waiter login command emitted commandId=${cmd.commandId ?: "-"} pinLength=${cmd.waiterPin.length}")
+                                PcPaymentCommand(
+                                    amount = BigDecimal.ZERO,
+                                    commandId = cmd.commandId,
+                                    orderId = null,
+                                    currency = "RUB",
+                                    rawPayloadPreview = "arcus2 waiter login",
+                                    sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY,
+                                    operationType = PcEcrOperationType.WAITER_LOGIN,
+                                    waiterPin = cmd.waiterPin
+                                )
                             }
                         }
                         is PcEcrCommand.Reconciliation -> {
@@ -633,6 +694,13 @@ class XchengPcPaymentCommandRepository(
         } else if (!idleStandaloneControlIgnored) {
             Log.i(TAG, "ECR payload handled without opening payment flow")
         }
+    }
+
+    private fun isArcusWaiterLoginPayload(bytes: ByteArray): Boolean {
+        val payload = Arcus2BinLenCodec.decode(bytes).getOrNull()?.data ?: bytes
+        val text = decodeWin1251(payload).trim('\u0000', ' ', '\n', '\r', '\t')
+        val fields = text.split('\u001B')
+        return fields.getOrNull(0) == "2" && fields.getOrNull(1) == "9"
     }
 
     private suspend fun resolveArcus2FinancialCommand(
@@ -984,6 +1052,7 @@ class XchengPcPaymentCommandRepository(
             if (result.isSuccess) {
                 lifecycleState = PcEcrLifecycleState.Listening
                 status.value = PcUsbConnectionStatus.WaitingForData
+                Log.i(TAG, "ECR resumed listening")
             } else {
                 val message = result.exceptionOrNull()?.message ?: fallbackErrorMessage
 
@@ -1077,6 +1146,7 @@ class XchengPcPaymentCommandRepository(
             if (result.isSuccess) {
                 lifecycleState = PcEcrLifecycleState.Listening
                 status.value = PcUsbConnectionStatus.WaitingForData
+                Log.i(TAG, "ECR resumed listening")
             } else {
                 val message = result.exceptionOrNull()?.message ?: "resume error"
                 lifecycleState = PcEcrLifecycleState.Error
