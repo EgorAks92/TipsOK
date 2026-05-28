@@ -494,8 +494,7 @@ class Arcus2CashRegisterSession(
     private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
         val additionalDataTailPossible = staleControlResponseExpectedAfterAdditionalDataFastPath
         val statusTailPossible = arcus2StatusStaleControlTailPossible
-        val cancelledFinalTailPossible = arcus2CancelledFinalStorercStaleControlTailPossible
-        if (!additionalDataTailPossible && !statusTailPossible && !cancelledFinalTailPossible) return responses
+        if (!additionalDataTailPossible && !statusTailPossible && !arcus2CancelledFinalStorercStaleControlTailPossible) return responses
 
         val isStorerc = label.equals("STORERC", ignoreCase = true)
         if (!isStorerc) {
@@ -508,7 +507,7 @@ class Arcus2CashRegisterSession(
         val normalized = responses.map { it.trim().uppercase() }.filter { it.isNotBlank() }
         if (normalized.isEmpty()) return responses
 
-        if (cancelledFinalTailPossible) {
+        if (isStorerc && arcus2CancelledFinalStorercStaleControlTailPossible) {
             // Cancelled-final STORERC context is one-shot for the nearest STORERC.
             arcus2CancelledFinalStorercStaleControlTailPossible = false
             val isNakTailThenOk =
