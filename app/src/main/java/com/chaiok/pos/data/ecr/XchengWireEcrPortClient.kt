@@ -364,8 +364,8 @@ class XchengWireEcrPortClient(context: Context) {
 
         lastRecvStuckRecoveryAtMs = now
         Log.w(TAG, "recv hard timeout stuck; recovering transport")
-        safeClosePort(comm = usbComm, reason = "recv stuck timeout on $device")
         rotateRecvExecutorAfterStuck()
+        safeClosePort(comm = usbComm, reason = "recv stuck timeout on $device")
         transportReady = false
         currentUsbDevice = null
     }
