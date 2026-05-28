@@ -522,6 +522,10 @@ class PcCompactTipPaymentViewModel(
                 Log.i(TAG, "Restart payment reason=$reason old=${before.totalAmount} new=${_uiState.value.totalAmount}")
                 Log.i(TAG, "SALE restart cancel old payment start")
                 val cancelResult = runCatching { cancelPosPaymentUseCase() }
+                val cancelFailure = cancelResult.exceptionOrNull()
+                if (cancelFailure is CancellationException) {
+                    throw cancelFailure
+                }
                 if (cancelResult.isFailure) {
                     ignoreNextCancelledFromRestart = false
                     Log.e(TAG, "Cancel before restart failed", cancelResult.exceptionOrNull())
