@@ -308,7 +308,7 @@ class XchengWireEcrPortClient(context: Context) {
                     val chunk = withTimeoutOrNull(chunkTimeoutMs + RECEIVE_TIMEOUT_GRACE_MS) {
                         usbComm.recv(RECV_BUFFER_SIZE)
                     }
-                    if (!chunk.isNullOrEmpty()) {
+                    if (chunk != null && chunk.isNotEmpty()) {
                         bytes = chunk
                         break
                     }
