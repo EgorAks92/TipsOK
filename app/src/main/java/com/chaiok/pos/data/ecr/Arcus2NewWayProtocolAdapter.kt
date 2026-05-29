@@ -476,7 +476,11 @@ class Arcus2CashRegisterSession(
         }
     }
 
-    suspend fun sendDataAndWaitOk(data: ByteArray, label: String): Result<Unit> {
+    suspend fun sendDataAndWaitOk(
+        data: ByteArray,
+        label: String,
+        waiterLoginStorercControlTailOk: Boolean = false
+    ): Result<Unit> {
         val frame = Arcus2BinLenCodec.encode(data)
         rawLogger.logOutgoing(frame, label)
         client.send(frame).getOrElse { return Result.failure(it) }
@@ -489,6 +493,9 @@ class Arcus2CashRegisterSession(
                 .orEmpty()
                 .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
             val filteredResponses = filterStaleControlResponses(responses, label)
+            if (waiterLoginStorercControlTailOk && isWaiterLoginStorercControlTailSuccess(filteredResponses, label)) {
+                return Result.success(Unit)
+            }
 
             if (filteredResponses.isEmpty() || filteredResponses.all { it.isBlank() }) return Result.success(Unit)
             return when {
@@ -509,6 +516,9 @@ class Arcus2CashRegisterSession(
         val responses = Arcus2BinLenCodec.decodeAll(response).getOrElse { return Result.failure(it) }
             .map { decodeWin1251(it.data).trim('\u0000', ' ', '\n', '\r', '\t') }
         val filteredResponses = filterStaleControlResponses(responses, label)
+        if (waiterLoginStorercControlTailOk && isWaiterLoginStorercControlTailSuccess(filteredResponses, label)) {
+            return Result.success(Unit)
+        }
 
         return when {
             filteredResponses.any { it == "ER" } -> Result.failure(IllegalStateException("Cash register returned ER for $label"))
@@ -517,6 +527,22 @@ class Arcus2CashRegisterSession(
             filteredResponses.isEmpty() -> Result.success(Unit)
             else -> Result.failure(IllegalStateException("Unexpected ARCUS2 response for $label: ${filteredResponses.joinToString("|").take(32)}"))
         }
+    }
+
+    private fun isWaiterLoginStorercControlTailSuccess(responses: List<String>, label: String): Boolean {
+        if (!label.equals("STORERC", ignoreCase = true)) return false
+        val normalized = responses.map { it.trim().uppercase() }.filter { it.isNotBlank() }
+        if (normalized.isEmpty()) return false
+        val controlOnly = normalized.all { it == "OK" || it == "NAK" }
+        val hasOk = normalized.any { it == "OK" }
+        if (controlOnly && hasOk) {
+            Log.i(
+                "Arcus2Session",
+                "ARCUS2 WAITER_LOGIN STORERC control-tail treated as success responses=${normalized.joinToString("|")}"
+            )
+            return true
+        }
+        return false
     }
 
     private fun filterStaleControlResponses(responses: List<String>, label: String): List<String> {
