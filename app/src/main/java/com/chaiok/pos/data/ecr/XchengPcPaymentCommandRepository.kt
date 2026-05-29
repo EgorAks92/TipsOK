@@ -211,18 +211,28 @@ class XchengPcPaymentCommandRepository(
         Log.i(TAG, "ARCUS2 final result send start commandId=${sourceCommand.commandId ?: "-"} lifecycle=$lifecycleState active=$activeArcus2Transaction status=$resultStatus minimal=${settings.minimalResultMode} waitOk=${settings.waitOkAfterEachCommand} commands=${sequence.joinToString { it.label }}")
 
         var storercSent = false
+        val isWaiterLoginFinal = sourceCommand.operationType == PcEcrOperationType.WAITER_LOGIN
         Arcus2CashRegisterSession.finalResultInProgress = true // TODO move from global flag to repository-scoped coordinator
         val sendResult = try {
             runCatching {
                 sequence.forEach { cmd ->
                     val step = cmd.label
+                    val isStorerc = step == "STORERC"
+                    val isEndtr = step == "ENDTR"
                     Log.i(TAG, "ARCUS2 final step=$step started")
                     val stepResult = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
-                        session.sendDataAndWaitOk(cmd.data, cmd.label)
+                        session.sendDataAndWaitOk(
+                            data = cmd.data,
+                            label = cmd.label,
+                            waiterLoginStorercControlTailOk = isWaiterLoginFinal && isStorerc
+                        )
                     } ?: Result.failure(IllegalStateException("ARCUS2 final step timeout: $step"))
                     if (stepResult.isSuccess) {
-                        if (step == "STORERC") storercSent = true
+                        if (isStorerc) storercSent = true
                         Log.i(TAG, "ARCUS2 final step=$step success")
+                        if (isWaiterLoginFinal && isEndtr) {
+                            Log.i(TAG, "ARCUS2 WAITER_LOGIN final ENDTR best-effort completed")
+                        }
                         return@forEach
                     }
 
@@ -230,6 +240,19 @@ class XchengPcPaymentCommandRepository(
                     val message = ex?.message.orEmpty()
                     val transportFailure = isTransportFailure(message)
                     Log.w(TAG, "ARCUS2 final step=$step timeout/error: $message")
+                    if (isWaiterLoginFinal && isStorerc) {
+                        Log.w(
+                            TAG,
+                            "ARCUS2 WAITER_LOGIN STORERC non-critical failure ignored; will send ENDTR",
+                            ex
+                        )
+                        storercSent = true
+                        return@forEach
+                    }
+                    if (isWaiterLoginFinal && isEndtr) {
+                        Log.w(TAG, "ARCUS2 WAITER_LOGIN final ENDTR best-effort completed", ex)
+                        return@forEach
+                    }
                     if (step == "SETTAGS" && !transportFailure && isCashRegisterRejection(message)) {
                         Log.w(TAG, "ARCUS2 SETTAGS payload rejected; retry empty SETTAGS: $message")
                         val fallback = withTimeoutOrNull(settings.arcus2FinalStepTimeoutMs) {
@@ -242,7 +265,6 @@ class XchengPcPaymentCommandRepository(
                         Log.w(TAG, "ARCUS2 empty SETTAGS fallback failed: ${fallback.exceptionOrNull()?.message}")
                     }
 
-                    val isEndtr = step == "ENDTR"
                     if ((cmd.critical || transportFailure) && !(storercSent && !isEndtr)) {
                         throw ex ?: IllegalStateException("ARCUS2 critical command failed: $step")
                     }
@@ -538,8 +560,8 @@ class XchengPcPaymentCommandRepository(
                                 val startResult = sendArcus2TransactionStartedWhileListening(
                                     settings = settings.arcus2NewWaySettings,
                                     statusText = "Авторизация официанта",
-                                    sendStatus = true,
-                                    optionalStatus = true,
+                                    sendStatus = false,
+                                    optionalStatus = false,
                                     operationTag = "WAITER_LOGIN"
                                 )
                                 if (startResult.isFailure) {
