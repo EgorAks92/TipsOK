@@ -538,8 +538,8 @@ class XchengPcPaymentCommandRepository(
                                 val startResult = sendArcus2TransactionStartedWhileListening(
                                     settings = settings.arcus2NewWaySettings,
                                     statusText = "Авторизация официанта",
-                                    sendStatus = true,
-                                    optionalStatus = true,
+                                    sendStatus = false,
+                                    optionalStatus = false,
                                     operationTag = "WAITER_LOGIN"
                                 )
                                 if (startResult.isFailure) {
