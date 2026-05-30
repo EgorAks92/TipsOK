@@ -7,9 +7,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -64,9 +66,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -90,7 +96,9 @@ import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -146,6 +154,9 @@ private val PC_COMPACT_TIP_CARD_MAX_WIDTH = 190.dp
 private val PC_COMPACT_TIP_CARD_HEIGHT = 90.dp
 private val PC_COMPACT_TIP_CARD_HORIZONTAL_PADDING = 12.dp
 private val PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING = 8.dp
+private const val ALFA_LOGO_BAR_PATH = "M103.67 104.898H46.3296V116.813H103.67V104.898Z"
+private const val ALFA_LOGO_A_PATH = "M85.4961 38.2743C83.8623 33.3973 81.9772 29.5459 75.519 29.5459C69.0609 29.5459 67.0582 33.381 65.3353 38.2743L47.5947 88.7108H59.3596L63.4542 76.7189H86.092L89.8907 88.7108H102.401L85.492 38.2743H85.4961ZM66.8839 66.5918L74.9272 42.6891H75.2231L82.8204 66.5918H66.8839Z"
+private val AlfaLogoRed = Color(0xFFEF3124)
 
 @Composable
 private fun ExistingPcCompactTipPaymentScreenContent(
@@ -1094,6 +1105,20 @@ private fun PcCompactMorphingPaymentIndicator(
     theme: PcCompactPaymentVisualTheme,
     modifier: Modifier = Modifier
 ) {
+    if (theme.useAlfaLogoResultIndicator) {
+        AlfaLogoMorphingPaymentIndicator(
+            modifier = modifier,
+            phase = when (result) {
+                PcCompactPaymentResultVisual.None -> PcCompactPaymentScreenPhase.Processing
+                PcCompactPaymentResultVisual.Approved -> PcCompactPaymentScreenPhase.Approved
+                PcCompactPaymentResultVisual.Declined -> PcCompactPaymentScreenPhase.Declined
+            },
+            resultVisual = result,
+            theme = theme
+        )
+        return
+    }
+
     val transition = rememberInfiniteTransition(label = "neon_payment_indicator")
 
     val rotation = transition.animateFloat(
@@ -1217,6 +1242,166 @@ private fun PcCompactMorphingPaymentIndicator(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AlfaLogoMorphingPaymentIndicator(
+    modifier: Modifier = Modifier,
+    phase: PcCompactPaymentScreenPhase,
+    resultVisual: PcCompactPaymentResultVisual,
+    theme: PcCompactPaymentVisualTheme
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "alfa_logo_indicator")
+    val breathingScale by infiniteTransition.animateFloat(
+        initialValue = 0.99f,
+        targetValue = 1.01f,
+        animationSpec = infiniteRepeatable(animation = tween(2000, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+        label = "alfa_logo_breathing"
+    )
+    val logoDrawProgress = remember { Animatable(0f) }
+    val logoHoldProgress = remember { Animatable(0f) }
+    LaunchedEffect(phase) {
+        if (phase == PcCompactPaymentScreenPhase.Processing) {
+            while (currentCoroutineContext().isActive) {
+                logoHoldProgress.snapTo(0f)
+                logoDrawProgress.snapTo(0f)
+                logoDrawProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 1250,
+                        easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                    )
+                )
+                logoHoldProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 450, easing = LinearEasing)
+                )
+            }
+        } else {
+            logoDrawProgress.snapTo(if (phase == PcCompactPaymentScreenPhase.Approved) 1f else 0f)
+            logoHoldProgress.snapTo(0f)
+        }
+    }
+
+    val isApproved = phase == PcCompactPaymentScreenPhase.Approved || resultVisual == PcCompactPaymentResultVisual.Approved
+    val approvedProgress by animateFloatAsState(
+        targetValue = if (isApproved) 1f else 0f,
+        animationSpec = tween(durationMillis = 760, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
+        label = "alfa_logo_approved_progress"
+    )
+
+    val approvedEase = FastOutSlowInEasing.transform(approvedProgress.coerceIn(0f, 1f))
+    val activeLogoDrawProgress = when (phase) {
+        PcCompactPaymentScreenPhase.Processing -> logoDrawProgress.value
+        PcCompactPaymentScreenPhase.Approved -> 1f
+        PcCompactPaymentScreenPhase.Declined,
+        PcCompactPaymentScreenPhase.TipSelection -> 0f
+    }
+    val activeFillAlpha = when (phase) {
+        PcCompactPaymentScreenPhase.Processing -> ((logoDrawProgress.value - 0.82f) / 0.18f).coerceIn(0f, 1f)
+        PcCompactPaymentScreenPhase.Approved -> 1f
+        PcCompactPaymentScreenPhase.Declined,
+        PcCompactPaymentScreenPhase.TipSelection -> 0f
+    }
+    val logoAlpha = if (isApproved) 1f - FastOutSlowInEasing.transform((approvedProgress * 1.15f).coerceIn(0f, 1f)) else 1f
+    val logoScale = if (isApproved) 1f - 0.36f * approvedEase else breathingScale
+    val logoOffsetX = if (isApproved) (-10f * approvedEase).dp else 0.dp
+    val logoOffsetY = if (isApproved) (8f * approvedEase).dp else 0.dp
+    val checkProgress = ((approvedProgress - 0.30f) / 0.70f).coerceIn(0f, 1f)
+
+    Box(modifier = modifier.size(144.dp), contentAlignment = Alignment.Center) {
+        when (phase) {
+            PcCompactPaymentScreenPhase.Declined -> Canvas(modifier = Modifier.fillMaxSize()) {
+                drawNeonCross(progress = 1f, settle = 1f, theme = theme)
+            }
+            else -> {
+                AlfaLogoCanvas(
+                    drawProgress = activeLogoDrawProgress,
+                    fillAlpha = activeFillAlpha,
+                    color = AlfaLogoRed,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset(x = logoOffsetX, y = logoOffsetY)
+                        .graphicsLayer(
+                            alpha = logoAlpha,
+                            scaleX = logoScale,
+                            scaleY = logoScale
+                        )
+                )
+                if (isApproved) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawAlfaRedCheck(checkProgress)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlfaLogoCanvas(
+    drawProgress: Float,
+    fillAlpha: Float,
+    modifier: Modifier = Modifier,
+    color: Color = Color(0xFFEF3124)
+) {
+    val barPath = remember { PathParser().parsePathString(ALFA_LOGO_BAR_PATH).toPath() }
+    val aPath = remember { PathParser().parsePathString(ALFA_LOGO_A_PATH).toPath() }
+    Canvas(modifier = modifier) {
+        val logoScaleFactor = minOf(size.width / 150f, size.height / 150f)
+        val tx = (size.width - 150f * logoScaleFactor) / 2f
+        val ty = (size.height - 150f * logoScaleFactor) / 2f
+        translate(tx, ty) {
+            scale(logoScaleFactor, logoScaleFactor, Offset.Zero) {
+                val safeProgress = drawProgress.coerceIn(0f, 1f)
+                val safeFillAlpha = fillAlpha.coerceIn(0f, 1f)
+                val barProgress = intervalProgress(safeProgress, 0.00f, 0.22f)
+                val aProgress = intervalProgress(safeProgress, 0.10f, 0.92f)
+                val barLeft = 46.3296f
+                val barTop = 104.898f
+                val barRight = 103.67f
+                val barBottom = 116.813f
+                val visibleBarRight = barLeft + (barRight - barLeft) * barProgress
+                val revealTop = 150f - 150f * aProgress
+                val revealRight = 150f * aProgress
+
+                clipRect(left = barLeft, top = barTop, right = visibleBarRight, bottom = barBottom) {
+                    drawPath(path = barPath, color = color)
+                }
+                clipRect(left = 0f, top = revealTop, right = revealRight.coerceAtLeast(1f), bottom = 150f) {
+                    drawPath(path = aPath, color = color)
+                }
+
+                if (safeFillAlpha > 0f) {
+                    drawPath(path = barPath, color = color.copy(alpha = safeFillAlpha))
+                    drawPath(path = aPath, color = color.copy(alpha = safeFillAlpha))
+                }
+            }
+        }
+    }
+}
+
+private fun intervalProgress(value: Float, start: Float, end: Float): Float {
+    if (end <= start) return 1f
+    return ((value - start) / (end - start)).coerceIn(0f, 1f)
+}
+
+private fun DrawScope.drawAlfaRedCheck(progress: Float) {
+    val p = progress.coerceIn(0f, 1f)
+    if (p <= 0f) return
+    val settle = 1f + (1f - p) * 0.02f
+    val a = Offset(size.width * 0.30f, size.height * 0.55f)
+    val b = Offset(size.width * 0.43f, size.height * 0.67f)
+    val c = Offset(size.width * 0.72f, size.height * 0.38f)
+    val path = Path().apply { moveTo(a.x, a.y); lineTo(b.x, b.y); lineTo(c.x, c.y) }
+    val first = neonIntervalProgress(p, 0f, 0.42f)
+    val second = neonIntervalProgress(p, 0.24f, 1f)
+    drawPath(path = Path().apply { moveTo(a.x, a.y); lineTo(a.x + (b.x - a.x) * first, a.y + (b.y - a.y) * first) }, color = AlfaLogoRed, style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(path = Path().apply { moveTo(b.x, b.y); lineTo(b.x + (c.x - b.x) * second, b.y + (c.y - b.y) * second) }, color = AlfaLogoRed, style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+    val unifiedAlpha = ((p - 0.60f) / 0.40f).coerceIn(0f, 1f)
+    if (unifiedAlpha > 0f) {
+        drawPath(path = path, color = AlfaLogoRed.copy(alpha = unifiedAlpha), style = Stroke(width = 12.dp.toPx() * settle, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 
@@ -2166,6 +2351,7 @@ private data class PcCompactPaymentVisualTheme(
     val declinedUnifiedEdgeColor: Color,
     val resultHighlightColor: Color,
     val resultIndicatorStyle: PcCompactResultIndicatorStyle,
+    val useAlfaLogoResultIndicator: Boolean = false,
     val showResultRadialGlow: Boolean,
     val showTopRings: Boolean,
     val closeIconDrawable: Int,
@@ -2219,6 +2405,7 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     declinedUnifiedEdgeColor = Color(0xFFFF1F1F),
     resultHighlightColor = Color.White,
     resultIndicatorStyle = PcCompactResultIndicatorStyle.NeonDark,
+    useAlfaLogoResultIndicator = false,
     showResultRadialGlow = true,
     showTopRings = true,
     decorativeCardWidth = 190.dp,
@@ -2288,6 +2475,7 @@ private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     declinedUnifiedEdgeColor = Color(0xFFE53935),
     resultHighlightColor = Color.White,
     resultIndicatorStyle = PcCompactResultIndicatorStyle.CleanLight,
+    useAlfaLogoResultIndicator = true,
     showResultRadialGlow = false,
     showTopRings = true,
     decorativeCardDrawable = AlfaBankCardDrawable,
