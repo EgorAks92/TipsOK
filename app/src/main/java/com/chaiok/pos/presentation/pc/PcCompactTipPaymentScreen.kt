@@ -55,9 +55,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -67,8 +67,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -1742,6 +1744,52 @@ private fun neonIntervalProgress(
 private fun Color.withMultipliedAlpha(multiplier: Float): Color =
     copy(alpha = alpha * multiplier.coerceIn(0f, 1f))
 
+private fun Modifier.selectedTipBlurBackdrop(
+    enabled: Boolean,
+    alpha: Float,
+    shapeRadius: Dp = 28.dp
+): Modifier = if (!enabled || alpha <= 0f) {
+    this
+} else {
+    this.drawBehind {
+        val radiusPx = shapeRadius.toPx()
+        val blurRadiusPx = 18.dp.toPx()
+
+        val frameworkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            this.alpha = (255 * alpha.coerceIn(0f, 1f)).toInt()
+            shader = android.graphics.LinearGradient(
+                0f,
+                0f,
+                0f,
+                size.height,
+                intArrayOf(
+                    android.graphics.Color.rgb(0x8A, 0xFF, 0xF7),
+                    android.graphics.Color.rgb(0x20, 0xD6, 0xD2),
+                    android.graphics.Color.rgb(0x11, 0x8B, 0xD7)
+                ),
+                floatArrayOf(0f, 0.52f, 1f),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            maskFilter = android.graphics.BlurMaskFilter(
+                blurRadiusPx,
+                android.graphics.BlurMaskFilter.Blur.NORMAL
+            )
+        }
+
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawRoundRect(
+                0f,
+                0f,
+                size.width,
+                size.height,
+                radiusPx,
+                radiusPx,
+                frameworkPaint
+            )
+        }
+    }
+}
+
 @Composable
 private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTheme) {
     if (!theme.showTopRings) return
@@ -2081,12 +2129,10 @@ private fun PcCompactTipPresetCard(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 5.dp, vertical = 6.dp)
-                    .offset(y = 3.dp)
-                    .blur(12.dp)
-                    .background(
-                        brush = theme.selectedTipBlurGlowBrush(visualAlpha),
-                        shape = RoundedCornerShape(24.dp)
+                    .selectedTipBlurBackdrop(
+                        enabled = true,
+                        alpha = 0.72f * visualAlpha,
+                        shapeRadius = 28.dp
                     )
             )
         }
