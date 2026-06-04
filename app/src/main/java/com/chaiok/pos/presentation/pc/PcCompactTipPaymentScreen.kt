@@ -1749,17 +1749,43 @@ private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTh
 
     val transition = rememberInfiniteTransition(label = "top_rings_premium")
 
-    val phase = transition.animateFloat(
+    val primaryPhase = transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = 6400,
+                durationMillis = 3600,
                 easing = LinearEasing
             ),
             repeatMode = RepeatMode.Restart
         ),
-        label = "top_rings_phase"
+        label = "top_rings_primary_phase"
+    )
+
+    val secondaryPhase = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 2900,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "top_rings_secondary_phase"
+    )
+
+    val backgroundPhase = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 4700,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "top_rings_background_phase"
     )
 
     Canvas(
@@ -1780,37 +1806,25 @@ private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTh
             return 0.5f - 0.5f * cos((p * 2f * PI).toFloat())
         }
 
-        fun ringProgress(start: Float, duration: Float): Float? {
-            var raw = phase.value - start
+        fun ringProgress(phase: Float, duration: Float): Float? {
+            val wrappedPhase = phase % 1f
 
-            if (raw < 0f) {
-                raw += 1f
-            }
-
-            return if (raw <= duration) {
-                raw / duration
+            return if (wrappedPhase <= duration) {
+                wrappedPhase / duration
             } else {
                 null
             }
         }
 
-        val radiiDp = listOf(54f, 86f, 122f, 162f)
-        val starts = listOf(0.00f, 0.17f, 0.34f, 0.51f)
-        val maxAlphas = listOf(0.24f, 0.19f, 0.145f, 0.105f)
-        val durations = listOf(0.34f, 0.36f, 0.38f, 0.40f)
-
-        radiiDp.forEachIndexed { index, radiusDp ->
-            val progress = ringProgress(
-                start = starts[index],
-                duration = durations[index]
-            )
+        fun drawPulseRing(phase: Float, radiusDp: Float, maxAlpha: Float, duration: Float) {
+            val progress = ringProgress(phase = phase, duration = duration)
 
             if (progress != null) {
                 val wave = smoothWave(progress)
 
-                val radius = radiusDp.dp.toPx() + wave * 7.dp.toPx()
-                val waveAlpha = wave * maxAlphas[index]
-                val glowAlpha = wave * maxAlphas[index] * 0.34f
+                val radius = radiusDp.dp.toPx() + wave * 12.dp.toPx()
+                val waveAlpha = wave * maxAlpha
+                val glowAlpha = wave * maxAlpha * 0.40f
 
                 drawCircle(
                     color = glowColor.copy(alpha = glowAlpha * ringAlpha),
@@ -1827,7 +1841,7 @@ private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTh
                     radius = radius,
                     center = center,
                     style = Stroke(
-                        width = 1.6.dp.toPx() + wave * 0.55.dp.toPx(),
+                        width = 1.8.dp.toPx() + wave * 0.75.dp.toPx(),
                         cap = StrokeCap.Round
                     )
                 )
@@ -1844,10 +1858,35 @@ private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTh
             }
         }
 
-        val ambient = 0.5f - 0.5f * cos((phase.value * 2f * PI).toFloat())
+        drawPulseRing(
+            phase = primaryPhase.value,
+            radiusDp = 54f,
+            maxAlpha = 0.28f,
+            duration = 0.40f
+        )
+        drawPulseRing(
+            phase = (secondaryPhase.value + 0.33f) % 1f,
+            radiusDp = 86f,
+            maxAlpha = 0.22f,
+            duration = 0.38f
+        )
+        drawPulseRing(
+            phase = (backgroundPhase.value + 0.66f) % 1f,
+            radiusDp = 122f,
+            maxAlpha = 0.17f,
+            duration = 0.42f
+        )
+        drawPulseRing(
+            phase = (primaryPhase.value + 0.18f) % 1f,
+            radiusDp = 162f,
+            maxAlpha = 0.12f,
+            duration = 0.36f
+        )
+
+        val ambient = 0.5f - 0.5f * cos((backgroundPhase.value * 2f * PI).toFloat())
 
         drawCircle(
-            color = glowColor.copy(alpha = (0.028f + ambient * 0.018f) * ringAlpha),
+            color = glowColor.copy(alpha = (0.032f + ambient * 0.020f) * ringAlpha),
             radius = 118.dp.toPx(),
             center = center
         )
