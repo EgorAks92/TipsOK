@@ -2206,30 +2206,55 @@ private fun PcCompactNoTipsButton(
     val shape = RoundedCornerShape(20.dp)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
     val backgroundBrush = if (selected) theme.noTipsSelectedBrush(visualAlpha) else theme.noTipsUnselectedBrush(visualAlpha)
+    val showSelectedBlurGlow = selected && theme.selectedTipBlurGlowEnabled
+    val buttonBrush = if (showSelectedBlurGlow) theme.selectedTipGlassBrush(visualAlpha) else backgroundBrush
+    val borderColor = when {
+        showSelectedBlurGlow -> Color.White.copy(alpha = 0.46f * visualAlpha)
+        selected -> theme.noTipsSelectedBorderColor.withMultipliedAlpha(visualAlpha)
+        else -> theme.noTipsUnselectedBorderColor.withMultipliedAlpha(visualAlpha)
+    }
+
     Box(
-        modifier = modifier
-            .size(width = 448.dp, height = 56.dp)
-            .clip(shape)
-            .background(backgroundBrush)
-            .border(
-                1.dp,
-                if (selected) {
-                    theme.noTipsSelectedBorderColor.withMultipliedAlpha(visualAlpha)
-                } else {
-                    theme.noTipsUnselectedBorderColor.withMultipliedAlpha(visualAlpha)
-                },
-                shape
-            )
-            .clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
-        contentAlignment = Alignment.Center
+        modifier = modifier.size(width = 448.dp, height = 56.dp)
     ) {
-        Text(
-            text = "Без чаевых",
-            color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = MontserratFontFamily
-        )
+        if (showSelectedBlurGlow) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .selectedTipBlurBackdrop(
+                        enabled = true,
+                        alpha = 0.72f * visualAlpha,
+                        shapeRadius = 20.dp
+                    )
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(shape)
+                .background(buttonBrush)
+                .border(
+                    width = 1.dp,
+                    color = borderColor,
+                    shape = shape
+                )
+                .clickable(
+                    enabled = enabled,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Без чаевых",
+                color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = MontserratFontFamily
+            )
+        }
     }
 }
 
