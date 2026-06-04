@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -55,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -2065,61 +2067,81 @@ private fun PcCompactTipPresetCard(
 
     val backgroundBrush = if (selected) theme.selectedTipBrush(visualAlpha) else theme.unselectedTipBrush(visualAlpha)
 
-    Box(
-        modifier = Modifier
-            .size(width = cardWidth, height = PC_COMPACT_TIP_CARD_HEIGHT)
-            .clip(shape)
-            .background(backgroundBrush)
-            .border(
-                width = 1.dp,
-                color = if (selected) {
-                    theme.selectedBorderColor.withMultipliedAlpha(visualAlpha)
-                } else {
-                    theme.unselectedBorderColor.withMultipliedAlpha(visualAlpha)
-                },
-                shape = shape
-            )
-            .clickable(
-                enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = percentText,
-                color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
-                fontSize = 20.sp,
-                lineHeight = 20.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = MontserratFontFamily,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                softWrap = true,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
+    val showSelectedBlurGlow = selected && theme.selectedTipBlurGlowEnabled
+    val cardBrush = if (showSelectedBlurGlow) theme.selectedTipGlassBrush(visualAlpha) else backgroundBrush
+    val borderColor = when {
+        showSelectedBlurGlow -> Color.White.copy(alpha = 0.46f * visualAlpha)
+        selected -> theme.selectedBorderColor.withMultipliedAlpha(visualAlpha)
+        else -> theme.unselectedBorderColor.withMultipliedAlpha(visualAlpha)
+    }
 
-            if (!amountText.isNullOrBlank()) {
+    Box(
+        modifier = Modifier.size(width = cardWidth, height = PC_COMPACT_TIP_CARD_HEIGHT)
+    ) {
+        if (showSelectedBlurGlow) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(horizontal = 6.dp, vertical = 8.dp)
+                    .offset(y = 3.dp)
+                    .blur(16.dp)
+                    .clip(shape)
+                    .background(theme.selectedTipBlurGlowBrush(visualAlpha))
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(cardBrush)
+                .border(
+                    width = 1.dp,
+                    color = borderColor,
+                    shape = shape
+                )
+                .clickable(
+                    enabled = enabled,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
-                    text = amountText,
-                    color = Color.White.copy(alpha = 0.82f * visualAlpha),
-                    fontSize = amountFontSize ?: 14.sp,
+                    text = percentText,
+                    color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
+                    fontSize = 20.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp)
+                    maxLines = 2,
+                    softWrap = true,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
                 )
+
+                if (!amountText.isNullOrBlank()) {
+                    Text(
+                        text = amountText,
+                        color = Color.White.copy(alpha = 0.82f * visualAlpha),
+                        fontSize = amountFontSize ?: 14.sp,
+                        fontFamily = MontserratFontFamily,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                    )
+                }
             }
         }
     }
@@ -2177,6 +2199,9 @@ private data class PcCompactPaymentVisualTheme(
     val topRingColor: Color,
     val topRingGlowColor: Color,
     val selectedTipBrush: (Float) -> Brush,
+    val selectedTipBlurGlowEnabled: Boolean = false,
+    val selectedTipBlurGlowBrush: (Float) -> Brush = { alpha -> selectedTipBrush(alpha) },
+    val selectedTipGlassBrush: (Float) -> Brush = { alpha -> selectedTipBrush(alpha) },
     val unselectedTipBrush: (Float) -> Brush,
     val noTipsSelectedBrush: (Float) -> Brush,
     val noTipsUnselectedBrush: (Float) -> Brush,
@@ -2232,6 +2257,25 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     topRingColor = Color(0xFF7DE8FF),
     topRingGlowColor = Color(0xFF20D6D2),
     selectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
+    selectedTipBlurGlowEnabled = true,
+    selectedTipBlurGlowBrush = { alpha ->
+        Brush.verticalGradient(
+            listOf(
+                Color(0xFF74E8E1).copy(alpha = alpha),
+                Color(0xFF20B8C8).copy(alpha = alpha),
+                Color(0xFF126CA4).copy(alpha = alpha)
+            )
+        )
+    },
+    selectedTipGlassBrush = { alpha ->
+        Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.26f * alpha),
+                Color(0xFFE7FFFF).copy(alpha = 0.16f * alpha),
+                Color.White.copy(alpha = 0.12f * alpha)
+            )
+        )
+    },
     unselectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f * alpha), Color.White.copy(alpha = 0.12f * alpha))) },
     noTipsSelectedBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
     noTipsUnselectedBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f * alpha), Color.White.copy(alpha = 0.10f * alpha))) },
