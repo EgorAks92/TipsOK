@@ -36,7 +36,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -2081,7 +2080,7 @@ private fun PcCompactTipPresetCard(
         if (showSelectedBlurGlow) {
             Box(
                 modifier = Modifier
-                    .matchParentSize()
+                    .fillMaxSize()
                     .padding(horizontal = 6.dp, vertical = 8.dp)
                     .offset(y = 3.dp)
                     .blur(16.dp)
@@ -2092,7 +2091,7 @@ private fun PcCompactTipPresetCard(
 
         Box(
             modifier = Modifier
-                .matchParentSize()
+                .fillMaxSize()
                 .clip(shape)
                 .background(cardBrush)
                 .border(
