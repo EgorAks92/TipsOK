@@ -326,6 +326,7 @@ private fun BoxScope.PcCompactPersistentCancelOverlay(
             .padding(top = 8.dp, end = 8.dp)
             .size(56.dp)
             .zIndex(10f)
+            .clip(CircleShape)
             .clickable {
                 Log.i(
                     "PcCompactTipPayment",
@@ -594,8 +595,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             theme = theme,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 78.dp)
-                .offset(x = 26.dp)
+                .padding(top = 58.dp)
+                .offset(x = 16.dp)
         )
 
         if (isCancelPrevious) {
@@ -1753,7 +1754,7 @@ private fun Modifier.selectedTipBlurBackdrop(
 } else {
     this.drawBehind {
         val radiusPx = shapeRadius.toPx()
-        val blurRadiusPx = 18.dp.toPx()
+        val blurRadiusPx = 4.dp.toPx()
 
         val frameworkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             this.alpha = (255 * alpha.coerceIn(0f, 1f)).toInt()
@@ -1981,7 +1982,7 @@ private fun PcCompactDecorativeBankCard(
                 alpha = progress
                 scaleX = 0.94f + 0.06f * progress
                 scaleY = 0.94f + 0.06f * progress
-                rotationZ = 18f - 3f * progress
+                rotationZ = 3f - 3f * progress
             }
     )
 }
@@ -2131,7 +2132,7 @@ private fun PcCompactTipPresetCard(
                     .fillMaxSize()
                     .selectedTipBlurBackdrop(
                         enabled = true,
-                        alpha = 0.72f * visualAlpha,
+                        alpha = 0.99f * visualAlpha,
                         shapeRadius = 28.dp
                     )
             )
@@ -2223,7 +2224,7 @@ private fun PcCompactNoTipsButton(
                     .fillMaxSize()
                     .selectedTipBlurBackdrop(
                         enabled = true,
-                        alpha = 0.72f * visualAlpha,
+                        alpha = 0.99f * visualAlpha,
                         shapeRadius = 20.dp
                     )
             )
@@ -2376,8 +2377,8 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     resultIndicatorStyle = PcCompactResultIndicatorStyle.NeonDark,
     showResultRadialGlow = true,
     showTopRings = true,
-    decorativeCardWidth = 260.dp,
-    decorativeCardHeight = 166.dp
+    decorativeCardWidth = 300.dp,
+    decorativeCardHeight = 216.dp
 )
 
 private val AlfaBg = Color.White
@@ -2446,6 +2447,6 @@ private fun alfaPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     showResultRadialGlow = false,
     showTopRings = true,
     decorativeCardDrawable = AlfaBankCardDrawable,
-    decorativeCardWidth = 260.dp,
-    decorativeCardHeight = 166.dp
+    decorativeCardWidth = 300.dp,
+    decorativeCardHeight = 216.dp
 )
