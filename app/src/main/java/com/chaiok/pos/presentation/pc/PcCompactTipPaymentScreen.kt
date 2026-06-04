@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -66,8 +67,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -1741,6 +1744,52 @@ private fun neonIntervalProgress(
 private fun Color.withMultipliedAlpha(multiplier: Float): Color =
     copy(alpha = alpha * multiplier.coerceIn(0f, 1f))
 
+private fun Modifier.selectedTipBlurBackdrop(
+    enabled: Boolean,
+    alpha: Float,
+    shapeRadius: Dp = 28.dp
+): Modifier = if (!enabled || alpha <= 0f) {
+    this
+} else {
+    this.drawBehind {
+        val radiusPx = shapeRadius.toPx()
+        val blurRadiusPx = 18.dp.toPx()
+
+        val frameworkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            this.alpha = (255 * alpha.coerceIn(0f, 1f)).toInt()
+            shader = android.graphics.LinearGradient(
+                0f,
+                0f,
+                0f,
+                size.height,
+                intArrayOf(
+                    android.graphics.Color.rgb(0x8A, 0xFF, 0xF7),
+                    android.graphics.Color.rgb(0x20, 0xD6, 0xD2),
+                    android.graphics.Color.rgb(0x11, 0x8B, 0xD7)
+                ),
+                floatArrayOf(0f, 0.52f, 1f),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            maskFilter = android.graphics.BlurMaskFilter(
+                blurRadiusPx,
+                android.graphics.BlurMaskFilter.Blur.NORMAL
+            )
+        }
+
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawRoundRect(
+                0f,
+                0f,
+                size.width,
+                size.height,
+                radiusPx,
+                radiusPx,
+                frameworkPaint
+            )
+        }
+    }
+}
+
 @Composable
 private fun PcCompactTopRings(alpha: Float = 1f, theme: PcCompactPaymentVisualTheme) {
     if (!theme.showTopRings) return
@@ -2065,61 +2114,81 @@ private fun PcCompactTipPresetCard(
 
     val backgroundBrush = if (selected) theme.selectedTipBrush(visualAlpha) else theme.unselectedTipBrush(visualAlpha)
 
-    Box(
-        modifier = Modifier
-            .size(width = cardWidth, height = PC_COMPACT_TIP_CARD_HEIGHT)
-            .clip(shape)
-            .background(backgroundBrush)
-            .border(
-                width = 1.dp,
-                color = if (selected) {
-                    theme.selectedBorderColor.withMultipliedAlpha(visualAlpha)
-                } else {
-                    theme.unselectedBorderColor.withMultipliedAlpha(visualAlpha)
-                },
-                shape = shape
-            )
-            .clickable(
-                enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = percentText,
-                color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
-                fontSize = 20.sp,
-                lineHeight = 20.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = MontserratFontFamily,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                softWrap = true,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
+    val showSelectedBlurGlow = selected && theme.selectedTipBlurGlowEnabled
+    val cardBrush = if (showSelectedBlurGlow) theme.selectedTipGlassBrush(visualAlpha) else backgroundBrush
+    val borderColor = when {
+        showSelectedBlurGlow -> Color.White.copy(alpha = 0.46f * visualAlpha)
+        selected -> theme.selectedBorderColor.withMultipliedAlpha(visualAlpha)
+        else -> theme.unselectedBorderColor.withMultipliedAlpha(visualAlpha)
+    }
 
-            if (!amountText.isNullOrBlank()) {
+    Box(
+        modifier = Modifier.size(width = cardWidth, height = PC_COMPACT_TIP_CARD_HEIGHT)
+    ) {
+        if (showSelectedBlurGlow) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .selectedTipBlurBackdrop(
+                        enabled = true,
+                        alpha = 0.72f * visualAlpha,
+                        shapeRadius = 28.dp
+                    )
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(shape)
+                .background(cardBrush)
+                .border(
+                    width = 1.dp,
+                    color = borderColor,
+                    shape = shape
+                )
+                .clickable(
+                    enabled = enabled,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
-                    text = amountText,
-                    color = Color.White.copy(alpha = 0.82f * visualAlpha),
-                    fontSize = amountFontSize ?: 14.sp,
+                    text = percentText,
+                    color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
+                    fontSize = 20.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp)
+                    maxLines = 2,
+                    softWrap = true,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
                 )
+
+                if (!amountText.isNullOrBlank()) {
+                    Text(
+                        text = amountText,
+                        color = Color.White.copy(alpha = 0.82f * visualAlpha),
+                        fontSize = amountFontSize ?: 14.sp,
+                        fontFamily = MontserratFontFamily,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                    )
+                }
             }
         }
     }
@@ -2137,30 +2206,55 @@ private fun PcCompactNoTipsButton(
     val shape = RoundedCornerShape(20.dp)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
     val backgroundBrush = if (selected) theme.noTipsSelectedBrush(visualAlpha) else theme.noTipsUnselectedBrush(visualAlpha)
+    val showSelectedBlurGlow = selected && theme.selectedTipBlurGlowEnabled
+    val buttonBrush = if (showSelectedBlurGlow) theme.selectedTipGlassBrush(visualAlpha) else backgroundBrush
+    val borderColor = when {
+        showSelectedBlurGlow -> Color.White.copy(alpha = 0.46f * visualAlpha)
+        selected -> theme.noTipsSelectedBorderColor.withMultipliedAlpha(visualAlpha)
+        else -> theme.noTipsUnselectedBorderColor.withMultipliedAlpha(visualAlpha)
+    }
+
     Box(
-        modifier = modifier
-            .size(width = 448.dp, height = 56.dp)
-            .clip(shape)
-            .background(backgroundBrush)
-            .border(
-                1.dp,
-                if (selected) {
-                    theme.noTipsSelectedBorderColor.withMultipliedAlpha(visualAlpha)
-                } else {
-                    theme.noTipsUnselectedBorderColor.withMultipliedAlpha(visualAlpha)
-                },
-                shape
-            )
-            .clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
-        contentAlignment = Alignment.Center
+        modifier = modifier.size(width = 448.dp, height = 56.dp)
     ) {
-        Text(
-            text = "Без чаевых",
-            color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = MontserratFontFamily
-        )
+        if (showSelectedBlurGlow) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .selectedTipBlurBackdrop(
+                        enabled = true,
+                        alpha = 0.72f * visualAlpha,
+                        shapeRadius = 20.dp
+                    )
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(shape)
+                .background(buttonBrush)
+                .border(
+                    width = 1.dp,
+                    color = borderColor,
+                    shape = shape
+                )
+                .clickable(
+                    enabled = enabled,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Без чаевых",
+                color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = MontserratFontFamily
+            )
+        }
     }
 }
 
@@ -2177,6 +2271,9 @@ private data class PcCompactPaymentVisualTheme(
     val topRingColor: Color,
     val topRingGlowColor: Color,
     val selectedTipBrush: (Float) -> Brush,
+    val selectedTipBlurGlowEnabled: Boolean = false,
+    val selectedTipBlurGlowBrush: (Float) -> Brush = { alpha -> selectedTipBrush(alpha) },
+    val selectedTipGlassBrush: (Float) -> Brush = { alpha -> selectedTipBrush(alpha) },
     val unselectedTipBrush: (Float) -> Brush,
     val noTipsSelectedBrush: (Float) -> Brush,
     val noTipsUnselectedBrush: (Float) -> Brush,
@@ -2232,6 +2329,25 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     topRingColor = Color(0xFF7DE8FF),
     topRingGlowColor = Color(0xFF20D6D2),
     selectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
+    selectedTipBlurGlowEnabled = true,
+    selectedTipBlurGlowBrush = { alpha ->
+        Brush.verticalGradient(
+            listOf(
+                Color(0xFF8AFFF7).copy(alpha = 0.95f * alpha),
+                Color(0xFF20D6D2).copy(alpha = 0.90f * alpha),
+                Color(0xFF118BD7).copy(alpha = 0.82f * alpha)
+            )
+        )
+    },
+    selectedTipGlassBrush = { alpha ->
+        Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.20f * alpha),
+                Color(0xFFE7FFFF).copy(alpha = 0.10f * alpha),
+                Color.White.copy(alpha = 0.07f * alpha)
+            )
+        )
+    },
     unselectedTipBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f * alpha), Color.White.copy(alpha = 0.12f * alpha))) },
     noTipsSelectedBrush = { alpha -> Brush.verticalGradient(listOf(Color(0xFF74E8E1).copy(alpha = alpha), Color(0xFF20B8C8).copy(alpha = alpha))) },
     noTipsUnselectedBrush = { alpha -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f * alpha), Color.White.copy(alpha = 0.10f * alpha))) },
