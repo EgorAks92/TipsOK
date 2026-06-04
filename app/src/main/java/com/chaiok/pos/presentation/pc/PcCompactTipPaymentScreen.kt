@@ -55,7 +55,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -2082,19 +2081,12 @@ private fun PcCompactTipPresetCard(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .offset(y = 5.dp)
-                    .graphicsLayer {
-                        scaleX = 1.08f
-                        scaleY = 1.18f
-                        alpha = 0.95f * visualAlpha
-                    }
-                    .blur(
-                        radius = 22.dp,
-                        edgeTreatment = BlurredEdgeTreatment.Unbounded
-                    )
+                    .padding(horizontal = 5.dp, vertical = 6.dp)
+                    .offset(y = 3.dp)
+                    .blur(12.dp)
                     .background(
                         brush = theme.selectedTipBlurGlowBrush(visualAlpha),
-                        shape = shape
+                        shape = RoundedCornerShape(24.dp)
                     )
             )
         }
@@ -2279,9 +2271,9 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     selectedTipGlassBrush = { alpha ->
         Brush.verticalGradient(
             listOf(
-                Color.White.copy(alpha = 0.22f * alpha),
-                Color(0xFFE7FFFF).copy(alpha = 0.12f * alpha),
-                Color.White.copy(alpha = 0.08f * alpha)
+                Color.White.copy(alpha = 0.20f * alpha),
+                Color(0xFFE7FFFF).copy(alpha = 0.10f * alpha),
+                Color.White.copy(alpha = 0.07f * alpha)
             )
         )
     },
