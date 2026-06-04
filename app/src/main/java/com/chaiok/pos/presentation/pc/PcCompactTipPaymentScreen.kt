@@ -2260,8 +2260,8 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     resultIndicatorStyle = PcCompactResultIndicatorStyle.NeonDark,
     showResultRadialGlow = true,
     showTopRings = true,
-    decorativeCardWidth = 190.dp,
-    decorativeCardHeight = 122.dp
+    decorativeCardWidth = 260.dp,
+    decorativeCardHeight = 166.dp
 )
 
 private val AlfaBg = Color.White
