@@ -55,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -2081,11 +2082,20 @@ private fun PcCompactTipPresetCard(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 6.dp, vertical = 8.dp)
-                    .offset(y = 3.dp)
-                    .blur(16.dp)
-                    .clip(shape)
-                    .background(theme.selectedTipBlurGlowBrush(visualAlpha))
+                    .offset(y = 5.dp)
+                    .graphicsLayer {
+                        scaleX = 1.08f
+                        scaleY = 1.18f
+                        alpha = 0.95f * visualAlpha
+                    }
+                    .blur(
+                        radius = 22.dp,
+                        edgeTreatment = BlurredEdgeTreatment.Unbounded
+                    )
+                    .background(
+                        brush = theme.selectedTipBlurGlowBrush(visualAlpha),
+                        shape = shape
+                    )
             )
         }
 
@@ -2260,18 +2270,18 @@ private fun defaultPcCompactPaymentTheme() = PcCompactPaymentVisualTheme(
     selectedTipBlurGlowBrush = { alpha ->
         Brush.verticalGradient(
             listOf(
-                Color(0xFF74E8E1).copy(alpha = alpha),
-                Color(0xFF20B8C8).copy(alpha = alpha),
-                Color(0xFF126CA4).copy(alpha = alpha)
+                Color(0xFF8AFFF7).copy(alpha = 0.95f * alpha),
+                Color(0xFF20D6D2).copy(alpha = 0.90f * alpha),
+                Color(0xFF118BD7).copy(alpha = 0.82f * alpha)
             )
         )
     },
     selectedTipGlassBrush = { alpha ->
         Brush.verticalGradient(
             listOf(
-                Color.White.copy(alpha = 0.26f * alpha),
-                Color(0xFFE7FFFF).copy(alpha = 0.16f * alpha),
-                Color.White.copy(alpha = 0.12f * alpha)
+                Color.White.copy(alpha = 0.22f * alpha),
+                Color(0xFFE7FFFF).copy(alpha = 0.12f * alpha),
+                Color.White.copy(alpha = 0.08f * alpha)
             )
         )
     },
