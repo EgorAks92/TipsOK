@@ -76,10 +76,7 @@ import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlin.math.PI
-import kotlin.math.cos
 import kotlin.math.min
-import kotlin.math.sin
 
 @Composable
 fun PcCommandIdleScreen(
@@ -308,6 +305,94 @@ private fun FeedbackQuestion(
 }
 
 
+private data class FeedbackStarPoint(
+    val x: Float,
+    val y: Float
+)
+
+private fun buildRoundedFeedbackStarPath(
+    sizeMin: Float,
+    center: Offset,
+    outerRadiusFactor: Float = 0.90f,
+    innerRadiusFactor: Float = 0.55f,
+    roundingFactor: Float = 0.20f
+): Pair<Path, android.graphics.Path> {
+    val outerRadius = sizeMin / 2f * outerRadiusFactor
+    val innerRadius = outerRadius * innerRadiusFactor
+
+    val points = List(10) { index ->
+        val angle = -Math.PI / 2.0 + index * Math.PI / 5.0
+        val radius = if (index % 2 == 0) outerRadius else innerRadius
+
+        FeedbackStarPoint(
+            x = center.x + (kotlin.math.cos(angle) * radius).toFloat(),
+            y = center.y + (kotlin.math.sin(angle) * radius).toFloat()
+        )
+    }
+
+    fun distance(a: FeedbackStarPoint, b: FeedbackStarPoint): Float {
+        val dx = b.x - a.x
+        val dy = b.y - a.y
+        return kotlin.math.sqrt(dx * dx + dy * dy)
+    }
+
+    fun pointTowards(
+        from: FeedbackStarPoint,
+        to: FeedbackStarPoint,
+        distancePx: Float
+    ): FeedbackStarPoint {
+        val fullDistance = distance(from, to).coerceAtLeast(0.0001f)
+        val t = (distancePx / fullDistance).coerceIn(0f, 0.45f)
+
+        return FeedbackStarPoint(
+            x = from.x + (to.x - from.x) * t,
+            y = from.y + (to.y - from.y) * t
+        )
+    }
+
+    val composePath = Path()
+    val androidPath = android.graphics.Path()
+
+    points.forEachIndexed { index, current ->
+        val previous = points[(index - 1 + points.size) % points.size]
+        val next = points[(index + 1) % points.size]
+
+        val previousEdge = distance(current, previous)
+        val nextEdge = distance(current, next)
+        val roundDistance = minOf(previousEdge, nextEdge) * roundingFactor
+
+        val enter = pointTowards(current, previous, roundDistance)
+        val exit = pointTowards(current, next, roundDistance)
+
+        if (index == 0) {
+            composePath.moveTo(enter.x, enter.y)
+            androidPath.moveTo(enter.x, enter.y)
+        } else {
+            composePath.lineTo(enter.x, enter.y)
+            androidPath.lineTo(enter.x, enter.y)
+        }
+
+        composePath.quadraticBezierTo(
+            current.x,
+            current.y,
+            exit.x,
+            exit.y
+        )
+
+        androidPath.quadTo(
+            current.x,
+            current.y,
+            exit.x,
+            exit.y
+        )
+    }
+
+    composePath.close()
+    androidPath.close()
+
+    return composePath to androidPath
+}
+
 @Composable
 private fun RatingStar(
     filled: Boolean,
@@ -318,27 +403,16 @@ private fun RatingStar(
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
-        val radius = min(size.width, size.height) / 2f * 0.92f
-        val innerRadius = radius * 0.52f
+        val sizeMin = min(size.width, size.height)
         val center = Offset(size.width / 2f, size.height / 2f)
-        val path = Path()
-        val androidPath = android.graphics.Path()
 
-        for (i in 0 until 10) {
-            val angle = -PI / 2.0 + i * PI / 5.0
-            val pointRadius = if (i % 2 == 0) radius else innerRadius
-            val x = center.x + (cos(angle) * pointRadius).toFloat()
-            val y = center.y + (sin(angle) * pointRadius).toFloat()
-            if (i == 0) {
-                path.moveTo(x, y)
-                androidPath.moveTo(x, y)
-            } else {
-                path.lineTo(x, y)
-                androidPath.lineTo(x, y)
-            }
-        }
-        path.close()
-        androidPath.close()
+        val (path, androidPath) = buildRoundedFeedbackStarPath(
+            sizeMin = sizeMin,
+            center = center,
+            outerRadiusFactor = 0.90f,
+            innerRadiusFactor = 0.55f,
+            roundingFactor = 0.20f
+        )
 
         if (glow) {
             if (filled) {
