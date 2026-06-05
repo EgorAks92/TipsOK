@@ -54,6 +54,14 @@ class XchengWireEcrPortClient(context: Context) {
     private var pendingIdleRecvFuture: Future<ByteArray?>? = null
     @Volatile
     private var pendingIdleRecvDevice: String? = null
+    @Volatile
+    private var pendingIdleRecvCreatedAtMs: Long = 0L
+    @Volatile
+    private var consecutiveIdleNoDataTimeouts: Int = 0
+    @Volatile
+    private var pendingIdleRecvRearmCount: Int = 0
+    @Volatile
+    private var lastIdlePendingRearmAtMs: Long = 0L
 
     suspend fun ensureConnected(): Result<Unit> =
         withContext(Dispatchers.IO) {
@@ -353,12 +361,18 @@ class XchengWireEcrPortClient(context: Context) {
     private fun cancelPendingIdleRecv(reason: String) {
         val future = synchronized(pendingRecvLock) {
             val old = pendingIdleRecvFuture
-            pendingIdleRecvFuture = null
-            pendingIdleRecvDevice = null
+            clearPendingIdleRecvStateLocked()
             old
         }
         future?.cancel(true)
         Log.i(TAG, "recv idle pending read cancelled reason=$reason")
+    }
+
+    private fun clearPendingIdleRecvStateLocked() {
+        pendingIdleRecvFuture = null
+        pendingIdleRecvDevice = null
+        pendingIdleRecvCreatedAtMs = 0L
+        consecutiveIdleNoDataTimeouts = 0
     }
 
     private fun getOrCreatePendingIdleRecv(
@@ -372,6 +386,7 @@ class XchengWireEcrPortClient(context: Context) {
             }
             if (current != null && !current.isDone && pendingIdleRecvDevice != device) {
                 current.cancel(true)
+                clearPendingIdleRecvStateLocked()
             }
             runCatching {
                 usbComm.setRecvTimeout(RECV_TIMEOUT_MS)
@@ -384,6 +399,8 @@ class XchengWireEcrPortClient(context: Context) {
             }
             pendingIdleRecvFuture = created
             pendingIdleRecvDevice = device
+            pendingIdleRecvCreatedAtMs = SystemClock.elapsedRealtime()
+            consecutiveIdleNoDataTimeouts = 0
             return PendingIdleRecv(future = created, reused = false)
         }
     }
@@ -391,9 +408,59 @@ class XchengWireEcrPortClient(context: Context) {
     private fun clearPendingIdleRecv(future: Future<ByteArray?>) {
         synchronized(pendingRecvLock) {
             if (pendingIdleRecvFuture === future) {
-                pendingIdleRecvFuture = null
-                pendingIdleRecvDevice = null
+                clearPendingIdleRecvStateLocked()
             }
+        }
+    }
+
+    private fun resetIdleNoDataTimeoutsAfterData(future: Future<ByteArray?>) {
+        synchronized(pendingRecvLock) {
+            if (pendingIdleRecvFuture === future) {
+                consecutiveIdleNoDataTimeouts = 0
+            }
+        }
+        Log.i(TAG, "recv idle pending data received; no-data counter reset")
+    }
+
+    private fun recordIdleNoDataTimeoutAndMaybeSoftRearm(
+        future: Future<ByteArray?>,
+        device: String
+    ) {
+        val now = SystemClock.elapsedRealtime()
+        var shouldRearm = false
+        var rearmCount = 0
+        var ageMs = 0L
+
+        synchronized(pendingRecvLock) {
+            if (pendingIdleRecvFuture !== future) {
+                return
+            }
+
+            consecutiveIdleNoDataTimeouts++
+            ageMs = (now - pendingIdleRecvCreatedAtMs).coerceAtLeast(0L)
+            val cooldownElapsed = lastIdlePendingRearmAtMs == 0L ||
+                    now - lastIdlePendingRearmAtMs >= IDLE_PENDING_REARM_COOLDOWN_MS
+
+            if (
+                ageMs >= IDLE_PENDING_MAX_AGE_MS &&
+                consecutiveIdleNoDataTimeouts >= IDLE_PENDING_REARM_AFTER_TIMEOUTS &&
+                cooldownElapsed
+            ) {
+                pendingIdleRecvRearmCount++
+                rearmCount = pendingIdleRecvRearmCount
+                lastIdlePendingRearmAtMs = now
+                shouldRearm = true
+            }
+        }
+
+        if (shouldRearm) {
+            Log.i(
+                TAG,
+                "recv idle pending soft rearm reason=no_data_timeouts " +
+                        "count=$rearmCount ageMs=$ageMs device=$device"
+            )
+            cancelPendingIdleRecv("idle pending soft rearm after no-data timeouts")
+            Log.i(TAG, "recv idle pending read will be recreated on next listen")
         }
     }
 
@@ -446,10 +513,13 @@ class XchengWireEcrPortClient(context: Context) {
         Log.i(TAG, "recv idle pending read $pendingState device=$device timeoutMs=$timeoutMs")
         return try {
             val chunk = future.get(timeoutMs + RECEIVE_TIMEOUT_GRACE_MS, TimeUnit.MILLISECONDS)
-            clearPendingIdleRecv(future)
             if (chunk != null && chunk.isNotEmpty()) {
+                resetIdleNoDataTimeoutsAfterData(future)
+                clearPendingIdleRecv(future)
                 RecvAttemptResult.Bytes(chunk)
             } else {
+                recordIdleNoDataTimeoutAndMaybeSoftRearm(future = future, device = device)
+                clearPendingIdleRecv(future)
                 RecvAttemptResult.TimeoutNoData
             }
         } catch (_: TimeoutException) {
@@ -458,6 +528,7 @@ class XchengWireEcrPortClient(context: Context) {
                 TAG,
                 "recv idle wait timeout requested=$timeoutMs actual=$elapsed; pending recv kept alive"
             )
+            recordIdleNoDataTimeoutAndMaybeSoftRearm(future = future, device = device)
             RecvAttemptResult.TimeoutNoData
         } catch (e: InterruptedException) {
             clearPendingIdleRecv(future)
@@ -1004,6 +1075,9 @@ class XchengWireEcrPortClient(context: Context) {
         private const val RECEIVE_TIMEOUT_GRACE_MS = 100L
         private const val RECEIVE_TIMEOUT_WARN_DELTA_MS = 300L
         private const val IDLE_LISTEN_RECV_TIMEOUT_MS = RECV_TIMEOUT_MS
+        private const val IDLE_PENDING_REARM_AFTER_TIMEOUTS = 4
+        private const val IDLE_PENDING_MAX_AGE_MS = 15_000L
+        private const val IDLE_PENDING_REARM_COOLDOWN_MS = 10_000L
 
         private const val BIND_TIMEOUT_MS = 3000L
 
