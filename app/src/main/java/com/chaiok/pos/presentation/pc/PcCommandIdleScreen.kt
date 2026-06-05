@@ -46,8 +46,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -290,146 +288,25 @@ private fun FeedbackQuestion(
         ) {
             repeat(5) { index ->
                 val value = index + 1
-                FeedbackRatingStarButton(
+                RatingStar(
                     filled = selectedRating?.let { value <= it } == true,
                     selectedColor = selectedStar,
                     unselectedColor = unselectedStar,
                     outlineColor = outlineStar,
-                    useGlass = glow,
-                    starIconSize = if (glow) {
-                        if (starSize < 60.dp) 28.dp else 54.dp
-                    } else {
-                        starSize
-                    },
-                    cornerRadius = if (starSize < 60.dp) 16.dp else 28.dp,
-                    onClick = { onRatingSelected(value) },
-                    modifier = Modifier.size(starSize)
+                    glow = glow,
+                    modifier = Modifier
+                        .size(starSize)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onRatingSelected(value) }
+                        )
                 )
             }
         }
     }
 }
 
-
-private fun Modifier.feedbackStarBlurBackdrop(
-    enabled: Boolean,
-    alpha: Float,
-    shapeRadius: Dp
-): Modifier = if (!enabled || alpha <= 0f) {
-    this
-} else {
-    this.drawBehind {
-        val radiusPx = shapeRadius.toPx()
-        val blurRadiusPx = 14.dp.toPx()
-
-        val frameworkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            this.alpha = (255 * alpha.coerceIn(0f, 1f)).toInt()
-            shader = android.graphics.LinearGradient(
-                0f,
-                0f,
-                0f,
-                size.height,
-                intArrayOf(
-                    android.graphics.Color.rgb(0x8A, 0xFF, 0xF7),
-                    android.graphics.Color.rgb(0x20, 0xD6, 0xD2),
-                    android.graphics.Color.rgb(0x11, 0x8B, 0xD7)
-                ),
-                floatArrayOf(0f, 0.52f, 1f),
-                android.graphics.Shader.TileMode.CLAMP
-            )
-            maskFilter = android.graphics.BlurMaskFilter(
-                blurRadiusPx,
-                android.graphics.BlurMaskFilter.Blur.NORMAL
-            )
-        }
-
-        drawIntoCanvas { canvas ->
-            canvas.nativeCanvas.drawRoundRect(
-                0f,
-                0f,
-                size.width,
-                size.height,
-                radiusPx,
-                radiusPx,
-                frameworkPaint
-            )
-        }
-    }
-}
-
-@Composable
-private fun FeedbackRatingStarButton(
-    filled: Boolean,
-    selectedColor: Color,
-    unselectedColor: Color,
-    outlineColor: Color,
-    useGlass: Boolean,
-    starIconSize: Dp,
-    cornerRadius: Dp,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(cornerRadius)
-
-    val glassBrush = Brush.verticalGradient(
-        listOf(
-            Color.White.copy(alpha = 0.20f),
-            Color(0xFFE7FFFF).copy(alpha = 0.10f),
-            Color.White.copy(alpha = 0.07f)
-        )
-    )
-
-    val borderColor = when {
-        filled && useGlass -> Color.White.copy(alpha = 0.46f)
-        useGlass -> Color.White.copy(alpha = 0.22f)
-        filled -> selectedColor.copy(alpha = 0.55f)
-        else -> outlineColor
-    }
-
-    Box(
-        modifier = modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick
-        ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (useGlass && filled) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .feedbackStarBlurBackdrop(
-                        enabled = true,
-                        alpha = 0.62f,
-                        shapeRadius = cornerRadius
-                    )
-            )
-        }
-
-        if (useGlass) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(shape)
-                    .background(glassBrush)
-                    .border(
-                        width = 1.dp,
-                        color = borderColor,
-                        shape = shape
-                    )
-            )
-        }
-
-        RatingStar(
-            filled = filled,
-            selectedColor = selectedColor,
-            unselectedColor = unselectedColor,
-            outlineColor = outlineColor,
-            glow = false,
-            modifier = Modifier.size(starIconSize)
-        )
-    }
-}
 
 @Composable
 private fun RatingStar(
@@ -440,26 +317,102 @@ private fun RatingStar(
     glow: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val fill = if (filled) selectedColor else unselectedColor
     Canvas(modifier = modifier) {
         val radius = min(size.width, size.height) / 2f * 0.92f
         val innerRadius = radius * 0.52f
         val center = Offset(size.width / 2f, size.height / 2f)
         val path = Path()
+        val androidPath = android.graphics.Path()
+
         for (i in 0 until 10) {
             val angle = -PI / 2.0 + i * PI / 5.0
             val pointRadius = if (i % 2 == 0) radius else innerRadius
             val x = center.x + (cos(angle) * pointRadius).toFloat()
             val y = center.y + (sin(angle) * pointRadius).toFloat()
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            if (i == 0) {
+                path.moveTo(x, y)
+                androidPath.moveTo(x, y)
+            } else {
+                path.lineTo(x, y)
+                androidPath.lineTo(x, y)
+            }
         }
         path.close()
-        drawPath(path, fill)
-        drawPath(
-            path = path,
-            color = if (filled) selectedColor.copy(alpha = 0.55f) else outlineColor,
-            style = Stroke(width = 2.5f, cap = StrokeCap.Round)
-        )
+        androidPath.close()
+
+        if (glow) {
+            if (filled) {
+                drawIntoCanvas { canvas ->
+                    val frameworkPaint = android.graphics.Paint(
+                        android.graphics.Paint.ANTI_ALIAS_FLAG
+                    ).apply {
+                        alpha = (255 * 0.68f).toInt()
+                        shader = android.graphics.LinearGradient(
+                            0f,
+                            0f,
+                            0f,
+                            size.height,
+                            intArrayOf(
+                                android.graphics.Color.rgb(0x8A, 0xFF, 0xF7),
+                                android.graphics.Color.rgb(0x20, 0xD6, 0xD2),
+                                android.graphics.Color.rgb(0x11, 0x8B, 0xD7)
+                            ),
+                            floatArrayOf(0f, 0.52f, 1f),
+                            android.graphics.Shader.TileMode.CLAMP
+                        )
+                        maskFilter = android.graphics.BlurMaskFilter(
+                            12.dp.toPx(),
+                            android.graphics.BlurMaskFilter.Blur.NORMAL
+                        )
+                    }
+
+                    canvas.nativeCanvas.drawPath(androidPath, frameworkPaint)
+                }
+
+                drawPath(
+                    path = path,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.34f),
+                            Color(0xFFE7FFFF).copy(alpha = 0.18f),
+                            Color.White.copy(alpha = 0.10f)
+                        )
+                    )
+                )
+                drawPath(
+                    path = path,
+                    color = selectedColor.copy(alpha = 0.22f)
+                )
+                drawPath(
+                    path = path,
+                    color = Color.White.copy(alpha = 0.58f),
+                    style = Stroke(width = 2.5f, cap = StrokeCap.Round)
+                )
+            } else {
+                drawPath(
+                    path = path,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.18f),
+                            Color.White.copy(alpha = 0.08f)
+                        )
+                    )
+                )
+                drawPath(
+                    path = path,
+                    color = outlineColor.copy(alpha = 0.72f),
+                    style = Stroke(width = 2.5f, cap = StrokeCap.Round)
+                )
+            }
+        } else {
+            val fill = if (filled) selectedColor else unselectedColor
+            drawPath(path, fill)
+            drawPath(
+                path = path,
+                color = if (filled) selectedColor.copy(alpha = 0.55f) else outlineColor,
+                style = Stroke(width = 2.5f, cap = StrokeCap.Round)
+            )
+        }
     }
 }
 
