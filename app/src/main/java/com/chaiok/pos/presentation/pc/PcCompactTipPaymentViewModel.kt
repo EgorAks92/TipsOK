@@ -956,8 +956,7 @@ class PcCompactTipPaymentViewModel(
                         currency = commandCurrency,
                         orderId = sourceOrderId?.ifBlank { null },
                         sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY,
-                        operationType = operationType,
-                        sourceProtocol = if (isArcus2Source()) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON
+                        operationType = operationType
                     ),
                     result = result,
                     receiptText = when (result) {
