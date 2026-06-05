@@ -183,6 +183,12 @@ fun PcPostPaymentFeedbackScreen(
     val titleSize = if (isCompact) 35.sp else 64.sp
     val starSize = if (isCompact) 48.dp else 92.dp
 
+    val closeIconRes = if (isAlfa) {
+        R.drawable.ic_alfa_payment_close
+    } else {
+        R.drawable.ic_payment_close
+    }
+
     Box(
         modifier = modifier.background(
             if (isAlfa) {
@@ -199,12 +205,11 @@ fun PcPostPaymentFeedbackScreen(
                     .padding(if (isCompact) 18.dp else 48.dp)
                     .size(if (isCompact) 56.dp else 88.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Закрыть",
-                    tint = timerColor,
-                    modifier = Modifier.fillMaxSize()
-                )
+            Image(
+                painter = painterResource(id = closeIconRes),
+                contentDescription = "Закрыть",
+                modifier = Modifier.size(if (isCompact) 28.dp else 48.dp)
+            )
             }
 
         Column(
