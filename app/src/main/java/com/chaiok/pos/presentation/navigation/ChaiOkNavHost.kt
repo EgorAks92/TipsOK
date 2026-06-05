@@ -799,10 +799,9 @@ fun ChaiOkNavHost(container: AppContainer) {
             val events = vm.events
 
             BackHandler(
-                enabled = isArcus2PaymentRoute &&
-                        state.paymentStage != CardPresentingStage.Approved
+                enabled = isArcus2PaymentRoute
             ) {
-                if (state.canCancel) {
+                if (state.canCancel && state.paymentStage != CardPresentingStage.Approved) {
                     Log.i(
                         "PcCompactTipPayment",
                         "System back intercepted; routing to cancelPayment for ARCUS2"
@@ -811,7 +810,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                 } else {
                     Log.i(
                         "PcCompactTipPayment",
-                        "System back consumed for ARCUS2 while cancel/finalization is in progress"
+                        "System back consumed for ARCUS2 while cancel/finalization/result screen is in progress"
                     )
                 }
             }
