@@ -46,7 +46,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -54,6 +55,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -287,22 +290,144 @@ private fun FeedbackQuestion(
         ) {
             repeat(5) { index ->
                 val value = index + 1
-                RatingStar(
+                FeedbackRatingStarButton(
                     filled = selectedRating?.let { value <= it } == true,
                     selectedColor = selectedStar,
                     unselectedColor = unselectedStar,
                     outlineColor = outlineStar,
-                    glow = glow,
-                    modifier = Modifier
-                        .size(starSize)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onRatingSelected(value) }
-                        )
+                    useGlass = glow,
+                    starIconSize = if (glow) {
+                        if (starSize < 60.dp) 28.dp else 54.dp
+                    } else {
+                        starSize
+                    },
+                    cornerRadius = if (starSize < 60.dp) 16.dp else 28.dp,
+                    onClick = { onRatingSelected(value) },
+                    modifier = Modifier.size(starSize)
                 )
             }
         }
+    }
+}
+
+
+private fun Modifier.feedbackStarBlurBackdrop(
+    enabled: Boolean,
+    alpha: Float,
+    shapeRadius: Dp
+): Modifier = if (!enabled || alpha <= 0f) {
+    this
+} else {
+    this.drawBehind {
+        val radiusPx = shapeRadius.toPx()
+        val blurRadiusPx = 14.dp.toPx()
+
+        val frameworkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            this.alpha = (255 * alpha.coerceIn(0f, 1f)).toInt()
+            shader = android.graphics.LinearGradient(
+                0f,
+                0f,
+                0f,
+                size.height,
+                intArrayOf(
+                    android.graphics.Color.rgb(0x8A, 0xFF, 0xF7),
+                    android.graphics.Color.rgb(0x20, 0xD6, 0xD2),
+                    android.graphics.Color.rgb(0x11, 0x8B, 0xD7)
+                ),
+                floatArrayOf(0f, 0.52f, 1f),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            maskFilter = android.graphics.BlurMaskFilter(
+                blurRadiusPx,
+                android.graphics.BlurMaskFilter.Blur.NORMAL
+            )
+        }
+
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawRoundRect(
+                0f,
+                0f,
+                size.width,
+                size.height,
+                radiusPx,
+                radiusPx,
+                frameworkPaint
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedbackRatingStarButton(
+    filled: Boolean,
+    selectedColor: Color,
+    unselectedColor: Color,
+    outlineColor: Color,
+    useGlass: Boolean,
+    starIconSize: Dp,
+    cornerRadius: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(cornerRadius)
+
+    val glassBrush = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.20f),
+            Color(0xFFE7FFFF).copy(alpha = 0.10f),
+            Color.White.copy(alpha = 0.07f)
+        )
+    )
+
+    val borderColor = when {
+        filled && useGlass -> Color.White.copy(alpha = 0.46f)
+        useGlass -> Color.White.copy(alpha = 0.22f)
+        filled -> selectedColor.copy(alpha = 0.55f)
+        else -> outlineColor
+    }
+
+    Box(
+        modifier = modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick
+        ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (useGlass && filled) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .feedbackStarBlurBackdrop(
+                        enabled = true,
+                        alpha = 0.62f,
+                        shapeRadius = cornerRadius
+                    )
+            )
+        }
+
+        if (useGlass) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(shape)
+                    .background(glassBrush)
+                    .border(
+                        width = 1.dp,
+                        color = borderColor,
+                        shape = shape
+                    )
+            )
+        }
+
+        RatingStar(
+            filled = filled,
+            selectedColor = selectedColor,
+            unselectedColor = unselectedColor,
+            outlineColor = outlineColor,
+            glow = false,
+            modifier = Modifier.size(starIconSize)
+        )
     }
 }
 
@@ -316,7 +441,7 @@ private fun RatingStar(
     modifier: Modifier = Modifier
 ) {
     val fill = if (filled) selectedColor else unselectedColor
-    Canvas(modifier = if (filled && glow) modifier.shadow(12.dp, CircleShape, clip = false) else modifier) {
+    Canvas(modifier = modifier) {
         val radius = min(size.width, size.height) / 2f * 0.92f
         val innerRadius = radius * 0.52f
         val center = Offset(size.width / 2f, size.height / 2f)
