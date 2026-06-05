@@ -111,7 +111,16 @@ data class PcCompactTipPaymentUiState(
 }
 
 sealed interface PcCompactTipPaymentEvent {
-    data object Approved : PcCompactTipPaymentEvent
+    data class Approved(
+        val commandId: String?,
+        val transactionId: String?,
+        val waiterId: String?,
+        val orderId: String?,
+        val billAmount: BigDecimal,
+        val tipAmount: BigDecimal,
+        val operationType: PcEcrOperationType,
+        val sourceProtocol: PcEcrProtocol
+    ) : PcCompactTipPaymentEvent
     data object CancelledByUser : PcCompactTipPaymentEvent
     data object DeclinedTimeout : PcCompactTipPaymentEvent
 }
@@ -790,7 +799,18 @@ class PcCompactTipPaymentViewModel(
                     sendPcEcrFinalResultOnce(approvedResult)
                     resumePcEcrAfterPayment("approved")
                 }
-                _events.send(PcCompactTipPaymentEvent.Approved)
+                _events.send(
+                    PcCompactTipPaymentEvent.Approved(
+                        commandId = sourceCommandId?.ifBlank { null } ?: sourceOrderId?.ifBlank { null },
+                        transactionId = event.transactionId ?: event.rrn,
+                        waiterId = waiterId,
+                        orderId = sourceOrderId,
+                        billAmount = toMoneyAmount(_uiState.value.billAmount, commandCurrency),
+                        tipAmount = toMoneyAmount(_uiState.value.selectedTipAmount, commandCurrency),
+                        operationType = operationType,
+                        sourceProtocol = if (isArcus2Source()) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON
+                    )
+                )
             }
             is PosPaymentEvent.Declined -> {
                 if (userCancelInProgress && cancelEventSent) {
@@ -936,7 +956,8 @@ class PcCompactTipPaymentViewModel(
                         currency = commandCurrency,
                         orderId = sourceOrderId?.ifBlank { null },
                         sourceProtocol = PcEcrProtocol.ARCUS2_NEWWAY,
-                        operationType = operationType
+                        operationType = operationType,
+                        sourceProtocol = if (isArcus2Source()) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON
                     ),
                     result = result,
                     receiptText = when (result) {

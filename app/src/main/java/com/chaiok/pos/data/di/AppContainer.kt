@@ -42,6 +42,7 @@ import com.chaiok.pos.domain.usecase.ObserveCurrentStatusUseCase
 import com.chaiok.pos.domain.usecase.ObserveProfileUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentUseCase
+import com.chaiok.pos.domain.usecase.SubmitPostPaymentFeedbackUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentReconciliationUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentCancelPreviousUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcIdleImagesUseCase
@@ -111,6 +112,7 @@ class AppContainer(context: Context) {
     val updatePcCompactPaymentDesignStyleUseCase by lazy { UpdatePcCompactPaymentDesignStyleUseCase(settingsRepository) }
     val updateShowCustomTipButtonUseCase by lazy { UpdateShowCustomTipButtonUseCase(settingsRepository) }
     val addReviewUseCase by lazy { AddReviewUseCase(reviewRepository) }
+    val submitPostPaymentFeedbackUseCase by lazy { SubmitPostPaymentFeedbackUseCase(addReviewUseCase) }
     val startPosPaymentUseCase by lazy { StartPosPaymentUseCase(posPaymentRepository) }
     val startPosPaymentCancelPreviousUseCase by lazy { StartPosPaymentCancelPreviousUseCase(posPaymentRepository) }
     val startPosPaymentReconciliationUseCase by lazy { StartPosPaymentReconciliationUseCase(posPaymentRepository) }

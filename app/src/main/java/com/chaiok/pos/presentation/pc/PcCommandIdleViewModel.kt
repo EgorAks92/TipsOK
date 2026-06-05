@@ -8,10 +8,13 @@ import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
+import com.chaiok.pos.domain.model.PostPaymentFeedbackPayload
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
+import com.chaiok.pos.domain.usecase.SubmitPostPaymentFeedbackUseCase
 import java.math.BigDecimal
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,9 +34,22 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private const val UNLOCK_PIN_MAX_LENGTH = 4
 private const val TAG = "PcCommandIdle"
+
+data class PostPaymentFeedbackUiState(
+    val visible: Boolean = false,
+    val commandId: String? = null,
+    val transactionId: String? = null,
+    val serviceRating: Int? = null,
+    val kitchenRating: Int? = null,
+    val secondsLeft: Int = 15,
+    val submitting: Boolean = false
+)
 
 data class PcCommandIdleUiState(
     val connectionStatus: PcUsbConnectionStatus = PcUsbConnectionStatus.Idle,
@@ -43,7 +59,9 @@ data class PcCommandIdleUiState(
     val isUnlocking: Boolean = false,
     val unlockError: String? = null,
     val unlockPinMaxLength: Int = UNLOCK_PIN_MAX_LENGTH,
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    val designStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
+    val postPaymentFeedback: PostPaymentFeedbackUiState = PostPaymentFeedbackUiState()
 )
 
 private data class UnlockState(
@@ -57,7 +75,8 @@ class PcCommandIdleViewModel(
     private val repository: PcPaymentCommandRepository,
     private val observeSettingsUseCase: ObserveSettingsUseCase,
     private val loginWithPinUseCase: LoginWithPinUseCase,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val submitPostPaymentFeedbackUseCase: SubmitPostPaymentFeedbackUseCase
 ) : ViewModel() {
 
     private val listeningEnabled = MutableStateFlow(false)
@@ -86,6 +105,10 @@ class PcCommandIdleViewModel(
     private var lastNoIdAtMs: Long = 0L
     private var resumeListeningJob: Job? = null
     private val pcStatusMessage = MutableStateFlow<String?>(null)
+    private val feedbackState = MutableStateFlow(PostPaymentFeedbackUiState())
+    private val feedbackPayload = MutableStateFlow<PostPaymentFeedbackPayload?>(null)
+    private val submittedFeedbackCommandIds = mutableSetOf<String>()
+    private val feedbackSubmitMutex = Mutex()
 
     init {
         observeStatus()
@@ -134,6 +157,112 @@ class PcCommandIdleViewModel(
                 .onFailure { Log.e(TAG, "PC idle full ECR stop failed", it) }
         }
     }
+
+
+    fun showPostPaymentFeedback(payload: PostPaymentFeedbackPayload) {
+        val commandId = payload.commandId.ifBlank { return }
+        if (submittedFeedbackCommandIds.contains(commandId)) {
+            return
+        }
+
+        feedbackPayload.value = payload
+        feedbackState.value = PostPaymentFeedbackUiState(
+            visible = true,
+            commandId = commandId,
+            transactionId = payload.transactionId,
+            secondsLeft = FEEDBACK_TIMEOUT_SECONDS
+        )
+        Log.i(TAG, "POST_PAYMENT_FEEDBACK shown commandId=$commandId")
+    }
+
+    fun onFeedbackServiceRatingSelected(value: Int) {
+        val rating = value.coerceIn(1, 5)
+        Log.i(TAG, "POST_PAYMENT_FEEDBACK service rating selected value=$rating")
+        feedbackState.update { current ->
+            if (!current.visible || current.submitting) current else current.copy(serviceRating = rating)
+        }
+        submitFeedbackIfBothSelected()
+    }
+
+    fun onFeedbackKitchenRatingSelected(value: Int) {
+        val rating = value.coerceIn(1, 5)
+        Log.i(TAG, "POST_PAYMENT_FEEDBACK kitchen rating selected value=$rating")
+        feedbackState.update { current ->
+            if (!current.visible || current.submitting) current else current.copy(kitchenRating = rating)
+        }
+        submitFeedbackIfBothSelected()
+    }
+
+    fun onFeedbackTimerTick() {
+        val current = feedbackState.value
+        if (!current.visible || current.submitting || current.secondsLeft <= 0) return
+        val next = (current.secondsLeft - 1).coerceAtLeast(0)
+        feedbackState.value = current.copy(secondsLeft = next)
+        if (next == 0) {
+            viewModelScope.launch { finishFeedback(reason = "timeout", submitIfAnyRating = true) }
+        }
+    }
+
+    fun closeFeedbackByUser() {
+        Log.i(TAG, "POST_PAYMENT_FEEDBACK closed reason=user_close")
+        viewModelScope.launch { finishFeedback(reason = "user_close", submitIfAnyRating = true) }
+    }
+
+    private fun submitFeedbackIfBothSelected() {
+        val current = feedbackState.value
+        if (current.serviceRating != null && current.kitchenRating != null) {
+            Log.i(TAG, "POST_PAYMENT_FEEDBACK auto submit reason=both_selected")
+            viewModelScope.launch { finishFeedback(reason = "both_selected", submitIfAnyRating = true) }
+        }
+    }
+
+    private suspend fun finishFeedback(reason: String, submitIfAnyRating: Boolean) {
+        feedbackSubmitMutex.withLock {
+            val current = feedbackState.value
+            if (!current.visible || current.submitting) return@withLock
+
+            val commandId = current.commandId.orEmpty()
+            val hasAnyRating = current.serviceRating != null || current.kitchenRating != null
+            if (reason == "timeout") {
+                Log.i(TAG, "POST_PAYMENT_FEEDBACK auto submit reason=timeout")
+            }
+
+            if (!submitIfAnyRating || !hasAnyRating || submittedFeedbackCommandIds.contains(commandId)) {
+                feedbackState.value = PostPaymentFeedbackUiState()
+                feedbackPayload.value = null
+                return@withLock
+            }
+
+            feedbackState.value = current.copy(submitting = true)
+            val payload = feedbackPayload.value?.copy(
+                serviceRating = current.serviceRating,
+                kitchenRating = current.kitchenRating
+            )
+
+            if (payload == null || commandId.isBlank()) {
+                feedbackState.value = PostPaymentFeedbackUiState()
+                feedbackPayload.value = null
+                return@withLock
+            }
+
+            submittedFeedbackCommandIds += commandId
+            submitPostPaymentFeedbackUseCase(payload)
+                .onSuccess { Log.i(TAG, "POST_PAYMENT_FEEDBACK submit success") }
+                .onFailure { Log.w(TAG, "POST_PAYMENT_FEEDBACK submit failed reason=${safeFeedbackError(it)}") }
+
+            feedbackState.value = PostPaymentFeedbackUiState()
+            feedbackPayload.value = null
+        }
+    }
+
+    private fun dismissFeedbackForNewCommandIfVisible() {
+        if (!feedbackState.value.visible) return
+        Log.i(TAG, "POST_PAYMENT_FEEDBACK dismissed because new ECR command received")
+        feedbackState.value = PostPaymentFeedbackUiState()
+        feedbackPayload.value = null
+    }
+
+    private fun safeFeedbackError(error: Throwable): String = error::class.simpleName ?: "feedback_failed"
 
     fun openUnlockDialog() {
         unlockState.value = UnlockState(showDialog = true)
@@ -207,10 +336,14 @@ class PcCommandIdleViewModel(
                 observeSettingsUseCase(),
                 unlockState,
                 pcStatusMessage,
-                combine(sessionRepository.profileId, sessionRepository.accessToken) { profileId, token ->
-                    profileId != null && !token.isNullOrBlank()
-                }
-            ) { status, settings, unlock, pcMessage, waiterAuthorized ->
+                combine(
+                    feedbackState,
+                    combine(sessionRepository.profileId, sessionRepository.accessToken) { profileId, token ->
+                        profileId != null && !token.isNullOrBlank()
+                    }
+                ) { feedback, waiterAuthorized -> feedback to waiterAuthorized }
+            ) { status, settings, unlock, pcMessage, feedbackAndAuth ->
+                val (feedback, waiterAuthorized) = feedbackAndAuth
                 val configuredImages = settings.pcIdleImages.filter { it.isNotBlank() }
                 PcCommandIdleUiState(
                     connectionStatus = status,
@@ -220,7 +353,9 @@ class PcCommandIdleViewModel(
                     isUnlocking = unlock.isLoading,
                     unlockError = unlock.error,
                     unlockPinMaxLength = UNLOCK_PIN_MAX_LENGTH,
-                    statusMessage = pcMessage ?: if (waiterAuthorized) null else "Ожидание авторизации официанта"
+                    statusMessage = pcMessage ?: if (waiterAuthorized) null else "Ожидание авторизации официанта",
+                    designStyle = settings.pcCompactPaymentDesignStyle,
+                    postPaymentFeedback = feedback
                 )
             }.collect { nextState ->
                 _uiState.value = nextState
@@ -264,6 +399,8 @@ class PcCommandIdleViewModel(
     }
 
     private suspend fun handleCommand(command: PcPaymentCommand) {
+        dismissFeedbackForNewCommandIfVisible()
+
         if (shouldIgnoreDuplicate(command)) {
             return
         }
@@ -383,6 +520,7 @@ class PcCommandIdleViewModel(
         private const val NO_ID_DEDUPE_WINDOW_MS = 5_000L
         private const val DEFAULT_IMAGE = "default"
         private const val WAITER_LOGIN_STATUS_VISIBLE_MS = 1_200L
+        private const val FEEDBACK_TIMEOUT_SECONDS = 15
     }
 }
 

@@ -30,6 +30,9 @@ import androidx.navigation.navArgument
 import com.chaiok.pos.data.di.AppContainer
 import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.domain.model.PosPaymentRequest
+import com.chaiok.pos.domain.model.PcEcrOperationType
+import com.chaiok.pos.domain.model.PcEcrProtocol
+import com.chaiok.pos.domain.model.PostPaymentFeedbackPayload
 import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
 import com.chaiok.pos.presentation.background.ProfileBackgroundViewModel
 import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
@@ -613,24 +616,49 @@ fun ChaiOkNavHost(container: AppContainer) {
             )
         }
 
-        composable(Routes.PcCommandIdle) {
+        composable(Routes.PcCommandIdle) { backStack ->
             val vm: PcCommandIdleViewModel = viewModel(
                 factory = SimpleFactory {
                     PcCommandIdleViewModel(
                         repository = container.pcPaymentCommandRepository,
                         observeSettingsUseCase = container.observeSettingsUseCase,
                         loginWithPinUseCase = container.loginWithPinUseCase,
-                        sessionRepository = container.sessionRepository
+                        sessionRepository = container.sessionRepository,
+                        submitPostPaymentFeedbackUseCase = container.submitPostPaymentFeedbackUseCase
                     )
                 }
             )
 
             val state by vm.uiState.collectAsStateWithLifecycle()
             val pcEvents: Flow<PcCommandIdleEvent> = vm.events
+            val pendingFeedbackCommandId by backStack.savedStateHandle
+                .getStateFlow<String?>(POST_PAYMENT_FEEDBACK_COMMAND_ID_KEY, null)
+                .collectAsStateWithLifecycle()
 
             val lifecycleOwner = LocalLifecycleOwner.current
             val scope = rememberCoroutineScope()
             val deviceClass = rememberChaiOkDeviceClass()
+
+            LaunchedEffect(pendingFeedbackCommandId) {
+                val commandId = pendingFeedbackCommandId?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+                vm.showPostPaymentFeedback(
+                    PostPaymentFeedbackPayload(
+                        commandId = commandId,
+                        transactionId = backStack.savedStateHandle.get<String>(POST_PAYMENT_FEEDBACK_TRANSACTION_ID_KEY),
+                        waiterId = backStack.savedStateHandle.get<String>(POST_PAYMENT_FEEDBACK_WAITER_ID_KEY),
+                        profileId = container.sessionRepository.profileId.first(),
+                        orderId = backStack.savedStateHandle.get<String>(POST_PAYMENT_FEEDBACK_ORDER_ID_KEY),
+                        billAmount = backStack.savedStateHandle.get<String>(POST_PAYMENT_FEEDBACK_BILL_AMOUNT_KEY)?.toBigDecimalOrNull(),
+                        tipAmount = backStack.savedStateHandle.get<String>(POST_PAYMENT_FEEDBACK_TIP_AMOUNT_KEY)?.toBigDecimalOrNull()
+                    )
+                )
+                backStack.savedStateHandle.remove<String>(POST_PAYMENT_FEEDBACK_COMMAND_ID_KEY)
+                backStack.savedStateHandle.remove<String>(POST_PAYMENT_FEEDBACK_TRANSACTION_ID_KEY)
+                backStack.savedStateHandle.remove<String>(POST_PAYMENT_FEEDBACK_WAITER_ID_KEY)
+                backStack.savedStateHandle.remove<String>(POST_PAYMENT_FEEDBACK_ORDER_ID_KEY)
+                backStack.savedStateHandle.remove<String>(POST_PAYMENT_FEEDBACK_BILL_AMOUNT_KEY)
+                backStack.savedStateHandle.remove<String>(POST_PAYMENT_FEEDBACK_TIP_AMOUNT_KEY)
+            }
 
             DisposableEffect(lifecycleOwner) {
                 val observer = object : LifecycleEventObserver {
@@ -713,7 +741,11 @@ fun ChaiOkNavHost(container: AppContainer) {
                 onCancelUnlock = vm::closeUnlockDialog,
                 onUnlockDigit = vm::onUnlockDigit,
                 onUnlockBackspace = vm::onUnlockBackspace,
-                onSubmitUnlockPin = vm::submitUnlockPin
+                onSubmitUnlockPin = vm::submitUnlockPin,
+                onFeedbackServiceRatingSelected = vm::onFeedbackServiceRatingSelected,
+                onFeedbackKitchenRatingSelected = vm::onFeedbackKitchenRatingSelected,
+                onFeedbackClose = vm::closeFeedbackByUser,
+                onFeedbackTimerTick = vm::onFeedbackTimerTick
             )
         }
 
@@ -766,7 +798,20 @@ fun ChaiOkNavHost(container: AppContainer) {
             LaunchedEffect(events) {
                 events.collect { event ->
                     when (event) {
-                        PcCompactTipPaymentEvent.Approved -> navController.navigateAfterTipPayment(true)
+                        is PcCompactTipPaymentEvent.Approved -> {
+                            val feedbackCommandId = event.commandId?.takeIf { it.isNotBlank() }
+                            if (event.operationType == PcEcrOperationType.SALE && event.sourceProtocol == PcEcrProtocol.ARCUS2_NEWWAY && feedbackCommandId != null) {
+                                navController.getBackStackEntry(Routes.PcCommandIdle).savedStateHandle.apply {
+                                    set(POST_PAYMENT_FEEDBACK_COMMAND_ID_KEY, feedbackCommandId)
+                                    set(POST_PAYMENT_FEEDBACK_TRANSACTION_ID_KEY, event.transactionId.orEmpty())
+                                    set(POST_PAYMENT_FEEDBACK_WAITER_ID_KEY, event.waiterId.orEmpty())
+                                    set(POST_PAYMENT_FEEDBACK_ORDER_ID_KEY, event.orderId.orEmpty())
+                                    set(POST_PAYMENT_FEEDBACK_BILL_AMOUNT_KEY, event.billAmount.toPlainString())
+                                    set(POST_PAYMENT_FEEDBACK_TIP_AMOUNT_KEY, event.tipAmount.toPlainString())
+                                }
+                            }
+                            navController.navigateAfterTipPayment(true)
+                        }
                         PcCompactTipPaymentEvent.CancelledByUser -> navController.navigateAfterTipPayment(true)
                         PcCompactTipPaymentEvent.DeclinedTimeout -> navController.navigateAfterTipPayment(true)
                     }
@@ -941,6 +986,13 @@ private suspend fun resumePcUsbEcrAfterCardPresenting(container: AppContainer, r
         Log.e(PAYMENT_TAG, "PC USB payment flow resume ECR failed", throwable)
     }
 }
+
+private const val POST_PAYMENT_FEEDBACK_COMMAND_ID_KEY = "post_payment_feedback_command_id"
+private const val POST_PAYMENT_FEEDBACK_TRANSACTION_ID_KEY = "post_payment_feedback_transaction_id"
+private const val POST_PAYMENT_FEEDBACK_WAITER_ID_KEY = "post_payment_feedback_waiter_id"
+private const val POST_PAYMENT_FEEDBACK_ORDER_ID_KEY = "post_payment_feedback_order_id"
+private const val POST_PAYMENT_FEEDBACK_BILL_AMOUNT_KEY = "post_payment_feedback_bill_amount"
+private const val POST_PAYMENT_FEEDBACK_TIP_AMOUNT_KEY = "post_payment_feedback_tip_amount"
 
 private fun NavHostController.navigateAfterTipPayment(isPcUsbSource: Boolean) {
     if (isPcUsbSource) {
