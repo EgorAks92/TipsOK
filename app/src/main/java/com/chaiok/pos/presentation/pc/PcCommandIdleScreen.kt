@@ -9,23 +9,32 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,21 +46,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.chaiok.pos.R
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
+import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
 import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
@@ -59,6 +75,10 @@ import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
 
 @Composable
 fun PcCommandIdleScreen(
@@ -67,7 +87,11 @@ fun PcCommandIdleScreen(
     onCancelUnlock: () -> Unit,
     onUnlockDigit: (String) -> Unit,
     onUnlockBackspace: () -> Unit,
-    onSubmitUnlockPin: () -> Unit
+    onSubmitUnlockPin: () -> Unit,
+    onFeedbackServiceRatingSelected: (Int) -> Unit,
+    onFeedbackKitchenRatingSelected: (Int) -> Unit,
+    onFeedbackClose: () -> Unit,
+    onFeedbackTimerTick: () -> Unit
 ) {
     val slides = if (state.images.isEmpty()) listOf(DEFAULT_IMAGE) else state.images
     val isCompact = rememberChaiOkDeviceClass() == ChaiOkDeviceClass.SquareCompact
@@ -99,6 +123,29 @@ fun PcCommandIdleScreen(
                 .padding(if (isCompact) 10.dp else 18.dp)
         )
 
+        if (state.postPaymentFeedback.visible) {
+            LaunchedEffect(
+                state.postPaymentFeedback.visible,
+                state.postPaymentFeedback.commandId
+            ) {
+                while (state.postPaymentFeedback.visible && state.postPaymentFeedback.secondsLeft > 0) {
+                    delay(1_000L)
+                    onFeedbackTimerTick()
+                }
+            }
+
+            PcPostPaymentFeedbackScreen(
+                designStyle = state.designStyle,
+                serviceRating = state.postPaymentFeedback.serviceRating,
+                kitchenRating = state.postPaymentFeedback.kitchenRating,
+                secondsLeft = state.postPaymentFeedback.secondsLeft,
+                onServiceRatingSelected = onFeedbackServiceRatingSelected,
+                onKitchenRatingSelected = onFeedbackKitchenRatingSelected,
+                onClose = onFeedbackClose,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
         if (state.showUnlockDialog) {
             UnlockPinDialog(
                 pin = state.unlockPin,
@@ -112,6 +159,198 @@ fun PcCommandIdleScreen(
                 onSubmit = onSubmitUnlockPin
             )
         }
+    }
+}
+
+@Composable
+fun PcPostPaymentFeedbackScreen(
+    designStyle: PcCompactPaymentDesignStyle,
+    serviceRating: Int?,
+    kitchenRating: Int?,
+    secondsLeft: Int,
+    onServiceRatingSelected: (Int) -> Unit,
+    onKitchenRatingSelected: (Int) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isAlfa = designStyle == PcCompactPaymentDesignStyle.ALFA
+    val isCompact = rememberChaiOkDeviceClass() == ChaiOkDeviceClass.SquareCompact
+    val titleColor = if (isAlfa) Color(0xFF181F28) else Color.White
+    val selectedStar = if (isAlfa) Color(0xFFE30613) else Color(0xFF42E4E8)
+    val unselectedStar = if (isAlfa) Color(0xFFD7E9FF) else Color(0xFF35546D)
+    val outlineStar = if (isAlfa) Color(0xFFEAF4FF) else Color(0xFF90C7DD)
+    val timerColor = if (isAlfa) Color(0xFF181F28) else Color.White
+    val titleSize = if (isCompact) 35.sp else 64.sp
+    val starSize = if (isCompact) 48.dp else 92.dp
+
+    Box(
+        modifier = modifier.background(
+            if (isAlfa) {
+                Brush.verticalGradient(listOf(Color.White, Color.White))
+            } else {
+                Brush.linearGradient(listOf(Color(0xFF0F1720), Color(0xFF1269A8), Color(0xFF111A23)))
+            }
+        )
+    ) {
+        IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(if (isCompact) 18.dp else 48.dp)
+                    .size(if (isCompact) 56.dp else 88.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Закрыть",
+                    tint = timerColor,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = if (isCompact) 24.dp else 120.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            FeedbackQuestion(
+                text = "Как вам сервис?",
+                titleColor = titleColor,
+                titleSize = titleSize,
+                starSize = starSize,
+                selectedStar = selectedStar,
+                unselectedStar = unselectedStar,
+                outlineStar = outlineStar,
+                selectedRating = serviceRating,
+                glow = !isAlfa,
+                onRatingSelected = onServiceRatingSelected
+            )
+            Spacer(Modifier.fillMaxHeight(if (isCompact) 0.12f else 0.16f))
+            FeedbackQuestion(
+                text = "Как вам кухня?",
+                titleColor = titleColor,
+                titleSize = titleSize,
+                starSize = starSize,
+                selectedStar = selectedStar,
+                unselectedStar = unselectedStar,
+                outlineStar = outlineStar,
+                selectedRating = kitchenRating,
+                glow = !isAlfa,
+                onRatingSelected = onKitchenRatingSelected
+            )
+            Spacer(Modifier.fillMaxHeight(if (isCompact) 0.08f else 0.10f))
+        }
+
+        FeedbackTimer(
+            secondsLeft = secondsLeft,
+            color = timerColor,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(if (isCompact) 16.dp else 56.dp)
+                .size(if (isCompact) 52.dp else 112.dp)
+        )
+    }
+}
+
+@Composable
+private fun FeedbackQuestion(
+    text: String,
+    titleColor: Color,
+    titleSize: androidx.compose.ui.unit.TextUnit,
+    starSize: Dp,
+    selectedStar: Color,
+    unselectedStar: Color,
+    outlineStar: Color,
+    selectedRating: Int?,
+    glow: Boolean,
+    onRatingSelected: (Int) -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = text,
+            color = titleColor,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = titleSize,
+            textAlign = TextAlign.Center
+        )
+        Row(
+            modifier = Modifier.padding(top = if (starSize < 60.dp) 18.dp else 56.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (starSize < 60.dp) 20.dp else 64.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(5) { index ->
+                val value = index + 1
+                RatingStar(
+                    filled = selectedRating?.let { value <= it } == true,
+                    selectedColor = selectedStar,
+                    unselectedColor = unselectedStar,
+                    outlineColor = outlineStar,
+                    glow = glow,
+                    modifier = Modifier
+                        .size(starSize)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onRatingSelected(value) }
+                        )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatingStar(
+    filled: Boolean,
+    selectedColor: Color,
+    unselectedColor: Color,
+    outlineColor: Color,
+    glow: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val fill = if (filled) selectedColor else unselectedColor
+    Canvas(modifier = if (filled && glow) modifier.shadow(12.dp, CircleShape, clip = false) else modifier) {
+        val radius = min(size.width, size.height) / 2f * 0.92f
+        val innerRadius = radius * 0.52f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val path = Path()
+        for (i in 0 until 10) {
+            val angle = -PI / 2.0 + i * PI / 5.0
+            val pointRadius = if (i % 2 == 0) radius else innerRadius
+            val x = center.x + (cos(angle) * pointRadius).toFloat()
+            val y = center.y + (sin(angle) * pointRadius).toFloat()
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        path.close()
+        drawPath(path, fill)
+        drawPath(
+            path = path,
+            color = if (filled) selectedColor.copy(alpha = 0.55f) else outlineColor,
+            style = Stroke(width = 2.5f, cap = StrokeCap.Round)
+        )
+    }
+}
+
+@Composable
+private fun FeedbackTimer(
+    secondsLeft: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.border(width = 1.5.dp, color = color, shape = CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = secondsLeft.toString(),
+            color = color,
+            fontFamily = MontserratFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = if (secondsLeft >= 10) 36.sp else 28.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
