@@ -794,15 +794,26 @@ fun ChaiOkNavHost(container: AppContainer) {
                 }
             )
             val state by vm.uiState.collectAsStateWithLifecycle()
+            val isArcus2PaymentRoute =
+                backStack.arguments?.getString("sourceProtocol") == PcEcrProtocol.ARCUS2_NEWWAY.name
             val events = vm.events
 
             BackHandler(
-                enabled = backStack.arguments?.getString("sourceProtocol") == PcEcrProtocol.ARCUS2_NEWWAY.name &&
-                        state.canCancel &&
+                enabled = isArcus2PaymentRoute &&
                         state.paymentStage != CardPresentingStage.Approved
             ) {
-                Log.i("PcCompactTipPayment", "System back intercepted; routing to cancelPayment for ARCUS2")
-                vm.cancelPayment()
+                if (state.canCancel) {
+                    Log.i(
+                        "PcCompactTipPayment",
+                        "System back intercepted; routing to cancelPayment for ARCUS2"
+                    )
+                    vm.cancelPayment()
+                } else {
+                    Log.i(
+                        "PcCompactTipPayment",
+                        "System back consumed for ARCUS2 while cancel/finalization is in progress"
+                    )
+                }
             }
 
             LaunchedEffect(events) {
