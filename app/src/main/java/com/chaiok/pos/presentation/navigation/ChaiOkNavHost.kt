@@ -39,6 +39,7 @@ import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
 import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingOneTimeEvent
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingScreen
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingViewModel
 import com.chaiok.pos.presentation.home.HomeEvent
 import com.chaiok.pos.presentation.home.HomeScreen
@@ -793,7 +794,26 @@ fun ChaiOkNavHost(container: AppContainer) {
                 }
             )
             val state by vm.uiState.collectAsStateWithLifecycle()
+            val isArcus2PaymentRoute =
+                backStack.arguments?.getString("sourceProtocol") == PcEcrProtocol.ARCUS2_NEWWAY.name
             val events = vm.events
+
+            BackHandler(
+                enabled = isArcus2PaymentRoute
+            ) {
+                if (state.canCancel && state.paymentStage != CardPresentingStage.Approved) {
+                    Log.i(
+                        "PcCompactTipPayment",
+                        "System back intercepted; routing to cancelPayment for ARCUS2"
+                    )
+                    vm.cancelPayment()
+                } else {
+                    Log.i(
+                        "PcCompactTipPayment",
+                        "System back consumed for ARCUS2 while cancel/finalization/result screen is in progress"
+                    )
+                }
+            }
 
             LaunchedEffect(events) {
                 events.collect { event ->
