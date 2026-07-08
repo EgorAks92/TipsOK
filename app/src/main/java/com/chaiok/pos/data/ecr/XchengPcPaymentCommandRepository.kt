@@ -26,7 +26,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class XchengPcPaymentCommandRepository(
-    private val client: XchengWireEcrPortClient,
+    private val client: PcEcrTransport,
     private val settingsRepository: SettingsRepository,
     private val sessionRepository: SessionRepository,
     context: Context
