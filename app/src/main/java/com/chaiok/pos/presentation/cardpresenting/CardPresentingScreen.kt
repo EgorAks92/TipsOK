@@ -68,7 +68,6 @@ private val CardPresentingGreenColor = Color(0xFF14B8A6)
 private val CardPresentingErrorColor = Color(0xFFFF5A5F)
 private val CardPresentingSoftCardColor = Color(0xFFF7F8FA)
 private val CardPresentingStrokeColor = Color(0xFFE2E7EF)
-private val CardPresentingCompactBackgroundColor = Color(0xFFF8F8F8)
 private val CardPresentingCompactShadowColor = Color(0xFFA7A7A7)
 
 private fun Modifier.compactReferenceShadow(shape: Shape): Modifier =
@@ -335,72 +334,6 @@ private fun CardPresentingLayoutMetrics.adaptForEcr(mode: EcrLayoutMode): CardPr
         visualSize = dp(visualSize), visualPulseBaseSize = dp(visualPulseBaseSize), visualWavesSize = dp(visualWavesSize), visualIconBoxSize = dp(visualIconBoxSize), visualIconBoxCornerRadius = dp(visualIconBoxCornerRadius), visualIconSize = dp(visualIconSize), spinnerSize = dp(spinnerSize),
         nfcWaveStrokeWidth = dp(nfcWaveStrokeWidth), nfcWaveRadii = nfcWaveRadii.map(::dp), visualToTitleSpacing = dp(visualToTitleSpacing), titleFontSize = sp(titleFontSize), titleLineHeight = sp(titleLineHeight), titleToMessageSpacing = dp(titleToMessageSpacing), messageFontSize = sp(messageFontSize), messageLineHeight = sp(messageLineHeight), loadingSpacing = dp(loadingSpacing), loadingSize = dp(loadingSize), cancelButtonHeight = dp(cancelButtonHeight), cancelButtonCornerRadius = dp(cancelButtonCornerRadius), cancelButtonFontSize = sp(cancelButtonFontSize), cancelButtonLineHeight = sp(cancelButtonLineHeight)
     )
-}
-
-@Composable
-private fun CardPresentingSquarePremiumScreen(
-    state: CardPresentingUiState,
-    onCancel: () -> Unit
-) {
-    val metrics = squarePremiumCardPresentingMetrics()
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CardPresentingCompactBackgroundColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = metrics.horizontalPadding)
-                .padding(top = metrics.topPadding, bottom = metrics.bottomPadding),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            PremiumAmountHero(
-                amountText = state.amountText,
-                stage = state.stage,
-                metrics = metrics
-            )
-
-            Spacer(modifier = Modifier.height(metrics.amountToMainSpacing))
-
-            PremiumPaymentFocus(
-                state = state,
-                metrics = metrics,
-                modifier = Modifier.weight(1f)
-            )
-
-            Spacer(modifier = Modifier.height(metrics.mainToButtonSpacing))
-
-            PremiumCancelButton(
-                enabled = state.canCancel,
-                metrics = metrics,
-                onClick = onCancel
-            )
-        }
-    }
-}
-
-@Composable
-private fun PremiumLogoHeader(
-    metrics: CardPresentingLayoutMetrics
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(metrics.headerHeight),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.tiply_logo_black),
-            contentDescription = "Tiply",
-            modifier = Modifier.size(
-                width = metrics.logoWidth,
-                height = metrics.logoHeight
-            ),
-            contentScale = ContentScale.Fit
-        )
-    }
 }
 
 @Composable
@@ -977,59 +910,6 @@ private fun CancelPaymentButton(
         Text(
             text = if (enabled) "Отменить оплату" else "Отмена недоступна",
             color = if (enabled) Color.White else CardPresentingSecondaryTextColor,
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = metrics.cancelButtonFontSize,
-            lineHeight = metrics.cancelButtonLineHeight,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun PremiumCancelButton(
-    enabled: Boolean,
-    metrics: CardPresentingLayoutMetrics,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-
-    val textColor = if (enabled) {
-        CardPresentingErrorColor
-    } else {
-        CardPresentingSecondaryTextColor.copy(alpha = 0.62f)
-    }
-
-    val borderColor = if (enabled) {
-        CardPresentingErrorColor.copy(alpha = 0.22f)
-    } else {
-        CardPresentingStrokeColor
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(metrics.cancelButtonHeight)
-            .clip(RoundedCornerShape(metrics.cancelButtonCornerRadius))
-            .background(Color.White)
-            .border(
-                width = 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(metrics.cancelButtonCornerRadius)
-            )
-            .clickable(
-                enabled = enabled,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = if (enabled) "Отменить оплату" else "Отмена недоступна",
-            color = textColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = metrics.cancelButtonFontSize,

@@ -38,13 +38,11 @@ data class EcrAdaptiveMetrics(
     val cardPadding: Dp,
     val smallSpacing: Dp,
     val mediumSpacing: Dp,
-    val largeSpacing: Dp,
     val titleSize: TextUnit,
     val bodySize: TextUnit,
     val amountSize: TextUnit,
     val buttonHeight: Dp,
-    val indicatorSize: Dp,
-    val compactScale: Float
+    val indicatorSize: Dp
 )
 
 @Composable
@@ -60,11 +58,11 @@ fun rememberEcrAdaptiveMetrics(): EcrAdaptiveMetrics {
         else -> EcrLayoutMode.MediumLandscape
     }
     return when (mode) {
-        EcrLayoutMode.CompactSquare -> EcrAdaptiveMetrics(mode, 16.dp, 480.dp, 24.dp, 14.dp, 6.dp, 10.dp, 16.dp, 20.sp, 12.sp, 40.sp, 56.dp, 144.dp, 1f)
-        EcrLayoutMode.MediumLandscape -> EcrAdaptiveMetrics(mode, 28.dp, 760.dp, 28.dp, 20.dp, 8.dp, 14.dp, 22.dp, 24.sp, 15.sp, 46.sp, 58.dp, 160.dp, 1.08f)
-        EcrLayoutMode.WideLandscape -> EcrAdaptiveMetrics(mode, 44.dp, 980.dp, 32.dp, 26.dp, 10.dp, 18.dp, 28.dp, 28.sp, 17.sp, 56.sp, 64.dp, 184.dp, 1.25f)
-        EcrLayoutMode.Large -> EcrAdaptiveMetrics(mode, 64.dp, 1120.dp, 36.dp, 32.dp, 12.dp, 22.dp, 34.dp, 32.sp, 19.sp, 64.sp, 72.dp, 210.dp, 1.42f)
-        EcrLayoutMode.Portrait -> EcrAdaptiveMetrics(mode, 24.dp, 640.dp, 30.dp, 22.dp, 8.dp, 16.dp, 24.dp, 26.sp, 16.sp, 52.sp, 62.dp, 176.dp, 1.12f)
+        EcrLayoutMode.CompactSquare -> EcrAdaptiveMetrics(mode, 16.dp, 480.dp, 24.dp, 14.dp, 6.dp, 10.dp, 20.sp, 12.sp, 40.sp, 56.dp, 144.dp)
+        EcrLayoutMode.MediumLandscape -> EcrAdaptiveMetrics(mode, 28.dp, 760.dp, 28.dp, 20.dp, 8.dp, 14.dp, 24.sp, 15.sp, 46.sp, 58.dp, 160.dp)
+        EcrLayoutMode.WideLandscape -> EcrAdaptiveMetrics(mode, 44.dp, 980.dp, 32.dp, 26.dp, 10.dp, 18.dp, 28.sp, 17.sp, 56.sp, 64.dp, 184.dp)
+        EcrLayoutMode.Large -> EcrAdaptiveMetrics(mode, 64.dp, 1120.dp, 36.dp, 32.dp, 12.dp, 22.dp, 32.sp, 19.sp, 64.sp, 72.dp, 210.dp)
+        EcrLayoutMode.Portrait -> EcrAdaptiveMetrics(mode, 24.dp, 640.dp, 30.dp, 22.dp, 8.dp, 16.dp, 26.sp, 16.sp, 52.sp, 62.dp, 176.dp)
     }
 }
 
@@ -75,8 +73,11 @@ data class EcrPaymentMetrics(
     val tipHeaderTop: Dp,
     val tipSelectionHeaderTop: Dp,
     val statusHeaderTop: Dp,
+    val decorativeCardOffsetX: Dp,
     val operationTitleSize: TextUnit,
     val amountSize: TextUnit,
+    val tipSelectionTitleSize: TextUnit,
+    val tipsSectionTitleSize: TextUnit,
     val tipTitleTopWithFee: Dp,
     val tipTitleTop: Dp,
     val tipRowTopWithFee: Dp,
@@ -87,6 +88,11 @@ data class EcrPaymentMetrics(
     val tipCardHorizontalPadding: Dp,
     val tipCardTextSafetyPadding: Dp,
     val tipCardTitleSize: TextUnit,
+    val tipCardCornerRadius: Dp,
+    val tipCardPaddingHorizontal: Dp,
+    val tipCardPaddingVertical: Dp,
+    val tipCardSecondaryTextSize: TextUnit,
+    val tipCardSecondaryTopPadding: Dp,
     val tipCarouselSidePadding: Dp,
     val tipCarouselSpacing: Dp,
     val noTipsGapWithFee: Dp,
@@ -100,12 +106,17 @@ data class EcrPaymentMetrics(
     val statusIndicatorSize: Dp,
     val resultTextOffset: Dp,
     val resultTextSize: TextUnit,
+    val retryBottomPadding: Dp,
     val customDialogHorizontalPadding: Dp,
     val customDialogCornerRadius: Dp,
     val customDialogPaddingHorizontal: Dp,
     val customDialogPaddingVertical: Dp,
     val customDialogTitleSize: TextUnit,
     val customDialogAmountSize: TextUnit,
+    val customDialogAmountTopPadding: Dp,
+    val customDialogAmountBottomPadding: Dp,
+    val customDialogButtonsTopPadding: Dp,
+    val customDialogButtonsSpacing: Dp,
     val keypadTouchSize: Dp,
     val keypadDigitSize: TextUnit,
     val keypadIconSize: Dp,
@@ -114,7 +125,8 @@ data class EcrPaymentMetrics(
     val dialogButtonTextSize: TextUnit,
     val cancelPreviousTopPadding: Dp,
     val cancelPreviousTitleSize: TextUnit,
-    val cancelPreviousMessageSize: TextUnit
+    val cancelPreviousMessageSize: TextUnit,
+    val cancelPreviousSpacerHeight: Dp
 )
 
 fun EcrAdaptiveMetrics.paymentMetrics(): EcrPaymentMetrics {
@@ -133,18 +145,27 @@ fun EcrAdaptiveMetrics.paymentMetrics(): EcrPaymentMetrics {
         tipHeaderTop = dp(112f),
         tipSelectionHeaderTop = dp(158f),
         statusHeaderTop = dp(64f),
+        decorativeCardOffsetX = dp(16f),
         operationTitleSize = sp(16f), amountSize = sp(40f),
+        tipSelectionTitleSize = sp(16f), tipsSectionTitleSize = sp(20f),
         tipTitleTopWithFee = dp(214f), tipTitleTop = dp(262f), tipRowTopWithFee = dp(244f), tipRowTop = dp(302f),
         tipCardMinWidth = dp(140f), tipCardMaxWidth = dp(190f), tipCardHeight = dp(90f),
         tipCardHorizontalPadding = dp(12f), tipCardTextSafetyPadding = dp(8f), tipCardTitleSize = sp(20f),
+        tipCardCornerRadius = dp(28f), tipCardPaddingHorizontal = dp(12f), tipCardPaddingVertical = dp(12f),
+        tipCardSecondaryTextSize = sp(14f), tipCardSecondaryTopPadding = dp(6f),
         tipCarouselSidePadding = dp(16f), tipCarouselSpacing = dp(16f), noTipsGapWithFee = dp(10f), noTipsGap = dp(20f),
         serviceFeeHorizontalPadding = dp(16f), serviceFeeVerticalPadding = dp(16f),
         cancelTopPadding = dp(8f), cancelEndPadding = dp(8f), cancelButtonSize = dp(56f), cancelIconSize = dp(24f),
         statusIndicatorSize = indicatorSize, resultTextOffset = dp(96f), resultTextSize = sp(24f),
+        retryBottomPadding = dp(8f),
         customDialogHorizontalPadding = dp(8f), customDialogCornerRadius = dp(28f), customDialogPaddingHorizontal = dp(14f), customDialogPaddingVertical = dp(12f),
-        customDialogTitleSize = sp(19f), customDialogAmountSize = sp(32f), keypadTouchSize = dp(44f), keypadDigitSize = sp(20f), keypadIconSize = dp(22f),
+        customDialogTitleSize = sp(19f), customDialogAmountSize = sp(32f),
+        customDialogAmountTopPadding = dp(6f), customDialogAmountBottomPadding = dp(4f),
+        customDialogButtonsTopPadding = dp(6f), customDialogButtonsSpacing = dp(10f),
+        keypadTouchSize = dp(44f), keypadDigitSize = sp(20f), keypadIconSize = dp(22f),
         dialogButtonHeight = dp(42f), dialogButtonCornerRadius = dp(14f), dialogButtonTextSize = sp(14f),
-        cancelPreviousTopPadding = dp(300f), cancelPreviousTitleSize = sp(24f), cancelPreviousMessageSize = sp(16f)
+        cancelPreviousTopPadding = dp(300f), cancelPreviousTitleSize = sp(24f), cancelPreviousMessageSize = sp(16f),
+        cancelPreviousSpacerHeight = dp(8f)
     )
 }
 

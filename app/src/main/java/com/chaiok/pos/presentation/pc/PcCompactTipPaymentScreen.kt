@@ -579,7 +579,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             Text(
                 text = if (state.operationType == PcEcrOperationType.RECONCILIATION) state.operationTitle else state.operationTitle.lowercase(),
                 color = theme.secondaryTextColor,
-                fontSize = 16.sp,
+                fontSize = metrics.tipSelectionTitleSize,
                 fontWeight = FontWeight.Medium,
                 fontFamily = MontserratFontFamily
             )
@@ -599,7 +599,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = metrics.statusHeaderTop)
-                .offset(x = 16.dp)
+                .offset(x = metrics.decorativeCardOffsetX)
         )
 
         if (isCancelPrevious) {
@@ -618,16 +618,16 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 Text(
                     text = title,
                     color = theme.primaryTextColor,
-                    fontSize = 24.sp,
+                    fontSize = metrics.cancelPreviousTitleSize,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
                     textAlign = TextAlign.Center
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(metrics.cancelPreviousSpacerHeight))
                 Text(
                     text = "для отмены операции",
                     color = theme.secondaryTextColor,
-                    fontSize = 16.sp,
+                    fontSize = metrics.cancelPreviousMessageSize,
                     fontWeight = FontWeight.Medium,
                     fontFamily = MontserratFontFamily,
                     textAlign = TextAlign.Center
@@ -642,7 +642,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         if (!isCancelPrevious && !isReconciliation) Text(
             text = "чаевые",
             color = theme.secondaryTextColor,
-            fontSize = 20.sp,
+            fontSize = metrics.tipsSectionTitleSize,
             fontWeight = FontWeight.Medium,
             fontFamily = MontserratFontFamily,
             modifier = Modifier
@@ -800,7 +800,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 color = theme.primaryTextColor.copy(alpha = 0.9f),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp)
+                    .padding(bottom = metrics.retryBottomPadding)
                     .clickable(enabled = tipsInteractive, onClick = onRetry)
             )
         }
@@ -925,7 +925,7 @@ private fun PcCompactCustomTipDialog(
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp, bottom = 4.dp)
+                    .padding(top = metrics.customDialogAmountTopPadding, bottom = metrics.customDialogAmountBottomPadding)
             )
             TiplyNumericKeypad(
                 digitColor = Color.White,
@@ -950,8 +950,8 @@ private fun PcCompactCustomTipDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(top = metrics.customDialogButtonsTopPadding),
+                horizontalArrangement = Arrangement.spacedBy(metrics.customDialogButtonsSpacing)
             ) {
                 PcCompactDialogAction(
                     title = "Отмена",
@@ -2124,7 +2124,7 @@ private fun PcCompactTipPresetCard(
     metrics: EcrPaymentMetrics,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(metrics.customDialogCornerRadius)
+    val shape = RoundedCornerShape(metrics.tipCardCornerRadius)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
 
     val backgroundBrush = if (selected) theme.selectedTipBrush(visualAlpha) else theme.unselectedTipBrush(visualAlpha)
@@ -2147,7 +2147,7 @@ private fun PcCompactTipPresetCard(
                     .selectedTipBlurBackdrop(
                         enabled = true,
                         alpha = 0.99f * visualAlpha,
-                        shapeRadius = 28.dp
+                        shapeRadius = metrics.tipCardCornerRadius
                     )
             )
         }
@@ -2168,7 +2168,7 @@ private fun PcCompactTipPresetCard(
                     indication = null,
                     onClick = onClick
                 )
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .padding(horizontal = metrics.tipCardPaddingHorizontal, vertical = metrics.tipCardPaddingVertical),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -2194,14 +2194,14 @@ private fun PcCompactTipPresetCard(
                     Text(
                         text = amountText,
                         color = Color.White.copy(alpha = 0.82f * visualAlpha),
-                        fontSize = amountFontSize ?: 14.sp,
+                        fontSize = amountFontSize ?: metrics.tipCardSecondaryTextSize,
                         fontFamily = MontserratFontFamily,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         softWrap = false,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 6.dp)
+                             .padding(top = metrics.tipCardSecondaryTopPadding)
                     )
                 }
             }
