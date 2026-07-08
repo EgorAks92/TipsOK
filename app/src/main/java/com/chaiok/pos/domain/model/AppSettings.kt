@@ -75,5 +75,6 @@ data class AppSettings(
     val pcCompactServiceFeeEnabled: Boolean = true,
     val showCustomTipButton: Boolean = true,
     val pcCompactPaymentDesignStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
+    val pcEcrTransportType: PcEcrTransportType = PcEcrTransportType.AUTO,
     val arcus2NewWaySettings: Arcus2NewWaySettings = Arcus2NewWaySettings()
 )

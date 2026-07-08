@@ -46,6 +46,7 @@ import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
+import com.chaiok.pos.domain.model.PcEcrTransportType
 
 private val SettingsBackgroundColor = Color.White
 private val SettingsPrimaryTextColor = Color(0xFF1B2128)
@@ -139,7 +140,8 @@ fun SettingsRoute(
         onTogglePcUsbMode = viewModel::togglePcUsbMode,
         onTogglePcCompactServiceFee = viewModel::togglePcCompactServiceFeeEnabled,
         onToggleShowCustomTipButton = viewModel::onShowCustomTipButtonChanged,
-        onPcCompactPaymentDesignStyleChanged = viewModel::onPcCompactPaymentDesignStyleChanged
+        onPcCompactPaymentDesignStyleChanged = viewModel::onPcCompactPaymentDesignStyleChanged,
+        onPcEcrTransportTypeChanged = viewModel::onPcEcrTransportTypeChanged
     )
 }
 
@@ -154,7 +156,8 @@ fun SettingsScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
+    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit,
+    onPcEcrTransportTypeChanged: (PcEcrTransportType) -> Unit
 ) {
     when (rememberChaiOkDeviceClass()) {
         ChaiOkDeviceClass.SquareCompact -> {
@@ -168,7 +171,8 @@ fun SettingsScreen(
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
                 onToggleShowCustomTipButton = onToggleShowCustomTipButton,
-                onPcCompactPaymentDesignStyleChanged = onPcCompactPaymentDesignStyleChanged
+                onPcCompactPaymentDesignStyleChanged = onPcCompactPaymentDesignStyleChanged,
+                onPcEcrTransportTypeChanged = onPcEcrTransportTypeChanged
             )
         }
 
@@ -183,7 +187,8 @@ fun SettingsScreen(
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
                 onToggleShowCustomTipButton = onToggleShowCustomTipButton,
-                onPcCompactPaymentDesignStyleChanged = onPcCompactPaymentDesignStyleChanged
+                onPcCompactPaymentDesignStyleChanged = onPcCompactPaymentDesignStyleChanged,
+                onPcEcrTransportTypeChanged = onPcEcrTransportTypeChanged
             )
         }
     }
@@ -200,7 +205,8 @@ private fun SettingsRegularScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
+    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit,
+    onPcEcrTransportTypeChanged: (PcEcrTransportType) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -270,6 +276,13 @@ private fun SettingsRegularScreen(
                     }
                 )
 
+                SettingsRegularItem(
+                    title = "Тип ECR транспорта",
+                    subtitle = state.pcEcrTransportType.displayTitle(),
+                    iconRes = R.drawable.ic_cash,
+                    onClick = { onPcEcrTransportTypeChanged(state.pcEcrTransportType.next()) }
+                )
+
                 SettingsRegularToggleItem(
                     title = "Режим работы с кассой",
                     subtitle = if (state.pcUsbModeEnabled) "Включено" else "Выключено",
@@ -308,7 +321,8 @@ private fun SettingsSquarePremiumScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
+    onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit,
+    onPcEcrTransportTypeChanged: (PcEcrTransportType) -> Unit
 ) {
     val metrics = squarePremiumSettingsMetrics()
     val scrollState = rememberScrollState()
@@ -388,6 +402,14 @@ private fun SettingsSquarePremiumScreen(
                     }
                 )
 
+                    SettingsPremiumItem(
+                        title = "Тип ECR транспорта",
+                        subtitle = state.pcEcrTransportType.displayTitle(),
+                        iconRes = R.drawable.ic_cash,
+                        metrics = metrics,
+                        onClick = { onPcEcrTransportTypeChanged(state.pcEcrTransportType.next()) }
+                    )
+
                     SettingsPremiumToggleItem(
                         title = "Режим работы с кассой",
                         subtitle = if (state.pcUsbModeEnabled) "Включено" else "Выключено",
@@ -419,7 +441,18 @@ private fun SettingsSquarePremiumScreen(
     }
 }
 
-@Composable
+private fun PcEcrTransportType.displayTitle(): String = when (this) {
+    PcEcrTransportType.AUTO -> "AUTO — определить автоматически"
+    PcEcrTransportType.KOZEN -> "KOZEN — Kozen/Xcheng USB"
+    PcEcrTransportType.CENTERM -> "CENTERM — Centerm Serial Port"
+}
+
+private fun PcEcrTransportType.next(): PcEcrTransportType = when (this) {
+    PcEcrTransportType.AUTO -> PcEcrTransportType.KOZEN
+    PcEcrTransportType.KOZEN -> PcEcrTransportType.CENTERM
+    PcEcrTransportType.CENTERM -> PcEcrTransportType.AUTO
+}
+
 private fun SettingsRegularItem(
     title: String,
     subtitle: String,

@@ -4,6 +4,7 @@ import com.chaiok.pos.data.storage.AppDataStore
 import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
+import com.chaiok.pos.domain.model.PcEcrTransportType
 import com.chaiok.pos.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -34,8 +35,9 @@ class DataStoreSettingsRepository(
             dataStore.pcCompactServiceFeeEnabledFlow,
             dataStore.showCustomTipButtonFlow,
             dataStore.pcCompactPaymentDesignStyleFlow,
+            dataStore.pcEcrTransportTypeFlow,
             dataStore.arcus2NewWaySettingsFlow
-        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcCompactPaymentDesignStyle, arcus2NewWaySettings ->
+        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcCompactPaymentDesignStyle, pcEcrTransportType, arcus2NewWaySettings ->
             AppSettings(
                 integrationModeEnabled = base.integration,
                 tableModeEnabled = base.table,
@@ -45,6 +47,7 @@ class DataStoreSettingsRepository(
                 pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled,
                 showCustomTipButton = showCustomTipButton,
                 pcCompactPaymentDesignStyle = pcCompactPaymentDesignStyle,
+                pcEcrTransportType = pcEcrTransportType,
                 arcus2NewWaySettings = arcus2NewWaySettings
             )
         }
@@ -98,6 +101,11 @@ class DataStoreSettingsRepository(
         }
     }
 
+    override suspend fun setPcEcrTransportType(type: PcEcrTransportType) {
+        runCatching {
+            dataStore.setPcEcrTransportType(type)
+        }
+    }
 
     override suspend fun setArcus2NewWaySettings(settings: Arcus2NewWaySettings) {
         runCatching {

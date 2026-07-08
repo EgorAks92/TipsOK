@@ -7,7 +7,9 @@ import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcCompactServiceFeeEnabledUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcCompactPaymentDesignStyleUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
+import com.chaiok.pos.domain.usecase.UpdatePcEcrTransportTypeUseCase
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
+import com.chaiok.pos.domain.model.PcEcrTransportType
 import com.chaiok.pos.domain.usecase.UpdateShowCustomTipButtonUseCase
 import com.chaiok.pos.presentation.background.WaiterBackgroundMemoryCache
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +26,8 @@ data class SettingsUiState(
     val pcUsbModeEnabled: Boolean = false,
     val pcCompactServiceFeeEnabled: Boolean = true,
     val showCustomTipButton: Boolean = true,
-    val pcCompactPaymentDesignStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT
+    val pcCompactPaymentDesignStyle: PcCompactPaymentDesignStyle = PcCompactPaymentDesignStyle.DEFAULT,
+    val pcEcrTransportType: PcEcrTransportType = PcEcrTransportType.AUTO
 )
 
 class SettingsViewModel(
@@ -33,7 +36,8 @@ class SettingsViewModel(
     private val updatePcUsbModeUseCase: UpdatePcUsbModeUseCase,
     private val updatePcCompactServiceFeeEnabledUseCase: UpdatePcCompactServiceFeeEnabledUseCase,
     private val updateShowCustomTipButtonUseCase: UpdateShowCustomTipButtonUseCase,
-    private val updatePcCompactPaymentDesignStyleUseCase: UpdatePcCompactPaymentDesignStyleUseCase
+    private val updatePcCompactPaymentDesignStyleUseCase: UpdatePcCompactPaymentDesignStyleUseCase,
+    private val updatePcEcrTransportTypeUseCase: UpdatePcEcrTransportTypeUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -76,7 +80,8 @@ class SettingsViewModel(
                     pcUsbModeEnabled = settings.pcUsbModeEnabled,
                     pcCompactServiceFeeEnabled = settings.pcCompactServiceFeeEnabled,
                     showCustomTipButton = settings.showCustomTipButton,
-                    pcCompactPaymentDesignStyle = settings.pcCompactPaymentDesignStyle
+                    pcCompactPaymentDesignStyle = settings.pcCompactPaymentDesignStyle,
+                    pcEcrTransportType = settings.pcEcrTransportType
                 )
             }.collect { nextState ->
                 _uiState.update { nextState }
@@ -106,6 +111,12 @@ class SettingsViewModel(
     fun onPcCompactPaymentDesignStyleChanged(style: PcCompactPaymentDesignStyle) {
         viewModelScope.launch {
             updatePcCompactPaymentDesignStyleUseCase(style)
+        }
+    }
+
+    fun onPcEcrTransportTypeChanged(type: PcEcrTransportType) {
+        viewModelScope.launch {
+            updatePcEcrTransportTypeUseCase(type)
         }
     }
 }
