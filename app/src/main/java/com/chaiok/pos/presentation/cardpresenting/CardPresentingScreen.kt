@@ -55,8 +55,9 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
-import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
-import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
+import com.chaiok.pos.presentation.pc.EcrLayoutMode
+import com.chaiok.pos.presentation.pc.EcrScaffold
+import com.chaiok.pos.presentation.pc.rememberEcrAdaptiveMetrics
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
 private val CardPresentingBackgroundColor = Color.White
@@ -67,7 +68,6 @@ private val CardPresentingGreenColor = Color(0xFF14B8A6)
 private val CardPresentingErrorColor = Color(0xFFFF5A5F)
 private val CardPresentingSoftCardColor = Color(0xFFF7F8FA)
 private val CardPresentingStrokeColor = Color(0xFFE2E7EF)
-private val CardPresentingCompactBackgroundColor = Color(0xFFF8F8F8)
 private val CardPresentingCompactShadowColor = Color(0xFFA7A7A7)
 
 private fun Modifier.compactReferenceShadow(shape: Shape): Modifier =
@@ -282,34 +282,23 @@ fun CardPresentingScreen(
     state: CardPresentingUiState,
     onCancel: () -> Unit
 ) {
-    when (rememberChaiOkDeviceClass()) {
-        ChaiOkDeviceClass.SquareCompact -> {
-            CardPresentingSquarePremiumScreen(
-                state = state,
-                onCancel = onCancel
-            )
-        }
-
-        ChaiOkDeviceClass.Regular -> {
-            CardPresentingRegularScreen(
-                state = state,
-                onCancel = onCancel
-            )
-        }
-    }
+    // ECR flow always uses the compact premium visual language; screen size only selects metrics.
+    CardPresentingUnifiedEcrScreen(
+        state = state,
+        onCancel = onCancel
+    )
 }
 
 @Composable
-private fun CardPresentingRegularScreen(
+private fun CardPresentingUnifiedEcrScreen(
     state: CardPresentingUiState,
     onCancel: () -> Unit
 ) {
-    val metrics = regularCardPresentingMetrics()
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CardPresentingBackgroundColor)
+    val ecrMetrics = rememberEcrAdaptiveMetrics()
+    val metrics = squarePremiumCardPresentingMetrics().adaptForEcr(ecrMetrics.mode)
+    EcrScaffold(
+        error = state.stage in setOf(CardPresentingStage.Declined, CardPresentingStage.Error, CardPresentingStage.Cancelled),
+        metrics = ecrMetrics
     ) {
         Column(
             modifier = Modifier
@@ -318,98 +307,33 @@ private fun CardPresentingRegularScreen(
                 .padding(top = metrics.topPadding, bottom = metrics.bottomPadding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            PaymentHeader(metrics = metrics)
-
-            Spacer(modifier = Modifier.height(metrics.headerToAmountSpacing))
-
-            AmountCard(
-                amountText = state.amountText,
-                metrics = metrics
-            )
-
+            PremiumAmountHero(amountText = state.amountText, stage = state.stage, metrics = metrics)
             Spacer(modifier = Modifier.height(metrics.amountToMainSpacing))
-
-            CardPresentingMainCard(
-                state = state,
-                metrics = metrics,
-                modifier = Modifier.weight(1f)
-            )
-
+            PremiumPaymentFocus(state = state, metrics = metrics, modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.height(metrics.mainToButtonSpacing))
-
-            CancelPaymentButton(
-                enabled = state.canCancel,
-                metrics = metrics,
-                onClick = onCancel
-            )
+            CancelPaymentButton(enabled = state.canCancel, metrics = metrics, onClick = onCancel)
         }
     }
 }
 
-@Composable
-private fun CardPresentingSquarePremiumScreen(
-    state: CardPresentingUiState,
-    onCancel: () -> Unit
-) {
-    val metrics = squarePremiumCardPresentingMetrics()
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CardPresentingCompactBackgroundColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = metrics.horizontalPadding)
-                .padding(top = metrics.topPadding, bottom = metrics.bottomPadding),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            PremiumAmountHero(
-                amountText = state.amountText,
-                stage = state.stage,
-                metrics = metrics
-            )
-
-            Spacer(modifier = Modifier.height(metrics.amountToMainSpacing))
-
-            PremiumPaymentFocus(
-                state = state,
-                metrics = metrics,
-                modifier = Modifier.weight(1f)
-            )
-
-            Spacer(modifier = Modifier.height(metrics.mainToButtonSpacing))
-
-            PremiumCancelButton(
-                enabled = state.canCancel,
-                metrics = metrics,
-                onClick = onCancel
-            )
-        }
+private fun CardPresentingLayoutMetrics.adaptForEcr(mode: EcrLayoutMode): CardPresentingLayoutMetrics {
+    val scale = when (mode) {
+        EcrLayoutMode.CompactSquare -> 1.0f
+        EcrLayoutMode.MediumLandscape -> 1.06f
+        EcrLayoutMode.WideLandscape -> 1.18f
+        EcrLayoutMode.Large -> 1.35f
+        EcrLayoutMode.Portrait -> 1.10f
     }
-}
-
-@Composable
-private fun PremiumLogoHeader(
-    metrics: CardPresentingLayoutMetrics
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(metrics.headerHeight),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.tiply_logo_black),
-            contentDescription = "Tiply",
-            modifier = Modifier.size(
-                width = metrics.logoWidth,
-                height = metrics.logoHeight
-            ),
-            contentScale = ContentScale.Fit
-        )
-    }
+    fun dp(value: Dp): Dp = (value.value * scale).dp
+    fun sp(value: TextUnit): TextUnit = (value.value * scale).sp
+    return copy(
+        horizontalPadding = dp(horizontalPadding), topPadding = dp(topPadding), bottomPadding = dp(bottomPadding),
+        logoWidth = dp(logoWidth), logoHeight = dp(logoHeight), amountToMainSpacing = dp(amountToMainSpacing), mainToButtonSpacing = dp(mainToButtonSpacing),
+        amountCardCornerRadius = dp(amountCardCornerRadius), amountCardHorizontalPadding = dp(amountCardHorizontalPadding), amountCardVerticalPadding = dp(amountCardVerticalPadding),
+        amountLabelFontSize = sp(amountLabelFontSize), amountLabelLineHeight = sp(amountLabelLineHeight), amountFontSize = sp(amountFontSize), amountLineHeight = sp(amountLineHeight),
+        visualSize = dp(visualSize), visualPulseBaseSize = dp(visualPulseBaseSize), visualWavesSize = dp(visualWavesSize), visualIconBoxSize = dp(visualIconBoxSize), visualIconBoxCornerRadius = dp(visualIconBoxCornerRadius), visualIconSize = dp(visualIconSize), spinnerSize = dp(spinnerSize),
+        nfcWaveStrokeWidth = dp(nfcWaveStrokeWidth), nfcWaveRadii = nfcWaveRadii.map(::dp), visualToTitleSpacing = dp(visualToTitleSpacing), titleFontSize = sp(titleFontSize), titleLineHeight = sp(titleLineHeight), titleToMessageSpacing = dp(titleToMessageSpacing), messageFontSize = sp(messageFontSize), messageLineHeight = sp(messageLineHeight), loadingSpacing = dp(loadingSpacing), loadingSize = dp(loadingSize), cancelButtonHeight = dp(cancelButtonHeight), cancelButtonCornerRadius = dp(cancelButtonCornerRadius), cancelButtonFontSize = sp(cancelButtonFontSize), cancelButtonLineHeight = sp(cancelButtonLineHeight)
+    )
 }
 
 @Composable
@@ -986,59 +910,6 @@ private fun CancelPaymentButton(
         Text(
             text = if (enabled) "Отменить оплату" else "Отмена недоступна",
             color = if (enabled) Color.White else CardPresentingSecondaryTextColor,
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = metrics.cancelButtonFontSize,
-            lineHeight = metrics.cancelButtonLineHeight,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun PremiumCancelButton(
-    enabled: Boolean,
-    metrics: CardPresentingLayoutMetrics,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-
-    val textColor = if (enabled) {
-        CardPresentingErrorColor
-    } else {
-        CardPresentingSecondaryTextColor.copy(alpha = 0.62f)
-    }
-
-    val borderColor = if (enabled) {
-        CardPresentingErrorColor.copy(alpha = 0.22f)
-    } else {
-        CardPresentingStrokeColor
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(metrics.cancelButtonHeight)
-            .clip(RoundedCornerShape(metrics.cancelButtonCornerRadius))
-            .background(Color.White)
-            .border(
-                width = 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(metrics.cancelButtonCornerRadius)
-            )
-            .clickable(
-                enabled = enabled,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = if (enabled) "Отменить оплату" else "Отмена недоступна",
-            color = textColor,
             fontFamily = MontserratFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = metrics.cancelButtonFontSize,
