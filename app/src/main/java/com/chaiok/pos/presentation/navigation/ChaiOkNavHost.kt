@@ -237,7 +237,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
                         updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase,
                         updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase,
-                        updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase
+                        updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase,
+                        updatePcEcrTransportTypeUseCase = container.updatePcEcrTransportTypeUseCase
                     )
                 }
             )
@@ -276,7 +277,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
                         updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase,
                         updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase,
-                        updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase
+                        updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase,
+                        updatePcEcrTransportTypeUseCase = container.updatePcEcrTransportTypeUseCase
                     )
                 }
             )
