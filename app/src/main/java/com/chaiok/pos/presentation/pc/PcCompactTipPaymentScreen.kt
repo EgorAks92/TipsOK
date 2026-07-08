@@ -141,14 +141,6 @@ private enum class PcCompactResultIndicatorStyle {
     CleanLight
 }
 
-private val PC_COMPACT_TIP_HEADER_START = 32.dp
-private val PC_COMPACT_TIP_HEADER_TOP = 112.dp
-private val PC_COMPACT_STATUS_HEADER_TOP = 64.dp
-private val PC_COMPACT_TIP_CARD_MIN_WIDTH = 140.dp
-private val PC_COMPACT_TIP_CARD_MAX_WIDTH = 190.dp
-private val PC_COMPACT_TIP_CARD_HEIGHT = 90.dp
-private val PC_COMPACT_TIP_CARD_HORIZONTAL_PADDING = 12.dp
-private val PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING = 8.dp
 
 @Composable
 private fun ExistingPcCompactTipPaymentScreenContent(
@@ -280,6 +272,7 @@ private fun PcCompactPaymentAnimatedRoot(
     onRetry: () -> Unit
 ) {
     val phase = transition.targetState
+    val metrics = rememberEcrAdaptiveMetrics().paymentMetrics()
     PcCompactPaymentBackground(error = phase == PcCompactPaymentScreenPhase.Declined, theme = theme) {
         PcCompactTipSelectionLayer(
             state = state,
@@ -290,23 +283,27 @@ private fun PcCompactPaymentAnimatedRoot(
             onConfirmCustomTip = onConfirmCustomTip,
             onToggleServiceFee = onToggleServiceFee,
             onCancel = onCancel,
-            onRetry = onRetry
+            onRetry = onRetry,
+            metrics = metrics
         )
         PcCompactAnimatedStatusHeader(
             amountText = state.amountText,
             operationTitle = state.operationTitle,
             transition = transition,
-            theme = theme
+            theme = theme,
+            metrics = metrics
         )
         PcCompactPaymentStatusOverlay(
             transition = transition,
             theme = theme,
-            operationType = state.operationType
+            operationType = state.operationType,
+            metrics = metrics
         )
         PcCompactPersistentCancelOverlay(
             state = state,
             theme = theme,
-            onCancel = onCancel
+            onCancel = onCancel,
+            metrics = metrics
         )
     }
 }
@@ -315,7 +312,8 @@ private fun PcCompactPaymentAnimatedRoot(
 private fun BoxScope.PcCompactPersistentCancelOverlay(
     state: PcCompactTipPaymentUiState,
     theme: PcCompactPaymentVisualTheme,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    metrics: EcrPaymentMetrics
 ) {
     val show = state.canCancel
     if (!show) return
@@ -323,8 +321,8 @@ private fun BoxScope.PcCompactPersistentCancelOverlay(
     Box(
         modifier = Modifier
             .align(Alignment.TopEnd)
-            .padding(top = 8.dp, end = 8.dp)
-            .size(56.dp)
+            .padding(top = metrics.cancelTopPadding, end = metrics.cancelEndPadding)
+            .size(metrics.cancelButtonSize)
             .zIndex(10f)
             .clip(CircleShape)
             .clickable {
@@ -340,7 +338,7 @@ private fun BoxScope.PcCompactPersistentCancelOverlay(
             painter = painterResource(id = theme.closeIconDrawable),
             contentDescription = "Cancel operation",
             tint = theme.closeIconTint,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(metrics.cancelIconSize)
         )
     }
 }
@@ -430,7 +428,8 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
     amountText: String,
     operationTitle: String,
     transition: Transition<PcCompactPaymentScreenPhase>,
-    theme: PcCompactPaymentVisualTheme
+    theme: PcCompactPaymentVisualTheme,
+    metrics: EcrPaymentMetrics
 ) {
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
     val density = LocalDensity.current
@@ -459,9 +458,9 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val parentWidthPx = with(density) { maxWidth.toPx() }
-        val startXPx = with(density) { PC_COMPACT_TIP_HEADER_START.toPx() }
-        val startYPx = with(density) { PC_COMPACT_TIP_HEADER_TOP.toPx() }
-        val endYPx = with(density) { PC_COMPACT_STATUS_HEADER_TOP.toPx() }
+        val startXPx = with(density) { metrics.headerStart.toPx() }
+        val startYPx = with(density) { metrics.tipHeaderTop.toPx() }
+        val endYPx = with(density) { metrics.statusHeaderTop.toPx() }
         val centeredXPx = ((parentWidthPx - headerSize.width) / 2f).coerceAtLeast(0f)
         val animatedXPx = startXPx + (centeredXPx - startXPx) * phaseProgress
         val animatedYPx = startYPx + (endYPx - startYPx) * phaseProgress
@@ -482,7 +481,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
             Text(
                 text = if (operationTitle == "сверка итогов") operationTitle else operationTitle.lowercase(),
                 color = theme.secondaryTextColor,
-                fontSize = 20.sp,
+                fontSize = metrics.operationTitleSize,
                 fontWeight = FontWeight.Medium,
                 fontFamily = MontserratFontFamily,
                 textAlign = TextAlign.Start,
@@ -497,7 +496,7 @@ private fun BoxScope.PcCompactAnimatedStatusHeader(
                 PcCompactAnimatedAmountText(
                     text = amountText,
                     color = theme.primaryTextColor,
-                    fontSize = 40.sp,
+                    fontSize = metrics.amountSize,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -515,7 +514,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
     onConfirmCustomTip: (Double) -> Unit,
     onToggleServiceFee: (Boolean) -> Unit,
     onCancel: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    metrics: EcrPaymentMetrics
 ) {
     val isCancelPrevious = state.operationType == PcEcrOperationType.CANCEL_PREVIOUS
     val isReconciliation = state.operationType == PcEcrOperationType.RECONCILIATION
@@ -571,7 +571,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         PcCompactTipSelectionWavesLayer(transition = transition, theme = theme)
 
         Column(
-            modifier = Modifier.padding(start = 32.dp, top = 158.dp)
+            modifier = Modifier.padding(start = metrics.headerStart, top = metrics.tipHeaderTop + metrics.rootPadding + metrics.largeSpacing)
         ) {
             Text(
                 text = if (state.operationType == PcEcrOperationType.RECONCILIATION) state.operationTitle else state.operationTitle.lowercase(),
@@ -585,7 +585,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 PcCompactAnimatedAmountText(
                     text = state.amountText,
                     color = theme.primaryTextColor,
-                    fontSize = 40.sp,
+                    fontSize = metrics.amountSize,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -595,7 +595,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             theme = theme,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 58.dp)
+                .padding(top = metrics.statusHeaderTop)
                 .offset(x = 16.dp)
         )
 
@@ -609,7 +609,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
             Column(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .padding(top = 300.dp),
+                    .padding(top = metrics.cancelPreviousTopPadding),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -633,8 +633,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         }
 
         val showServiceFeeRow = !isCancelPrevious && !isReconciliation && state.showServiceFeeToggle && state.serviceFeePercent > 0.0
-        val tipsTitleTop = if (showServiceFeeRow) 214.dp else 262.dp
-        val tipsRowTop = if (showServiceFeeRow) 244.dp else 302.dp
+        val tipsTitleTop = if (showServiceFeeRow) metrics.tipTitleTopWithFee else metrics.tipTitleTop
+        val tipsRowTop = if (showServiceFeeRow) metrics.tipRowTopWithFee else metrics.tipRowTop
 
         if (!isCancelPrevious && !isReconciliation) Text(
             text = "чаевые",
@@ -665,7 +665,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         val cardPrimaryTexts = tipCards.map { it.resolvePrimaryText(state) }
         val resolvedTipCardWidth = remember(cardPrimaryTexts, density) {
             val textStyle = TextStyle(
-                fontSize = 20.sp,
+                fontSize = metrics.tipCardTitleSize,
                 fontWeight = FontWeight.Bold,
                 fontFamily = MontserratFontFamily
             )
@@ -684,10 +684,10 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 ?: 0.dp
 
             val desiredWidth = maxTextWidthDp +
-                    PC_COMPACT_TIP_CARD_HORIZONTAL_PADDING * 2 +
-                    PC_COMPACT_TIP_CARD_TEXT_SAFETY_PADDING
+                    metrics.tipCardHorizontalPadding * 2 +
+                    metrics.tipCardTextSafetyPadding
 
-            desiredWidth.coerceIn(PC_COMPACT_TIP_CARD_MIN_WIDTH, PC_COMPACT_TIP_CARD_MAX_WIDTH)
+            desiredWidth.coerceIn(metrics.tipCardMinWidth, metrics.tipCardMaxWidth)
         }
         val tipCardKeysSignature = tipCards.joinToString("|") { it.key }
 
@@ -717,8 +717,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
 
             if (tipCards.isNotEmpty()) LazyRow(
                 state = listState,
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(horizontal = metrics.tipCarouselSidePadding),
+                horizontalArrangement = Arrangement.spacedBy(metrics.tipCarouselSpacing),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 itemsIndexed(
@@ -737,6 +737,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                                 enabled = tipsInteractive,
                                 visuallyEnabled = tipsVisuallyEnabled,
                                 cardWidth = resolvedTipCardWidth,
+                                metrics = metrics,
                                 onClick = {
                                     if (tipsInteractive && state.tipConfigLoaded && state.showCustomTipButton) {
                                         showCustomTipDialog.value = true
@@ -756,6 +757,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                                 enabled = tipsInteractive,
                                 visuallyEnabled = tipsVisuallyEnabled,
                                 cardWidth = resolvedTipCardWidth,
+                                metrics = metrics,
                                 onClick = { onSelectTip(card.percentIndex) }
                             )
                         }
@@ -763,8 +765,8 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 }
             }
         }
-        val noTipsButtonGap = if (showServiceFeeRow) 10.dp else 20.dp
-        val noTipsButtonTop = tipsRowTop + PC_COMPACT_TIP_CARD_HEIGHT + noTipsButtonGap
+        val noTipsButtonGap = if (showServiceFeeRow) metrics.noTipsGapWithFee else metrics.noTipsGap
+        val noTipsButtonTop = tipsRowTop + metrics.tipCardHeight + noTipsButtonGap
         if (!isCancelPrevious && !isReconciliation) PcCompactNoTipsButton(
             theme = theme,
             selected = state.isNoTipsSelected,
@@ -781,7 +783,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .padding(horizontal = metrics.serviceFeeHorizontalPadding, vertical = metrics.serviceFeeVerticalPadding),
                 text = "Возмещение комиссии (${formatRubles(state.serviceFeeAmount)})",
                 checked = state.isServiceFeeEnabled,
                 enabled = tipsInteractive,
@@ -810,6 +812,7 @@ private fun BoxScope.PcCompactTipSelectionLayer(
     ) {
         PcCompactCustomTipDialog(
             initialValue = customTipInputValue(state.customTipAmount),
+            metrics = metrics,
             onDismiss = { showCustomTipDialog.value = false },
             onConfirm = { amount ->
                 showCustomTipDialog.value = false
@@ -874,6 +877,7 @@ private fun PcCompactTipCardUiModel.resolvePrimaryText(
 @Composable
 private fun PcCompactCustomTipDialog(
     initialValue: String,
+    metrics: EcrPaymentMetrics,
     onDismiss: () -> Unit,
     onConfirm: (Double) -> Unit
 ) {
@@ -887,8 +891,8 @@ private fun PcCompactCustomTipDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-                .clip(RoundedCornerShape(28.dp))
+                .padding(horizontal = metrics.customDialogHorizontalPadding)
+                .clip(RoundedCornerShape(metrics.customDialogCornerRadius))
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(Color(0xFF182B3D), Color(0xFF0F1D2A))
@@ -897,16 +901,16 @@ private fun PcCompactCustomTipDialog(
                 .border(
                     width = 1.dp,
                     color = Color.White.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(28.dp)
+                    shape = RoundedCornerShape(metrics.customDialogCornerRadius)
                 )
-                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .padding(horizontal = metrics.customDialogPaddingHorizontal, vertical = metrics.customDialogPaddingVertical)
         ) {
             Text(
                 text = "Своя сумма",
                 color = Color.White,
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 19.sp,
+                fontSize = metrics.customDialogTitleSize,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Text(
@@ -914,7 +918,7 @@ private fun PcCompactCustomTipDialog(
                 color = Color(0xFF20D6D2),
                 fontFamily = MontserratFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 32.sp,
+                fontSize = metrics.customDialogAmountSize,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -922,9 +926,9 @@ private fun PcCompactCustomTipDialog(
             )
             TiplyNumericKeypad(
                 digitColor = Color.White,
-                touchSize = 44.dp,
-                digitFontSize = 20.sp,
-                iconSize = 22.dp,
+                touchSize = metrics.keypadTouchSize,
+                digitFontSize = metrics.keypadDigitSize,
+                iconSize = metrics.keypadIconSize,
                 onDigit = { digit ->
                     if (value.value.length < 6) {
                         val next = (value.value + digit).filter(Char::isDigit)
@@ -951,14 +955,16 @@ private fun PcCompactCustomTipDialog(
                     primary = false,
                     enabled = true,
                     onClick = onDismiss,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    metrics = metrics
                 )
                 PcCompactDialogAction(
                     title = "Готово",
                     primary = true,
                     enabled = confirmEnabled,
                     onClick = { onConfirm(amount) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    metrics = metrics
                 )
             }
         }
@@ -971,19 +977,20 @@ private fun PcCompactDialogAction(
     primary: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    metrics: EcrPaymentMetrics
 ) {
     val background = if (primary) Color(0xFF1CC7BE) else Color.White.copy(alpha = 0.08f)
     val textColor = if (primary) Color.White else Color.White.copy(alpha = 0.95f)
     Box(
         modifier = modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(metrics.dialogButtonHeight)
+            .clip(RoundedCornerShape(metrics.dialogButtonCornerRadius))
             .background(if (enabled) background else background.copy(alpha = 0.35f))
             .border(
                 width = 1.dp,
                 color = if (primary) Color(0xFF20D6D2) else Color.White.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(metrics.dialogButtonCornerRadius)
             )
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -991,7 +998,7 @@ private fun PcCompactDialogAction(
         Text(
             text = title,
             color = if (enabled) textColor else textColor.copy(alpha = 0.5f),
-            fontSize = 14.sp,
+            fontSize = metrics.dialogButtonTextSize,
             fontWeight = FontWeight.SemiBold,
             fontFamily = MontserratFontFamily
         )
@@ -1009,7 +1016,8 @@ private fun customTipInputValue(amount: Double?): String {
 private fun BoxScope.PcCompactPaymentStatusOverlay(
     transition: Transition<PcCompactPaymentScreenPhase>,
     theme: PcCompactPaymentVisualTheme,
-    operationType: PcEcrOperationType
+    operationType: PcEcrOperationType,
+    metrics: EcrPaymentMetrics
 ) {
     val premiumEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
     val overlayAlpha by transition.animateFloat(
@@ -1043,6 +1051,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
     PcCompactMorphingPaymentIndicator(
         result = resultVisual,
         theme = theme,
+        metrics = metrics,
         modifier = Modifier
             .align(Alignment.Center)
             .graphicsLayer {
@@ -1057,7 +1066,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
         visible = resultVisual != PcCompactPaymentResultVisual.None,
         modifier = Modifier
             .align(Alignment.Center)
-            .offset(y = 96.dp),
+            .offset(y = metrics.resultTextOffset),
         enter = fadeIn(animationSpec = tween(280)) + slideInVertically(
             initialOffsetY = { it / 10 },
             animationSpec = tween(280)
@@ -1069,7 +1078,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
                 Text(
                     text = if (operationType == PcEcrOperationType.RECONCILIATION) "Успешно" else "Одобрено",
                     color = theme.primaryTextColor,
-                    fontSize = 24.sp,
+                    fontSize = metrics.resultTextSize,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
                     textAlign = TextAlign.Center
@@ -1080,7 +1089,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
                 Text(
                     text = "Отказано",
                     color = theme.primaryTextColor,
-                    fontSize = 24.sp,
+                    fontSize = metrics.resultTextSize,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
                     textAlign = TextAlign.Center
@@ -1096,6 +1105,7 @@ private fun BoxScope.PcCompactPaymentStatusOverlay(
 private fun PcCompactMorphingPaymentIndicator(
     result: PcCompactPaymentResultVisual,
     theme: PcCompactPaymentVisualTheme,
+    metrics: EcrPaymentMetrics,
     modifier: Modifier = Modifier
 ) {
     val transition = rememberInfiniteTransition(label = "neon_payment_indicator")
@@ -1132,7 +1142,7 @@ private fun PcCompactMorphingPaymentIndicator(
     }
 
     Canvas(
-        modifier = modifier.size(144.dp)
+        modifier = modifier.size(metrics.statusIndicatorSize)
     ) {
         val p = easing.transform(morphProgress.value)
 
@@ -2107,10 +2117,11 @@ private fun PcCompactTipPresetCard(
     enabled: Boolean,
     visuallyEnabled: Boolean = enabled,
     amountFontSize: TextUnit? = null,
-    cardWidth: Dp = PC_COMPACT_TIP_CARD_MIN_WIDTH,
+    cardWidth: Dp,
+    metrics: EcrPaymentMetrics,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(metrics.customDialogCornerRadius)
     val visualAlpha = if (visuallyEnabled) 1f else 0.5f
 
     val backgroundBrush = if (selected) theme.selectedTipBrush(visualAlpha) else theme.unselectedTipBrush(visualAlpha)
@@ -2124,7 +2135,7 @@ private fun PcCompactTipPresetCard(
     }
 
     Box(
-        modifier = Modifier.size(width = cardWidth, height = PC_COMPACT_TIP_CARD_HEIGHT)
+        modifier = Modifier.size(width = cardWidth, height = metrics.tipCardHeight)
     ) {
         if (showSelectedBlurGlow) {
             Box(
@@ -2165,8 +2176,8 @@ private fun PcCompactTipPresetCard(
                 Text(
                     text = percentText,
                     color = (if (selected) Color.White else theme.primaryTextColor).copy(alpha = visualAlpha),
-                    fontSize = 20.sp,
-                    lineHeight = 20.sp,
+                    fontSize = metrics.tipCardTitleSize,
+                    lineHeight = metrics.tipCardTitleSize,
                     fontWeight = FontWeight.Bold,
                     fontFamily = MontserratFontFamily,
                     textAlign = TextAlign.Center,

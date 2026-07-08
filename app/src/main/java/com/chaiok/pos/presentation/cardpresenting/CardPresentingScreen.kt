@@ -55,8 +55,9 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chaiok.pos.R
-import com.chaiok.pos.presentation.adaptive.ChaiOkDeviceClass
-import com.chaiok.pos.presentation.adaptive.rememberChaiOkDeviceClass
+import com.chaiok.pos.presentation.pc.EcrLayoutMode
+import com.chaiok.pos.presentation.pc.EcrScaffold
+import com.chaiok.pos.presentation.pc.rememberEcrAdaptiveMetrics
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 
 private val CardPresentingBackgroundColor = Color.White
@@ -282,34 +283,23 @@ fun CardPresentingScreen(
     state: CardPresentingUiState,
     onCancel: () -> Unit
 ) {
-    when (rememberChaiOkDeviceClass()) {
-        ChaiOkDeviceClass.SquareCompact -> {
-            CardPresentingSquarePremiumScreen(
-                state = state,
-                onCancel = onCancel
-            )
-        }
-
-        ChaiOkDeviceClass.Regular -> {
-            CardPresentingRegularScreen(
-                state = state,
-                onCancel = onCancel
-            )
-        }
-    }
+    // ECR flow always uses the compact premium visual language; screen size only selects metrics.
+    CardPresentingUnifiedEcrScreen(
+        state = state,
+        onCancel = onCancel
+    )
 }
 
 @Composable
-private fun CardPresentingRegularScreen(
+private fun CardPresentingUnifiedEcrScreen(
     state: CardPresentingUiState,
     onCancel: () -> Unit
 ) {
-    val metrics = regularCardPresentingMetrics()
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CardPresentingBackgroundColor)
+    val ecrMetrics = rememberEcrAdaptiveMetrics()
+    val metrics = squarePremiumCardPresentingMetrics().adaptForEcr(ecrMetrics.mode)
+    EcrScaffold(
+        error = state.stage in setOf(CardPresentingStage.Declined, CardPresentingStage.Error, CardPresentingStage.Cancelled),
+        metrics = ecrMetrics
     ) {
         Column(
             modifier = Modifier
@@ -318,32 +308,33 @@ private fun CardPresentingRegularScreen(
                 .padding(top = metrics.topPadding, bottom = metrics.bottomPadding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            PaymentHeader(metrics = metrics)
-
-            Spacer(modifier = Modifier.height(metrics.headerToAmountSpacing))
-
-            AmountCard(
-                amountText = state.amountText,
-                metrics = metrics
-            )
-
+            PremiumAmountHero(amountText = state.amountText, stage = state.stage, metrics = metrics)
             Spacer(modifier = Modifier.height(metrics.amountToMainSpacing))
-
-            CardPresentingMainCard(
-                state = state,
-                metrics = metrics,
-                modifier = Modifier.weight(1f)
-            )
-
+            PremiumPaymentFocus(state = state, metrics = metrics, modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.height(metrics.mainToButtonSpacing))
-
-            CancelPaymentButton(
-                enabled = state.canCancel,
-                metrics = metrics,
-                onClick = onCancel
-            )
+            CancelPaymentButton(enabled = state.canCancel, metrics = metrics, onClick = onCancel)
         }
     }
+}
+
+private fun CardPresentingLayoutMetrics.adaptForEcr(mode: EcrLayoutMode): CardPresentingLayoutMetrics {
+    val scale = when (mode) {
+        EcrLayoutMode.CompactSquare -> 1.0f
+        EcrLayoutMode.MediumLandscape -> 1.06f
+        EcrLayoutMode.WideLandscape -> 1.18f
+        EcrLayoutMode.Large -> 1.35f
+        EcrLayoutMode.Portrait -> 1.10f
+    }
+    fun dp(value: Dp): Dp = (value.value * scale).dp
+    fun sp(value: TextUnit): TextUnit = (value.value * scale).sp
+    return copy(
+        horizontalPadding = dp(horizontalPadding), topPadding = dp(topPadding), bottomPadding = dp(bottomPadding),
+        logoWidth = dp(logoWidth), logoHeight = dp(logoHeight), amountToMainSpacing = dp(amountToMainSpacing), mainToButtonSpacing = dp(mainToButtonSpacing),
+        amountCardCornerRadius = dp(amountCardCornerRadius), amountCardHorizontalPadding = dp(amountCardHorizontalPadding), amountCardVerticalPadding = dp(amountCardVerticalPadding),
+        amountLabelFontSize = sp(amountLabelFontSize), amountLabelLineHeight = sp(amountLabelLineHeight), amountFontSize = sp(amountFontSize), amountLineHeight = sp(amountLineHeight),
+        visualSize = dp(visualSize), visualPulseBaseSize = dp(visualPulseBaseSize), visualWavesSize = dp(visualWavesSize), visualIconBoxSize = dp(visualIconBoxSize), visualIconBoxCornerRadius = dp(visualIconBoxCornerRadius), visualIconSize = dp(visualIconSize), spinnerSize = dp(spinnerSize),
+        nfcWaveStrokeWidth = dp(nfcWaveStrokeWidth), nfcWaveRadii = nfcWaveRadii.map(::dp), visualToTitleSpacing = dp(visualToTitleSpacing), titleFontSize = sp(titleFontSize), titleLineHeight = sp(titleLineHeight), titleToMessageSpacing = dp(titleToMessageSpacing), messageFontSize = sp(messageFontSize), messageLineHeight = sp(messageLineHeight), loadingSpacing = dp(loadingSpacing), loadingSize = dp(loadingSize), cancelButtonHeight = dp(cancelButtonHeight), cancelButtonCornerRadius = dp(cancelButtonCornerRadius), cancelButtonFontSize = sp(cancelButtonFontSize), cancelButtonLineHeight = sp(cancelButtonLineHeight)
+    )
 }
 
 @Composable
