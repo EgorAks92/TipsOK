@@ -571,7 +571,10 @@ private fun BoxScope.PcCompactTipSelectionLayer(
         PcCompactTipSelectionWavesLayer(transition = transition, theme = theme)
 
         Column(
-            modifier = Modifier.padding(start = metrics.headerStart, top = metrics.tipHeaderTop + metrics.rootPadding + metrics.largeSpacing)
+            modifier = Modifier.padding(
+                start = metrics.headerStart,
+                top = metrics.tipSelectionHeaderTop
+            )
         ) {
             Text(
                 text = if (state.operationType == PcEcrOperationType.RECONCILIATION) state.operationTitle else state.operationTitle.lowercase(),

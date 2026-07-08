@@ -73,6 +73,7 @@ data class EcrPaymentMetrics(
     val rootPadding: Dp,
     val headerStart: Dp,
     val tipHeaderTop: Dp,
+    val tipSelectionHeaderTop: Dp,
     val statusHeaderTop: Dp,
     val operationTitleSize: TextUnit,
     val amountSize: TextUnit,
@@ -128,7 +129,10 @@ fun EcrAdaptiveMetrics.paymentMetrics(): EcrPaymentMetrics {
     fun sp(v: Float) = (v * s).sp
     return EcrPaymentMetrics(
         rootPadding = screenPadding,
-        headerStart = dp(32f), tipHeaderTop = dp(112f), statusHeaderTop = dp(64f),
+        headerStart = dp(32f),
+        tipHeaderTop = dp(112f),
+        tipSelectionHeaderTop = dp(158f),
+        statusHeaderTop = dp(64f),
         operationTitleSize = sp(16f), amountSize = sp(40f),
         tipTitleTopWithFee = dp(214f), tipTitleTop = dp(262f), tipRowTopWithFee = dp(244f), tipRowTop = dp(302f),
         tipCardMinWidth = dp(140f), tipCardMaxWidth = dp(190f), tipCardHeight = dp(90f),
