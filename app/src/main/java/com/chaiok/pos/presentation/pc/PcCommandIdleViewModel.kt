@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcEcrOperationType
-import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
@@ -418,7 +417,6 @@ class PcCommandIdleViewModel(
                 commandId = command.commandId,
                 orderId = command.orderId,
                 currency = command.currency,
-                sourceProtocol = command.sourceProtocol,
                 operationType = command.operationType,
                 rrn = command.rrn
             )
@@ -532,7 +530,6 @@ sealed interface PcCommandIdleEvent {
         val commandId: String?,
         val orderId: String?,
         val currency: String,
-        val sourceProtocol: PcEcrProtocol,
         val operationType: PcEcrOperationType,
         val rrn: String?
     ) : PcCommandIdleEvent

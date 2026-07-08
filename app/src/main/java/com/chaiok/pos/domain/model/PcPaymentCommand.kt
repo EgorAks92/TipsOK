@@ -8,7 +8,6 @@ data class PcPaymentCommand(
     val currency: String = "RUB",
     val orderId: String? = null,
     val rawPayloadPreview: String? = null,
-    val sourceProtocol: PcEcrProtocol = PcEcrProtocol.CHAIOK_JSON,
     val operationType: PcEcrOperationType = PcEcrOperationType.SALE,
     val rrn: String? = null,
     val waiterPin: String? = null

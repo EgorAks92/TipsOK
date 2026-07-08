@@ -1,7 +1,6 @@
 package com.chaiok.pos.data.ecr
 
 import com.chaiok.pos.domain.model.PcEcrCommand
-import com.chaiok.pos.domain.model.PcEcrProtocol
 import java.nio.charset.Charset
 
 private val WIN1251: Charset = Charset.forName("windows-1251")
@@ -50,4 +49,4 @@ sealed interface EcrParseResult {
     data class Error(val reason: String, val bytesToSend: ByteArray? = null) : EcrParseResult
 }
 
-interface EcrProtocolAdapter { val protocol: PcEcrProtocol; fun parseIncoming(bytes: ByteArray): EcrParseResult }
+interface EcrProtocolAdapter { fun parseIncoming(bytes: ByteArray): EcrParseResult }

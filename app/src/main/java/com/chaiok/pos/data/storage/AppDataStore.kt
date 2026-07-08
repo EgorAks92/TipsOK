@@ -10,7 +10,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
-import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.TipRange
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -35,7 +34,6 @@ class AppDataStore(private val context: Context) {
         val pcCompactServiceFeeEnabled = booleanPreferencesKey("pc_compact_service_fee_enabled")
         val showCustomTipButton = booleanPreferencesKey("show_custom_tip_button")
         val pcCompactPaymentDesignStyle = stringPreferencesKey("pc_compact_payment_design_style")
-        val pcEcrProtocol = stringPreferencesKey("pc_ecr_protocol")
 
         val arcus2SaleClass = stringPreferencesKey("arcus2_sale_class")
         val arcus2SaleOp = stringPreferencesKey("arcus2_sale_op")
@@ -118,7 +116,6 @@ class AppDataStore(private val context: Context) {
             ?.let { runCatching { PcCompactPaymentDesignStyle.valueOf(it) }.getOrNull() }
             ?: PcCompactPaymentDesignStyle.DEFAULT
     }
-    val pcEcrProtocolFlow: Flow<PcEcrProtocol> = context.dataStore.data.map { it[Keys.pcEcrProtocol]?.let { v -> runCatching { PcEcrProtocol.valueOf(v) }.getOrNull() } ?: PcEcrProtocol.CHAIOK_JSON }
 
     val arcus2NewWaySettingsFlow: Flow<Arcus2NewWaySettings> = context.dataStore.data.map { p ->
         val d = Arcus2NewWaySettings()
@@ -214,7 +211,6 @@ class AppDataStore(private val context: Context) {
     suspend fun setPcCompactServiceFeeEnabled(value: Boolean) = context.dataStore.edit { it[Keys.pcCompactServiceFeeEnabled] = value }
     suspend fun setShowCustomTipButton(value: Boolean) = context.dataStore.edit { it[Keys.showCustomTipButton] = value }
     suspend fun setPcCompactPaymentDesignStyle(value: PcCompactPaymentDesignStyle) = context.dataStore.edit { it[Keys.pcCompactPaymentDesignStyle] = value.name }
-    suspend fun setPcEcrProtocol(value: PcEcrProtocol) = context.dataStore.edit { it[Keys.pcEcrProtocol] = value.name }
     suspend fun setArcus2NewWaySettings(value: Arcus2NewWaySettings) = context.dataStore.edit {
         it[Keys.arcus2SaleClass] = value.saleClass; it[Keys.arcus2SaleOp] = value.saleOp
         it[Keys.arcus2ReversalClass] = value.universalReversalClass; it[Keys.arcus2ReversalOp] = value.universalReversalOp

@@ -3,7 +3,6 @@ package com.chaiok.pos.domain.repository
 import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
-import com.chaiok.pos.domain.model.PcEcrProtocol
 import kotlinx.coroutines.flow.Flow
 
 interface SettingsRepository {
@@ -16,6 +15,5 @@ interface SettingsRepository {
     suspend fun setPcCompactServiceFeeEnabled(enabled: Boolean)
     suspend fun setShowCustomTipButton(enabled: Boolean)
     suspend fun setPcCompactPaymentDesignStyle(style: PcCompactPaymentDesignStyle)
-    suspend fun setPcEcrProtocol(protocol: PcEcrProtocol)
     suspend fun setArcus2NewWaySettings(settings: Arcus2NewWaySettings)
 }

@@ -31,7 +31,6 @@ import com.chaiok.pos.data.di.AppContainer
 import com.chaiok.pos.domain.model.PaymentResult
 import com.chaiok.pos.domain.model.PosPaymentRequest
 import com.chaiok.pos.domain.model.PcEcrOperationType
-import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.PostPaymentFeedbackPayload
 import com.chaiok.pos.presentation.background.ProfileBackgroundScreen
 import com.chaiok.pos.presentation.background.ProfileBackgroundViewModel
@@ -238,7 +237,6 @@ fun ChaiOkNavHost(container: AppContainer) {
                         updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
                         updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase,
                         updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase,
-                        updatePcEcrProtocolUseCase = container.updatePcEcrProtocolUseCase,
                         updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase
                     )
                 }
@@ -278,7 +276,6 @@ fun ChaiOkNavHost(container: AppContainer) {
                         updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
                         updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase,
                         updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase,
-                        updatePcEcrProtocolUseCase = container.updatePcEcrProtocolUseCase,
                         updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase
                     )
                 }
@@ -724,7 +721,6 @@ fun ChaiOkNavHost(container: AppContainer) {
                                             value.commandId,
                                             value.orderId,
                                             value.currency,
-                                            value.sourceProtocol.name,
                                             value.operationType.name,
                                             value.rrn
                                         )
@@ -758,7 +754,6 @@ fun ChaiOkNavHost(container: AppContainer) {
                 navArgument("commandId") { type = NavType.StringType; defaultValue = "" },
                 navArgument("orderId") { type = NavType.StringType; defaultValue = "" },
                 navArgument("currency") { type = NavType.StringType; defaultValue = "RUB" },
-                navArgument("sourceProtocol") { type = NavType.StringType; defaultValue = "CHAIOK_JSON" },
                 navArgument("operationType") { type = NavType.StringType; defaultValue = "SALE" },
                 navArgument("rrn") { type = NavType.StringType; defaultValue = "" }
             )
@@ -782,24 +777,20 @@ fun ChaiOkNavHost(container: AppContainer) {
                         observeProfileUseCase = container.observeProfileUseCase,
                         sessionRepository = container.sessionRepository,
                         pcPaymentCommandRepository = container.pcPaymentCommandRepository,
-                        paymentResultMapper = container.pcEcrPaymentResultMapper,
-                        transactionLogRepository = container.pcPaymentTransactionLogRepository,
+                        pcEcrTransactionLogRepository = container.pcEcrTransactionLogRepository,
                         sourceCommandId = backStack.arguments?.getString("commandId"),
                         sourceOrderId = backStack.arguments?.getString("orderId"),
                         sourceCurrency = backStack.arguments?.getString("currency"),
-                        sourceProtocol = backStack.arguments?.getString("sourceProtocol"),
                         sourceOperationType = backStack.arguments?.getString("operationType"),
                         sourceRrn = backStack.arguments?.getString("rrn")
                     )
                 }
             )
             val state by vm.uiState.collectAsStateWithLifecycle()
-            val isArcus2PaymentRoute =
-                backStack.arguments?.getString("sourceProtocol") == PcEcrProtocol.ARCUS2_NEWWAY.name
             val events = vm.events
 
             BackHandler(
-                enabled = isArcus2PaymentRoute
+                enabled = true
             ) {
                 if (state.canCancel && state.paymentStage != CardPresentingStage.Approved) {
                     Log.i(
@@ -820,7 +811,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                     when (event) {
                         is PcCompactTipPaymentEvent.Approved -> {
                             val feedbackCommandId = event.commandId?.takeIf { it.isNotBlank() }
-                            if (event.operationType == PcEcrOperationType.SALE && event.sourceProtocol == PcEcrProtocol.ARCUS2_NEWWAY && feedbackCommandId != null) {
+                            if (event.operationType == PcEcrOperationType.SALE && feedbackCommandId != null) {
                                 navController.getBackStackEntry(Routes.PcCommandIdle).savedStateHandle.apply {
                                     set(POST_PAYMENT_FEEDBACK_COMMAND_ID_KEY, feedbackCommandId)
                                     set(POST_PAYMENT_FEEDBACK_TRANSACTION_ID_KEY, event.transactionId.orEmpty())
