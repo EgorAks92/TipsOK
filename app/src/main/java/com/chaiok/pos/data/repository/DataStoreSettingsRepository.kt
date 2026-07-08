@@ -30,24 +30,35 @@ class DataStoreSettingsRepository(
             )
         }
 
-        return combine(
-            baseSettingsFlow,
+        val pcPaymentUiSettingsFlow = combine(
             dataStore.pcCompactServiceFeeEnabledFlow,
             dataStore.showCustomTipButtonFlow,
             dataStore.pcCompactPaymentDesignStyleFlow,
-            dataStore.pcEcrTransportTypeFlow,
+            dataStore.pcEcrTransportTypeFlow
+        ) { pcCompactServiceFeeEnabled, showCustomTipButton, pcCompactPaymentDesignStyle, pcEcrTransportType ->
+            PcPaymentUiSettings(
+                pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled,
+                showCustomTipButton = showCustomTipButton,
+                pcCompactPaymentDesignStyle = pcCompactPaymentDesignStyle,
+                pcEcrTransportType = pcEcrTransportType
+            )
+        }
+
+        return combine(
+            baseSettingsFlow,
+            pcPaymentUiSettingsFlow,
             dataStore.arcus2NewWaySettingsFlow
-        ) { base, pcCompactServiceFeeEnabled, showCustomTipButton, pcCompactPaymentDesignStyle, pcEcrTransportType, arcus2NewWaySettings ->
+        ) { base, pcPaymentUiSettings, arcus2NewWaySettings ->
             AppSettings(
                 integrationModeEnabled = base.integration,
                 tableModeEnabled = base.table,
                 tileBackground = base.background,
                 pcUsbModeEnabled = base.pcUsb,
                 pcIdleImages = base.pcIdleImages,
-                pcCompactServiceFeeEnabled = pcCompactServiceFeeEnabled,
-                showCustomTipButton = showCustomTipButton,
-                pcCompactPaymentDesignStyle = pcCompactPaymentDesignStyle,
-                pcEcrTransportType = pcEcrTransportType,
+                pcCompactServiceFeeEnabled = pcPaymentUiSettings.pcCompactServiceFeeEnabled,
+                showCustomTipButton = pcPaymentUiSettings.showCustomTipButton,
+                pcCompactPaymentDesignStyle = pcPaymentUiSettings.pcCompactPaymentDesignStyle,
+                pcEcrTransportType = pcPaymentUiSettings.pcEcrTransportType,
                 arcus2NewWaySettings = arcus2NewWaySettings
             )
         }
@@ -119,5 +130,12 @@ class DataStoreSettingsRepository(
         val background: String,
         val pcUsb: Boolean,
         val pcIdleImages: List<String>
+    )
+
+    private data class PcPaymentUiSettings(
+        val pcCompactServiceFeeEnabled: Boolean,
+        val showCustomTipButton: Boolean,
+        val pcCompactPaymentDesignStyle: PcCompactPaymentDesignStyle,
+        val pcEcrTransportType: PcEcrTransportType
     )
 }
