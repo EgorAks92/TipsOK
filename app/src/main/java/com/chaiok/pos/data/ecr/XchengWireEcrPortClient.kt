@@ -7,7 +7,6 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
-import com.chaiok.pos.domain.model.ChaiOkEcrPaymentResultFrame
 import com.xcheng.wiredecr.IComm
 import java.io.File
 import java.util.concurrent.ExecutionException
@@ -484,31 +483,6 @@ class XchengWireEcrPortClient(context: Context) {
                 Unit
             }.onFailure { throwable ->
                 Log.e(TAG, "send failed", throwable)
-            }
-        }
-
-    suspend fun sendPaymentResult(frame: ChaiOkEcrPaymentResultFrame): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                ensureTransportReady().getOrThrow()
-
-                val bytes = ChaiOkEcrFrameEncoder.encodePaymentResultLine(frame)
-
-                Log.i(
-                    TAG,
-                    "send payment_result commandId=${frame.commandId} " +
-                            "orderId=${frame.orderId ?: "-"} " +
-                            "status=${frame.status} " +
-                            "success=${frame.success} " +
-                            "bytes=${bytes.size}"
-                )
-
-                val usbComm = usb ?: error("USB service missing after ensure")
-                usbComm.send(bytes)
-
-                Unit
-            }.onFailure { throwable ->
-                Log.e(TAG, "send payment_result failed", throwable)
             }
         }
 

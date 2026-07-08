@@ -46,7 +46,6 @@ import com.chaiok.pos.presentation.components.TiplyBackTopAppBar
 import com.chaiok.pos.presentation.components.WaiterProfileCardHeader
 import com.chaiok.pos.presentation.theme.MontserratFontFamily
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
-import com.chaiok.pos.domain.model.PcEcrProtocol
 
 private val SettingsBackgroundColor = Color.White
 private val SettingsPrimaryTextColor = Color(0xFF1B2128)
@@ -140,7 +139,6 @@ fun SettingsRoute(
         onTogglePcUsbMode = viewModel::togglePcUsbMode,
         onTogglePcCompactServiceFee = viewModel::togglePcCompactServiceFeeEnabled,
         onToggleShowCustomTipButton = viewModel::onShowCustomTipButtonChanged,
-        onPcEcrProtocolChanged = viewModel::onPcEcrProtocolChanged,
         onPcCompactPaymentDesignStyleChanged = viewModel::onPcCompactPaymentDesignStyleChanged
     )
 }
@@ -156,7 +154,6 @@ fun SettingsScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit,
     onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
 ) {
     when (rememberChaiOkDeviceClass()) {
@@ -171,7 +168,6 @@ fun SettingsScreen(
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
                 onToggleShowCustomTipButton = onToggleShowCustomTipButton,
-                onPcEcrProtocolChanged = onPcEcrProtocolChanged,
                 onPcCompactPaymentDesignStyleChanged = onPcCompactPaymentDesignStyleChanged
             )
         }
@@ -187,7 +183,6 @@ fun SettingsScreen(
                 onTogglePcUsbMode = onTogglePcUsbMode,
                 onTogglePcCompactServiceFee = onTogglePcCompactServiceFee,
                 onToggleShowCustomTipButton = onToggleShowCustomTipButton,
-                onPcEcrProtocolChanged = onPcEcrProtocolChanged,
                 onPcCompactPaymentDesignStyleChanged = onPcCompactPaymentDesignStyleChanged
             )
         }
@@ -205,7 +200,6 @@ private fun SettingsRegularScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit,
     onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
 ) {
     Box(
@@ -264,13 +258,6 @@ private fun SettingsRegularScreen(
                     onClick = onPcIdleImages
                 )
 
-                SettingsRegularItem(
-                    title = "Протокол кассы",
-                    subtitle = if (state.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) "ARCUS2 NewWay" else "ChaiOK JSON",
-                    iconRes = R.drawable.ic_cash,
-                    onClick = { onPcEcrProtocolChanged(if (state.pcEcrProtocol == PcEcrProtocol.CHAIOK_JSON) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON) }
-                )
-
 
                 SettingsRegularItem(
                     title = "Дизайн экрана оплаты",
@@ -321,7 +308,6 @@ private fun SettingsSquarePremiumScreen(
     onTogglePcUsbMode: (Boolean) -> Unit,
     onTogglePcCompactServiceFee: (Boolean) -> Unit,
     onToggleShowCustomTipButton: (Boolean) -> Unit,
-    onPcEcrProtocolChanged: (PcEcrProtocol) -> Unit,
     onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit
 ) {
     val metrics = squarePremiumSettingsMetrics()
@@ -387,14 +373,6 @@ private fun SettingsSquarePremiumScreen(
                         iconRes = R.drawable.ic_cash,
                         metrics = metrics,
                         onClick = onPcIdleImages
-                    )
-
-                    SettingsPremiumItem(
-                        title = "Протокол кассы",
-                        subtitle = if (state.pcEcrProtocol == PcEcrProtocol.ARCUS2_NEWWAY) "ARCUS2 NewWay" else "ChaiOK JSON",
-                        iconRes = R.drawable.ic_cash,
-                        metrics = metrics,
-                        onClick = { onPcEcrProtocolChanged(if (state.pcEcrProtocol == PcEcrProtocol.CHAIOK_JSON) PcEcrProtocol.ARCUS2_NEWWAY else PcEcrProtocol.CHAIOK_JSON) }
                     )
 
 

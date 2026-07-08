@@ -2,9 +2,8 @@ package com.chaiok.pos.data.di
 
 import android.content.Context
 import android.util.Log
+import com.chaiok.pos.data.ecr.PcEcrTransactionLogRepository
 import com.chaiok.pos.data.ecr.XchengPcPaymentCommandRepository
-import com.chaiok.pos.data.ecr.PcEcrPaymentResultMapper
-import com.chaiok.pos.data.ecr.PcPaymentTransactionLogRepository
 import com.chaiok.pos.data.ecr.XchengWireEcrPortClient
 import com.chaiok.pos.data.remote.TerminalNetworkFactory
 import com.chaiok.pos.data.repository.BackendAuthRepository
@@ -47,7 +46,6 @@ import com.chaiok.pos.domain.usecase.StartPosPaymentReconciliationUseCase
 import com.chaiok.pos.domain.usecase.StartPosPaymentCancelPreviousUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcIdleImagesUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcCompactServiceFeeEnabledUseCase
-import com.chaiok.pos.domain.usecase.UpdatePcEcrProtocolUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcCompactPaymentDesignStyleUseCase
 import com.chaiok.pos.domain.usecase.UpdatePcUsbModeUseCase
 import com.chaiok.pos.domain.usecase.UpdateShowCustomTipButtonUseCase
@@ -89,8 +87,7 @@ class AppContainer(context: Context) {
     }
     val settingsRepository: SettingsRepository by lazy { DataStoreSettingsRepository(appDataStore) }
     val pcPaymentCommandRepository by lazy { XchengPcPaymentCommandRepository(XchengWireEcrPortClient(appContext), settingsRepository, sessionRepository, appContext) }
-    val pcEcrPaymentResultMapper by lazy { PcEcrPaymentResultMapper() }
-    val pcPaymentTransactionLogRepository by lazy { PcPaymentTransactionLogRepository(appContext) }
+    val pcEcrTransactionLogRepository by lazy { PcEcrTransactionLogRepository(appContext) }
     val reviewRepository: ReviewRepository by lazy { BackendReviewRepository(terminalApi, sessionRepository) }
     val posPaymentRepository: PosPaymentRepository by lazy { SmartSkyHeadlessPosPaymentRepository(appContext) }
 
@@ -108,7 +105,6 @@ class AppContainer(context: Context) {
     val updatePcUsbModeUseCase by lazy { UpdatePcUsbModeUseCase(settingsRepository) }
     val updatePcIdleImagesUseCase by lazy { UpdatePcIdleImagesUseCase(settingsRepository) }
     val updatePcCompactServiceFeeEnabledUseCase by lazy { UpdatePcCompactServiceFeeEnabledUseCase(settingsRepository) }
-    val updatePcEcrProtocolUseCase by lazy { UpdatePcEcrProtocolUseCase(settingsRepository) }
     val updatePcCompactPaymentDesignStyleUseCase by lazy { UpdatePcCompactPaymentDesignStyleUseCase(settingsRepository) }
     val updateShowCustomTipButtonUseCase by lazy { UpdateShowCustomTipButtonUseCase(settingsRepository) }
     val addReviewUseCase by lazy { AddReviewUseCase(reviewRepository) }

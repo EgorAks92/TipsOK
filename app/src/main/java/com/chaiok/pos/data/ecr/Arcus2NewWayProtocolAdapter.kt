@@ -5,7 +5,6 @@ import android.util.Log
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcEcrCommand
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
-import com.chaiok.pos.domain.model.PcEcrProtocol
 import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import org.json.JSONObject
@@ -98,8 +97,6 @@ class Arcus2NewWayProtocolAdapter(
     private val settingsProvider: Arcus2NewWaySettingsProvider,
     private val rawLogger: Arcus2FrameLogger
 ) : EcrProtocolAdapter {
-    override val protocol: PcEcrProtocol = PcEcrProtocol.ARCUS2_NEWWAY
-
     override fun parseIncoming(bytes: ByteArray): EcrParseResult {
         rawLogger.logIncoming(bytes)
         val frame = Arcus2BinLenCodec.decode(bytes).getOrElse { return EcrParseResult.Error(it.message ?: "decode") }
@@ -125,7 +122,7 @@ class Arcus2NewWayProtocolAdapter(
                 val amount = parseArcus2Amount(amountRaw, currency)
                 // TODO: Make PcEcrCommand.Payment amount/currency nullable for full primary+additional-data resolution.
                 if (amount == null || currency == null) EcrParseResult.Error("sale parse failed")
-                else EcrParseResult.Command(PcEcrCommand.Payment("ARCUS2-SALE-${System.currentTimeMillis()}", protocol, null, amount, currency))
+                else EcrParseResult.Command(PcEcrCommand.Payment("ARCUS2-SALE-${System.currentTimeMillis()}", null, amount, currency))
             }
             cls == "2" && op == "9" -> {
                 val commandId = "ARCUS2-WAITER-LOGIN-${System.currentTimeMillis()}"
@@ -135,15 +132,15 @@ class Arcus2NewWayProtocolAdapter(
                     "ARCUS2 resolved technical command type=WAITER_LOGIN waiterPinPresent=${!waiterPin.isNullOrBlank()} waiterPinMasked=****"
                 )
                 Log.i("Arcus2Adapter", "ARCUS2 waiter login accepted commandId=$commandId")
-                EcrParseResult.Command(PcEcrCommand.WaiterLogin(commandId, protocol, waiterPin))
+                EcrParseResult.Command(PcEcrCommand.WaiterLogin(commandId, waiterPin))
             }
             cls == "2" && op == "1" -> {
                 val commandId = "ARCUS2-RECONCILIATION-${System.currentTimeMillis()}"
                 Log.i("Arcus2Adapter", "ARCUS2 resolved financial command type=RECONCILIATION orderId=- rrnMasked=<not-required>")
-                EcrParseResult.Command(PcEcrCommand.Reconciliation(commandId, protocol))
+                EcrParseResult.Command(PcEcrCommand.Reconciliation(commandId))
             }
-            cls == s.pingClass && op == s.pingOp -> EcrParseResult.Command(PcEcrCommand.Ping(null, protocol))
-            cls == s.settlementClass && op == s.settlementOp -> EcrParseResult.Command(PcEcrCommand.Settlement(null, protocol))
+            cls == s.pingClass && op == s.pingOp -> EcrParseResult.Command(PcEcrCommand.Ping(null))
+            cls == s.settlementClass && op == s.settlementOp -> EcrParseResult.Command(PcEcrCommand.Settlement(null))
             cls == s.universalReversalClass && op == s.universalReversalOp -> {
                 val rrn = parseArcus2Rrn(fields, currencyCode, amountRaw)
                 Log.i("Arcus2Adapter", "reversal fields=${fields.map(::maskArcusField)} rrnMasked=${maskRrn(rrn)}")
@@ -152,9 +149,9 @@ class Arcus2NewWayProtocolAdapter(
                 } else {
                     "ARCUS2-REVERSAL-${rrn.takeLast(4)}-${System.currentTimeMillis()}"
                 }
-                EcrParseResult.Command(PcEcrCommand.Reversal(commandId, protocol, null, rrn, parseArcus2Amount(amountRaw, currency), currency))
+                EcrParseResult.Command(PcEcrCommand.Reversal(commandId, null, rrn, parseArcus2Amount(amountRaw, currency), currency))
             }
-            cls == s.refundClass && op == s.refundOp -> EcrParseResult.Command(PcEcrCommand.Refund(null, protocol, amountRaw?.toBigDecimalOrNull(), currency))
+            cls == s.refundClass && op == s.refundOp -> EcrParseResult.Command(PcEcrCommand.Refund(null, amountRaw?.toBigDecimalOrNull(), currency))
             else -> EcrParseResult.Unknown("Unsupported class/op", bytes.toHexPreview())
         }
     }
