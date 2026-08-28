@@ -12,7 +12,7 @@ class PcEcrTransportFactoryTest {
 
         val transport = factory.create(PcEcrTransportType.AUTO)
 
-        assertTrue(transport is CentermSerialPortTransport)
+        assertTrue(transport is CentermMcuTransport)
     }
 
     @Test
@@ -21,7 +21,7 @@ class PcEcrTransportFactoryTest {
 
         val transport = factory.create(PcEcrTransportType.AUTO)
 
-        assertTrue(transport is CentermSerialPortTransport)
+        assertTrue(transport is CentermMcuTransport)
         assertTrue(transport.ensureTransportReady().isFailure)
     }
 
@@ -40,7 +40,7 @@ class PcEcrTransportFactoryTest {
 
         val transport = factory.create(PcEcrTransportType.CENTERM)
 
-        assertTrue(transport is CentermSerialPortTransport)
+        assertTrue(transport is CentermMcuTransport)
     }
 
     @Test
@@ -49,16 +49,16 @@ class PcEcrTransportFactoryTest {
 
         val transport = factory.create(PcEcrTransportType.CENTERM)
 
-        assertTrue(transport is CentermSerialPortTransport)
+        assertTrue(transport is CentermMcuTransport)
         assertTrue(transport.ensureTransportReady().isFailure)
     }
 
     private fun factory(
         deviceInfo: DeviceInfoProvider = FakeDeviceInfoProvider(),
-        centermDevice: CentermSerialPortDevice?
+        centermDevice: CentermMcuDevice?
     ): PcEcrTransportFactory = PcEcrTransportFactory(
         context = null,
-        centermSerialPortDeviceProvider = CentermSerialPortDeviceProvider {
+        centermMcuDeviceProvider = CentermMcuDeviceProvider {
             centermDevice ?: throw IllegalStateException("Centerm SDK unavailable")
         },
         deviceInfoProvider = deviceInfo,
@@ -80,7 +80,7 @@ class PcEcrTransportFactoryTest {
         override fun isOpen(): Boolean = true
     }
 
-    private fun fakeDevice(): CentermSerialPortDevice = object : CentermSerialPortDevice {
+    private fun fakeDevice(): CentermMcuDevice = object : CentermMcuDevice {
         override fun open(): Boolean = true
         override fun receiveData(buffer: ByteArray, timeout: Int): Int = 0
         override fun sendData(bytes: ByteArray): Boolean = true

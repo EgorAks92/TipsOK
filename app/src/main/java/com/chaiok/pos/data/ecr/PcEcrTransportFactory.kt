@@ -6,13 +6,13 @@ import com.chaiok.pos.domain.model.PcEcrTransportType
 
 class PcEcrTransportFactory(
     private val context: Context?,
-    private val centermSerialPortDeviceProvider: CentermSerialPortDeviceProvider =
-        CentermSerialPortDeviceProvider {
+    private val centermMcuDeviceProvider: CentermMcuDeviceProvider =
+        CentermMcuDeviceProvider {
             val appContext = context
             if (appContext == null) {
                 throw IllegalStateException("Context is required for Centerm transport")
             } else {
-                CentermSdkSerialPortDeviceProvider(appContext).create()
+                CentermSdkMcuDeviceProvider(appContext).create()
             }
         },
     private val deviceInfoProvider: DeviceInfoProvider = AndroidBuildDeviceInfoProvider,
@@ -25,7 +25,7 @@ class PcEcrTransportFactory(
             "selected ECR transport requested=$requestedType resolved=$resolvedType manufacturer=${deviceInfoProvider.manufacturer} brand=${deviceInfoProvider.brand} model=${deviceInfoProvider.model}"
         )
         return when (resolvedType) {
-            PcEcrTransportType.CENTERM -> CentermSerialPortTransport(centermSerialPortDeviceProvider)
+            PcEcrTransportType.CENTERM -> CentermMcuTransport(centermMcuDeviceProvider)
             PcEcrTransportType.KOZEN,
             PcEcrTransportType.AUTO -> kozenTransportProvider()
         }

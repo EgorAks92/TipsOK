@@ -17,16 +17,16 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  * compile-time dependency on a vendor AAR. On a Centerm image the classes must
  * be provided by the firmware/shared SDK or packaged with the application.
  */
-class CentermSdkSerialPortDeviceProvider(
+class CentermSdkMcuDeviceProvider(
     context: Context
-) : CentermSerialPortDeviceProvider {
+) : CentermMcuDeviceProvider {
     private val appContext = context.applicationContext
 
-    override suspend fun create(): CentermSerialPortDevice = suspendCancellableCoroutine { continuation ->
+    override suspend fun create(): CentermMcuDevice = suspendCancellableCoroutine { continuation ->
         val completed = AtomicBoolean(false)
         continuation.invokeOnCancellation { completed.set(true) }
 
-        fun complete(result: Result<CentermSerialPortDevice>) {
+        fun complete(result: Result<CentermMcuDevice>) {
             if (completed.compareAndSet(false, true) && continuation.isActive) {
                 result.fold(continuation::resume, continuation::resumeWithException)
             }
@@ -51,10 +51,10 @@ class CentermSdkSerialPortDeviceProvider(
                             val deviceManager = args?.firstOrNull()
                                 ?: throw IOException("Centerm DevicesFactory returned null DeviceManager")
                             val sdkDevice = deviceManager.javaClass
-                                .getMethod("getSerialPortDevice")
+                                .getMethod("getMcuDevice")
                                 .invoke(deviceManager)
-                                ?: throw IOException("Centerm DeviceManager returned null SerialPortDevice")
-                            ReflectiveCentermSerialPortDevice(sdkDevice, classLoader)
+                                ?: throw IOException("Centerm DeviceManager returned null McuDevice")
+                            ReflectiveCentermMcuDevice(sdkDevice, classLoader)
                         }.fold(
                             onSuccess = { complete(Result.success(it)) },
                             onFailure = { complete(Result.failure(it.unwrapReflectionException())) }
@@ -105,10 +105,10 @@ class CentermSdkSerialPortDeviceProvider(
     }
 }
 
-private class ReflectiveCentermSerialPortDevice(
+private class ReflectiveCentermMcuDevice(
     private val delegate: Any,
     private val classLoader: ClassLoader
-) : CentermSerialPortDevice {
+) : CentermMcuDevice {
     private val delegateClass = delegate.javaClass
     private val openMethod: Method = delegateClass.getMethod("open", Integer.TYPE, Bundle::class.java)
     private val receiveMethod: Method = delegateClass.getMethod(
@@ -121,17 +121,17 @@ private class ReflectiveCentermSerialPortDevice(
 
     override fun open(): Boolean {
         val parameters = serialPortParameters()
-        return openMethod.invoke(delegate, CentermSerialPortTransport.BAUD_RATE, parameters) as? Boolean
-            ?: throw IOException("Centerm SerialPortDevice.open returned a non-boolean value")
+        return openMethod.invoke(delegate, CentermMcuTransport.BAUD_RATE, parameters) as? Boolean
+            ?: throw IOException("Centerm McuDevice.open returned a non-boolean value")
     }
 
     override fun receiveData(buffer: ByteArray, timeout: Int): Int =
         (receiveMethod.invoke(delegate, buffer, timeout) as? Number)?.toInt()
-            ?: throw IOException("Centerm SerialPortDevice.receiveData returned a non-numeric value")
+            ?: throw IOException("Centerm McuDevice.receiveData returned a non-numeric value")
 
     override fun sendData(bytes: ByteArray): Boolean =
         sendMethod.invoke(delegate, bytes) as? Boolean
-            ?: throw IOException("Centerm SerialPortDevice.sendData returned a non-boolean value")
+            ?: throw IOException("Centerm McuDevice.sendData returned a non-boolean value")
 
     override fun close(): Boolean {
         val result = closeMethod.invoke(delegate)
