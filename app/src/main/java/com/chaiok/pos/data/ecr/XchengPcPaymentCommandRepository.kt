@@ -4,6 +4,7 @@ import android.util.Log
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcPaymentResponse
 import com.chaiok.pos.domain.model.PcEcrOperationType
+import com.chaiok.pos.domain.config.TemporaryAppConfig
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
@@ -406,7 +407,7 @@ class XchengPcPaymentCommandRepository(
                                 val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найдена сумма")
                                 updateArcusListeningState(r, "arcus2 sale amount missing")
                                 null
-                            } else if (!hasAuthorizedWaiter()) {
+                            } else if (!TemporaryAppConfig.AUTH_BYPASS_ENABLED && !hasAuthorizedWaiter()) {
                                 Log.w(TAG, "SALE rejected: waiter is not authorized in PC mode")
                                 val r = sendArcus2ErrorWhileListening(
                                     settings.arcus2NewWaySettings,
