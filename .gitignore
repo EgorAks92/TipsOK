@@ -8,3 +8,6 @@
 .cxx/
 *.iml
 app/build/
+
+# Proprietary Centerm CPay SDK; keep it local and do not publish it.
+app/libs/CpaySDKLib_russia_k6_V5.0.1.6_20260729.jar

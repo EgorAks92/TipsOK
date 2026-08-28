@@ -27,7 +27,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
-class XchengWireEcrPortClient(context: Context) {
+class XchengWireEcrPortClient(context: Context) : PcEcrTransport {
 
     private val appContext = context.applicationContext
 
@@ -108,7 +108,7 @@ class XchengWireEcrPortClient(context: Context) {
             result
         }
 
-    suspend fun ensureTransportReady(): Result<Unit> =
+    override suspend fun ensureTransportReady(): Result<Unit> =
         withContext(Dispatchers.IO) {
             transportMutex.withLock {
                 runCatching {
@@ -292,9 +292,9 @@ class XchengWireEcrPortClient(context: Context) {
             }
         }
 
-    suspend fun receiveOnce(): Result<ByteArray?> = receiveOnce(RECV_TIMEOUT_MS.toLong())
+    override suspend fun receiveOnce(): Result<ByteArray?> = receiveOnce(RECV_TIMEOUT_MS.toLong())
 
-    suspend fun receiveOnce(timeoutMs: Long): Result<ByteArray?> =
+    override suspend fun receiveOnce(timeoutMs: Long): Result<ByteArray?> =
         withContext(Dispatchers.IO) {
             try {
                 val usbComm = usb ?: error("USB service missing")
@@ -471,7 +471,7 @@ class XchengWireEcrPortClient(context: Context) {
         }
     }
 
-    suspend fun send(bytes: ByteArray): Result<Unit> =
+    override suspend fun send(bytes: ByteArray): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val usbComm = usb ?: error("USB service missing")
@@ -531,7 +531,7 @@ class XchengWireEcrPortClient(context: Context) {
             }
         }
 
-    suspend fun closeCompletely(): Result<Unit> =
+    override suspend fun closeCompletely(): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
                 Log.i(TAG, "ECR close transport completely")
@@ -547,6 +547,8 @@ class XchengWireEcrPortClient(context: Context) {
                 Log.e(TAG, "closeCompletely failed", throwable)
             }
         }
+
+    override fun isOpen(): Boolean = transportReady
 
     suspend fun closePortOnly() =
         withContext(Dispatchers.IO) {

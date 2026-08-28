@@ -71,6 +71,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.chaiok.pos.domain.config.TemporaryAppConfig
 
 @Composable
 fun ChaiOkNavHost(container: AppContainer) {
@@ -82,6 +83,13 @@ fun ChaiOkNavHost(container: AppContainer) {
     ) {
         composable(Routes.Launch) {
             LaunchedEffect(Unit) {
+                if (TemporaryAppConfig.AUTH_BYPASS_ENABLED) {
+                    navController.navigate(Routes.PcCommandIdle) {
+                        popUpTo(Routes.Launch) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    return@LaunchedEffect
+                }
                 val settings = container.observeSettingsUseCase().first()
                 Log.i("StartupTrace", "Settings first value received")
 
@@ -237,7 +245,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
                         updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase,
                         updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase,
-                        updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase
+                        updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase,
+                        updatePcEcrTransportTypeUseCase = container.updatePcEcrTransportTypeUseCase
                     )
                 }
             )
@@ -276,7 +285,8 @@ fun ChaiOkNavHost(container: AppContainer) {
                         updatePcUsbModeUseCase = container.updatePcUsbModeUseCase,
                         updatePcCompactServiceFeeEnabledUseCase = container.updatePcCompactServiceFeeEnabledUseCase,
                         updateShowCustomTipButtonUseCase = container.updateShowCustomTipButtonUseCase,
-                        updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase
+                        updatePcCompactPaymentDesignStyleUseCase = container.updatePcCompactPaymentDesignStyleUseCase,
+                        updatePcEcrTransportTypeUseCase = container.updatePcEcrTransportTypeUseCase
                     )
                 }
             )

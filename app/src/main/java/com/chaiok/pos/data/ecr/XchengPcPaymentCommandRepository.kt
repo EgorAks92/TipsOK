@@ -4,6 +4,7 @@ import android.util.Log
 import com.chaiok.pos.domain.model.PcPaymentCommand
 import com.chaiok.pos.domain.model.PcPaymentResponse
 import com.chaiok.pos.domain.model.PcEcrOperationType
+import com.chaiok.pos.domain.config.TemporaryAppConfig
 import com.chaiok.pos.domain.model.Arcus2NewWaySettings
 import com.chaiok.pos.domain.model.PcUsbConnectionStatus
 import com.chaiok.pos.domain.model.PcEcrFinalPaymentResult
@@ -26,7 +27,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class XchengPcPaymentCommandRepository(
-    private val client: XchengWireEcrPortClient,
+    private val client: PcEcrTransport,
     private val settingsRepository: SettingsRepository,
     private val sessionRepository: SessionRepository,
     context: Context
@@ -406,7 +407,7 @@ class XchengPcPaymentCommandRepository(
                                 val r = sendArcus2ErrorWhileListening(settings.arcus2NewWaySettings, "Не найдена сумма")
                                 updateArcusListeningState(r, "arcus2 sale amount missing")
                                 null
-                            } else if (!hasAuthorizedWaiter()) {
+                            } else if (!TemporaryAppConfig.ARCUS2_WAITER_AUTH_BYPASS_ENABLED && !hasAuthorizedWaiter()) {
                                 Log.w(TAG, "SALE rejected: waiter is not authorized in PC mode")
                                 val r = sendArcus2ErrorWhileListening(
                                     settings.arcus2NewWaySettings,
@@ -436,7 +437,36 @@ class XchengPcPaymentCommandRepository(
                             }
                         }
                         is PcEcrCommand.WaiterLogin -> {
-                            if (cmd.waiterPin.isNullOrBlank()) {
+                            if (TemporaryAppConfig.ARCUS2_WAITER_AUTH_BYPASS_ENABLED) {
+                                val startResult = sendArcus2TransactionStartedWhileListening(
+                                    settings = settings.arcus2NewWaySettings,
+                                    statusText = "Готово",
+                                    sendStatus = false,
+                                    optionalStatus = true,
+                                    operationTag = "WAITER_LOGIN_BYPASS"
+                                )
+                                if (startResult.isFailure) {
+                                    updateArcusListeningState(startResult, "arcus2 waiter login bypass start response error")
+                                    null
+                                } else {
+                                    lifecycleMutex.withLock {
+                                        activeArcus2Transaction = true
+                                        activeArcus2CommandId = cmd.commandId
+                                        lifecycleState = PcEcrLifecycleState.PausedForPayment
+                                        status.value = PcUsbConnectionStatus.Idle
+                                    }
+                                    Log.i(TAG, "WAITER_LOGIN bypassed before authorization commandId=${cmd.commandId ?: "-"}")
+                                    PcPaymentCommand(
+                                        amount = BigDecimal.ZERO,
+                                        commandId = cmd.commandId,
+                                        orderId = null,
+                                        currency = "RUB",
+                                        rawPayloadPreview = "arcus2 waiter login bypass",
+                                        operationType = PcEcrOperationType.WAITER_LOGIN,
+                                        waiterPin = null
+                                    )
+                                }
+                            } else if (cmd.waiterPin.isNullOrBlank()) {
                                 Log.w(TAG, "WAITER_LOGIN rejected: missing pin commandId=${cmd.commandId ?: "-"}")
                                 val r = sendArcus2ErrorWhileListening(
                                     settings.arcus2NewWaySettings,

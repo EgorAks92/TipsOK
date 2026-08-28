@@ -93,6 +93,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
 
     implementation(files("libs/SmartSkyPosLib_v1.9.18-SR.2.aar"))
+    implementation(files("libs/CpaySDKLib_russia_k6_V5.0.1.6_20260729.jar"))
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

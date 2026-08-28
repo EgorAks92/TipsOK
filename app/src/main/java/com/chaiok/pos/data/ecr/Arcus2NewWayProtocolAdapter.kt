@@ -225,7 +225,7 @@ private fun parseArcus2Amount(raw: String?, currency: String?): BigDecimal? {
 }
 
 class Arcus2CashRegisterSession(
-    private val client: XchengWireEcrPortClient,
+    private val client: PcEcrTransport,
     private val rawLogger: Arcus2FrameLogger,
     private val settings: Arcus2NewWaySettings
 ) {
