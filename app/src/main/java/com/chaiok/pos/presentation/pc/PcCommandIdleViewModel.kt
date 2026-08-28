@@ -12,6 +12,7 @@ import com.chaiok.pos.domain.model.PostPaymentFeedbackPayload
 import com.chaiok.pos.domain.repository.PcPaymentCommandRepository
 import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
+import com.chaiok.pos.domain.config.TemporaryAppConfig
 import com.chaiok.pos.domain.usecase.ObserveSettingsUseCase
 import com.chaiok.pos.domain.usecase.SubmitPostPaymentFeedbackUseCase
 import java.math.BigDecimal
@@ -425,6 +426,24 @@ class PcCommandIdleViewModel(
 
 
     private suspend fun handleWaiterLogin(command: PcPaymentCommand) {
+        if (TemporaryAppConfig.AUTH_BYPASS_ENABLED) {
+            Log.i(TAG, "WAITER_LOGIN bypassed: temporary auth bypass is enabled")
+            pcStatusMessage.value = "Готово"
+            val settings = observeSettingsUseCase().first()
+            repository.sendArcus2PaymentResult(
+                sourceCommand = command.copy(waiterPin = null),
+                result = PcEcrFinalPaymentResult.Approved(resultCode = "00"),
+                receiptText = null,
+                settings = settings.arcus2NewWaySettings,
+                terminalId = null,
+                tipAmount = null
+            ).onFailure { Log.e(TAG, "WAITER_LOGIN bypass result send failed", it) }
+            delay(WAITER_LOGIN_STATUS_VISIBLE_MS)
+            pcStatusMessage.value = null
+            resumeListening()
+            return
+        }
+
         val pin = command.waiterPin
         Log.i(TAG, "WAITER_LOGIN started waiterPinPresent=${!pin.isNullOrBlank()} waiterPinMasked=****")
         pcStatusMessage.value = "Авторизация официанта"
