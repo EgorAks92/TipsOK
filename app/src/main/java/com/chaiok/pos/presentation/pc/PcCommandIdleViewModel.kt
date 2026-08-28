@@ -265,6 +265,12 @@ class PcCommandIdleViewModel(
     private fun safeFeedbackError(error: Throwable): String = error::class.simpleName ?: "feedback_failed"
 
     fun openUnlockDialog() {
+        if (TemporaryAppConfig.PC_MODE_EXIT_PIN_BYPASS_ENABLED) {
+            viewModelScope.launch {
+                _events.emit(PcCommandIdleEvent.NavigateToSettings)
+            }
+            return
+        }
         unlockState.value = UnlockState(showDialog = true)
     }
 
@@ -353,7 +359,9 @@ class PcCommandIdleViewModel(
                     isUnlocking = unlock.isLoading,
                     unlockError = unlock.error,
                     unlockPinMaxLength = UNLOCK_PIN_MAX_LENGTH,
-                    statusMessage = pcMessage ?: if (waiterAuthorized) null else "Ожидание авторизации официанта",
+                    statusMessage = pcMessage ?: if (
+                        TemporaryAppConfig.ARCUS2_WAITER_AUTH_BYPASS_ENABLED || waiterAuthorized
+                    ) null else "Ожидание авторизации официанта",
                     designStyle = settings.pcCompactPaymentDesignStyle,
                     postPaymentFeedback = feedback
                 )
@@ -426,7 +434,7 @@ class PcCommandIdleViewModel(
 
 
     private suspend fun handleWaiterLogin(command: PcPaymentCommand) {
-        if (TemporaryAppConfig.AUTH_BYPASS_ENABLED) {
+        if (TemporaryAppConfig.ARCUS2_WAITER_AUTH_BYPASS_ENABLED) {
             Log.i(TAG, "WAITER_LOGIN bypassed: temporary auth bypass is enabled")
             pcStatusMessage.value = "Готово"
             val settings = observeSettingsUseCase().first()

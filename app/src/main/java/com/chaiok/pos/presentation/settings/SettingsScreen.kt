@@ -208,6 +208,8 @@ private fun SettingsRegularScreen(
     onPcCompactPaymentDesignStyleChanged: (PcCompactPaymentDesignStyle) -> Unit,
     onPcEcrTransportTypeChanged: (PcEcrTransportType) -> Unit
 ) {
+    val scrollState = rememberScrollState()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -233,7 +235,10 @@ private fun SettingsRegularScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SettingsRegularItem(
