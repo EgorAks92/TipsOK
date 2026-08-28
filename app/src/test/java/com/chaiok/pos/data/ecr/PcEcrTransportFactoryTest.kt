@@ -1,6 +1,7 @@
 package com.chaiok.pos.data.ecr
 
 import com.chaiok.pos.domain.model.PcEcrTransportType
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,12 +16,13 @@ class PcEcrTransportFactoryTest {
     }
 
     @Test
-    fun autoFallsBackToKozenWhenCentermDetectedButProviderUnavailable() {
+    fun autoKeepsCentermTransportWhenSdkInitializationFails() = runTest {
         val factory = factory(deviceInfo = FakeDeviceInfoProvider(model = "Centerm K9"), centermDevice = null)
 
         val transport = factory.create(PcEcrTransportType.AUTO)
 
-        assertTrue(transport is FakeKozenTransport)
+        assertTrue(transport is CentermSerialPortTransport)
+        assertTrue(transport.ensureTransportReady().isFailure)
     }
 
     @Test
@@ -42,12 +44,13 @@ class PcEcrTransportFactoryTest {
     }
 
     @Test
-    fun explicitCentermFallsBackToKozenWhenProviderUnavailable() {
+    fun explicitCentermDoesNotSilentlyFallBackToKozen() = runTest {
         val factory = factory(centermDevice = null)
 
         val transport = factory.create(PcEcrTransportType.CENTERM)
 
-        assertTrue(transport is FakeKozenTransport)
+        assertTrue(transport is CentermSerialPortTransport)
+        assertTrue(transport.ensureTransportReady().isFailure)
     }
 
     private fun factory(
@@ -55,7 +58,9 @@ class PcEcrTransportFactoryTest {
         centermDevice: CentermSerialPortDevice?
     ): PcEcrTransportFactory = PcEcrTransportFactory(
         context = null,
-        centermSerialPortDeviceProvider = CentermSerialPortDeviceProvider { centermDevice },
+        centermSerialPortDeviceProvider = CentermSerialPortDeviceProvider {
+            centermDevice ?: throw IllegalStateException("Centerm SDK unavailable")
+        },
         deviceInfoProvider = deviceInfo,
         kozenTransportProvider = { FakeKozenTransport() }
     )
@@ -76,8 +81,9 @@ class PcEcrTransportFactoryTest {
     }
 
     private fun fakeDevice(): CentermSerialPortDevice = object : CentermSerialPortDevice {
+        override fun open(): Boolean = true
         override fun receiveData(buffer: ByteArray, timeout: Int): Int = 0
         override fun sendData(bytes: ByteArray): Boolean = true
-        override fun close() = Unit
+        override fun close(): Boolean = true
     }
 }

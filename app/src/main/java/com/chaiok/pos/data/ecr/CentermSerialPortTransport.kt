@@ -4,28 +4,61 @@ import android.os.SystemClock
 import android.util.Log
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
+/** Minimal SDK-independent view of Centerm's SerialPortDevice. */
 interface CentermSerialPortDevice {
+    fun open(): Boolean
     fun receiveData(buffer: ByteArray, timeout: Int): Int
     fun sendData(bytes: ByteArray): Boolean
-    fun close()
+    fun close(): Boolean
+}
+
+fun interface CentermSerialPortDeviceProvider {
+    suspend fun create(): CentermSerialPortDevice
 }
 
 class CentermSerialPortTransport(
-    private val serialPortDevice: CentermSerialPortDevice,
+    private val serialPortDeviceProvider: CentermSerialPortDeviceProvider,
     private val readBufferSize: Int = DEFAULT_READ_BUFFER_SIZE
 ) : PcEcrTransport {
+    private val lifecycleMutex = Mutex()
+
     @Volatile
     private var open: Boolean = false
 
-    override suspend fun ensureTransportReady(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            open = true
-            Log.i(TAG, "Centerm serial transport open result=success")
-            Unit
-        }.onFailure { throwable ->
-            Log.e(TAG, "Centerm serial transport open failed", throwable)
+    @Volatile
+    private var serialPortDevice: CentermSerialPortDevice? = null
+
+    override suspend fun ensureTransportReady(): Result<Unit> = lifecycleMutex.withLock {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                if (open) return@runCatching Unit
+
+                val device = serialPortDevice
+                    ?: withTimeout(SDK_INITIALIZATION_TIMEOUT_MS) {
+                        serialPortDeviceProvider.create()
+                    }.also { serialPortDevice = it }
+
+                if (!device.open()) {
+                    throw IOException("Centerm SerialPortDevice.open returned false")
+                }
+
+                open = true
+                Log.i(TAG, "Centerm serial transport open result=success baudRate=$BAUD_RATE format=8N1")
+                Unit
+            }.onFailure { throwable ->
+                open = false
+                serialPortDevice?.let { device ->
+                    runCatching { device.close() }
+                        .onFailure { Log.w(TAG, "Centerm cleanup after open failure failed", it) }
+                }
+                serialPortDevice = null
+                Log.e(TAG, "Centerm serial transport open failed", throwable)
+            }
         }
     }
 
@@ -34,18 +67,21 @@ class CentermSerialPortTransport(
     override suspend fun receiveOnce(timeoutMs: Long): Result<ByteArray?> = withContext(Dispatchers.IO) {
         runCatching {
             if (!open) error("Centerm serial transport is not open")
-            val timeout = timeoutMs.toInt().coerceAtLeast(1)
+            val device = checkNotNull(serialPortDevice) { "Centerm SerialPortDevice is unavailable" }
+            val timeout = timeoutMs.coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
             val buffer = ByteArray(readBufferSize)
             Log.i(TAG, "Centerm recv start buffer=$readBufferSize timeoutMs=$timeout")
             val startedAt = SystemClock.elapsedRealtime()
             val readBytes = try {
-                serialPortDevice.receiveData(buffer, timeout)
+                device.receiveData(buffer, timeout)
             } catch (throwable: Throwable) {
-                Log.w(TAG, "Calling receiveData-method failed: $throwable")
                 throw IOException("Centerm receiveData failed", throwable)
             }
             val elapsed = SystemClock.elapsedRealtime() - startedAt
-            if (readBytes <= 0) {
+            if (readBytes < 0) {
+                throw IOException("Centerm receiveData returned error code $readBytes")
+            }
+            if (readBytes == 0) {
                 Log.i(TAG, "Centerm recv zero bytes requested=$timeout actualElapsedMs=$elapsed")
                 return@runCatching null
             }
@@ -60,12 +96,12 @@ class CentermSerialPortTransport(
     override suspend fun send(bytes: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             if (!open) error("Centerm serial transport is not open")
-            val bytesForWriting = bytes.copyOfRange(0, bytes.size)
+            val device = checkNotNull(serialPortDevice) { "Centerm SerialPortDevice is unavailable" }
+            val bytesForWriting = bytes.copyOf()
             Log.i(TAG, "Centerm send bytes=${bytesForWriting.size}")
             val isSent = try {
-                serialPortDevice.sendData(bytesForWriting)
+                device.sendData(bytesForWriting)
             } catch (throwable: Throwable) {
-                Log.w(TAG, "Calling sendData-method failed: $throwable")
                 throw IOException("Centerm sendData failed", throwable)
             }
             if (!isSent) throw IOException("Centerm sendData returned false")
@@ -75,21 +111,29 @@ class CentermSerialPortTransport(
         }
     }
 
-    override suspend fun closeCompletely(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            if (!open) {
-                Log.i(TAG, "Centerm close skipped: already closed")
-                return@runCatching Unit
+    override suspend fun closeCompletely(): Result<Unit> = lifecycleMutex.withLock {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val device = serialPortDevice
+                if (device == null) {
+                    open = false
+                    Log.i(TAG, "Centerm close skipped: device was not initialized")
+                    return@runCatching Unit
+                }
+
+                Log.i(TAG, "Centerm close serial port")
+                try {
+                    if (open && !device.close()) {
+                        throw IOException("Centerm SerialPortDevice.close returned false")
+                    }
+                } finally {
+                    open = false
+                    serialPortDevice = null
+                }
+                Unit
+            }.onFailure { throwable ->
+                Log.e(TAG, "Centerm close failed", throwable)
             }
-            Log.i(TAG, "Centerm close serial port")
-            try {
-                serialPortDevice.close()
-            } finally {
-                open = false
-            }
-            Unit
-        }.onFailure { throwable ->
-            Log.e(TAG, "Centerm close failed", throwable)
         }
     }
 
@@ -97,6 +141,8 @@ class CentermSerialPortTransport(
 
     companion object {
         private const val TAG = "CentermSerialPortTransport"
+        internal const val BAUD_RATE = 115200
+        private const val SDK_INITIALIZATION_TIMEOUT_MS = 10_000L
         private const val DEFAULT_READ_BUFFER_SIZE = 4096
         private const val DEFAULT_RECV_TIMEOUT_MS = 2000L
     }

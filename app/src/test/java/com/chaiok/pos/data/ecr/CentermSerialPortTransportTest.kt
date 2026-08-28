@@ -11,7 +11,7 @@ class CentermSerialPortTransportTest {
     @Test
     fun readCopiesBytesAndReturnsCorrectCount() = runTest {
         val device = FakeCentermSerialPortDevice(receiveBytes = byteArrayOf(1, 2, 3))
-        val transport = CentermSerialPortTransport(device, readBufferSize = 8)
+        val transport = transport(device, readBufferSize = 8)
 
         transport.ensureTransportReady().getOrThrow()
         val result = transport.receiveOnce(timeoutMs = 123).getOrThrow()
@@ -23,7 +23,7 @@ class CentermSerialPortTransportTest {
     @Test
     fun readWithZeroBytesDoesNotFail() = runTest {
         val device = FakeCentermSerialPortDevice(receiveBytes = byteArrayOf())
-        val transport = CentermSerialPortTransport(device, readBufferSize = 8)
+        val transport = transport(device, readBufferSize = 8)
 
         transport.ensureTransportReady().getOrThrow()
         val result = transport.receiveOnce(timeoutMs = 100).getOrThrow()
@@ -32,9 +32,20 @@ class CentermSerialPortTransportTest {
     }
 
     @Test
+    fun negativeReadResultIsReportedAsFailure() = runTest {
+        val device = FakeCentermSerialPortDevice(receiveResultOverride = -1)
+        val transport = transport(device)
+
+        transport.ensureTransportReady().getOrThrow()
+        val result = transport.receiveOnce(timeoutMs = 100)
+
+        assertTrue(result.isFailure)
+    }
+
+    @Test
     fun writeSendsExactBytes() = runTest {
         val device = FakeCentermSerialPortDevice()
-        val transport = CentermSerialPortTransport(device)
+        val transport = transport(device)
         val bytes = byteArrayOf(9, 8, 7)
 
         transport.ensureTransportReady().getOrThrow()
@@ -46,7 +57,7 @@ class CentermSerialPortTransportTest {
     @Test
     fun writeFailureReturnsFailure() = runTest {
         val device = FakeCentermSerialPortDevice(sendResult = false)
-        val transport = CentermSerialPortTransport(device)
+        val transport = transport(device)
 
         transport.ensureTransportReady().getOrThrow()
         val result = transport.send(byteArrayOf(1))
@@ -57,7 +68,7 @@ class CentermSerialPortTransportTest {
     @Test
     fun closeCallsDeviceCloseAndIsIdempotent() = runTest {
         val device = FakeCentermSerialPortDevice()
-        val transport = CentermSerialPortTransport(device)
+        val transport = transport(device)
 
         transport.ensureTransportReady().getOrThrow()
         transport.closeCompletely().getOrThrow()
@@ -67,16 +78,56 @@ class CentermSerialPortTransportTest {
         assertFalse(transport.isOpen())
     }
 
+    @Test
+    fun ensureReadyOpensPortOnce() = runTest {
+        val device = FakeCentermSerialPortDevice()
+        val transport = transport(device)
+
+        transport.ensureTransportReady().getOrThrow()
+        transport.ensureTransportReady().getOrThrow()
+
+        assertEquals(1, device.openCalls)
+        assertTrue(transport.isOpen())
+    }
+
+    @Test
+    fun openFailureIsReportedAndTransportStaysClosed() = runTest {
+        val device = FakeCentermSerialPortDevice(openResult = false)
+        val transport = transport(device)
+
+        val result = transport.ensureTransportReady()
+
+        assertTrue(result.isFailure)
+        assertFalse(transport.isOpen())
+    }
+
+    private fun transport(
+        device: CentermSerialPortDevice,
+        readBufferSize: Int = 4096
+    ): CentermSerialPortTransport = CentermSerialPortTransport(
+        serialPortDeviceProvider = CentermSerialPortDeviceProvider { device },
+        readBufferSize = readBufferSize
+    )
+
     private class FakeCentermSerialPortDevice(
         private val receiveBytes: ByteArray = byteArrayOf(),
-        private val sendResult: Boolean = true
+        private val sendResult: Boolean = true,
+        private val openResult: Boolean = true,
+        private val receiveResultOverride: Int? = null
     ) : CentermSerialPortDevice {
         val sentBytes = mutableListOf<ByteArray>()
+        var openCalls = 0
         var closeCalls = 0
         var lastTimeout = 0
 
+        override fun open(): Boolean {
+            openCalls += 1
+            return openResult
+        }
+
         override fun receiveData(buffer: ByteArray, timeout: Int): Int {
             lastTimeout = timeout
+            receiveResultOverride?.let { return it }
             receiveBytes.copyInto(buffer, endIndex = receiveBytes.size.coerceAtMost(buffer.size))
             return receiveBytes.size.coerceAtMost(buffer.size)
         }
@@ -86,8 +137,9 @@ class CentermSerialPortTransportTest {
             return sendResult
         }
 
-        override fun close() {
+        override fun close(): Boolean {
             closeCalls += 1
+            return true
         }
     }
 }
