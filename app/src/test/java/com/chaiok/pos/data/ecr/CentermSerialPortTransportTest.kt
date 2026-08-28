@@ -7,10 +7,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class CentermMcuTransportTest {
+class CentermSerialPortTransportTest {
     @Test
     fun readCopiesBytesAndReturnsCorrectCount() = runTest {
-        val device = FakeCentermMcuDevice(receiveBytes = byteArrayOf(1, 2, 3))
+        val device = FakeCentermSerialPortDevice(receiveBytes = byteArrayOf(1, 2, 3))
         val transport = transport(device, readBufferSize = 8)
 
         transport.ensureTransportReady().getOrThrow()
@@ -22,7 +22,7 @@ class CentermMcuTransportTest {
 
     @Test
     fun readWithZeroBytesDoesNotFail() = runTest {
-        val device = FakeCentermMcuDevice(receiveBytes = byteArrayOf())
+        val device = FakeCentermSerialPortDevice(receiveBytes = byteArrayOf())
         val transport = transport(device, readBufferSize = 8)
 
         transport.ensureTransportReady().getOrThrow()
@@ -33,7 +33,7 @@ class CentermMcuTransportTest {
 
     @Test
     fun negativeReadResultIsReportedAsFailure() = runTest {
-        val device = FakeCentermMcuDevice(receiveResultOverride = -1)
+        val device = FakeCentermSerialPortDevice(receiveResultOverride = -1)
         val transport = transport(device)
 
         transport.ensureTransportReady().getOrThrow()
@@ -44,7 +44,7 @@ class CentermMcuTransportTest {
 
     @Test
     fun writeSendsExactBytes() = runTest {
-        val device = FakeCentermMcuDevice()
+        val device = FakeCentermSerialPortDevice()
         val transport = transport(device)
         val bytes = byteArrayOf(9, 8, 7)
 
@@ -56,7 +56,7 @@ class CentermMcuTransportTest {
 
     @Test
     fun writeFailureReturnsFailure() = runTest {
-        val device = FakeCentermMcuDevice(sendResult = false)
+        val device = FakeCentermSerialPortDevice(sendResult = false)
         val transport = transport(device)
 
         transport.ensureTransportReady().getOrThrow()
@@ -67,7 +67,7 @@ class CentermMcuTransportTest {
 
     @Test
     fun closeCallsDeviceCloseAndIsIdempotent() = runTest {
-        val device = FakeCentermMcuDevice()
+        val device = FakeCentermSerialPortDevice()
         val transport = transport(device)
 
         transport.ensureTransportReady().getOrThrow()
@@ -80,7 +80,7 @@ class CentermMcuTransportTest {
 
     @Test
     fun ensureReadyOpensPortOnce() = runTest {
-        val device = FakeCentermMcuDevice()
+        val device = FakeCentermSerialPortDevice()
         val transport = transport(device)
 
         transport.ensureTransportReady().getOrThrow()
@@ -92,7 +92,7 @@ class CentermMcuTransportTest {
 
     @Test
     fun openFailureIsReportedAndTransportStaysClosed() = runTest {
-        val device = FakeCentermMcuDevice(openResult = false)
+        val device = FakeCentermSerialPortDevice(openResult = false)
         val transport = transport(device)
 
         val result = transport.ensureTransportReady()
@@ -102,19 +102,19 @@ class CentermMcuTransportTest {
     }
 
     private fun transport(
-        device: CentermMcuDevice,
+        device: CentermSerialPortDevice,
         readBufferSize: Int = 4096
-    ): CentermMcuTransport = CentermMcuTransport(
-        mcuDeviceProvider = CentermMcuDeviceProvider { device },
+    ): CentermSerialPortTransport = CentermSerialPortTransport(
+        serialPortDeviceProvider = CentermSerialPortDeviceProvider { device },
         readBufferSize = readBufferSize
     )
 
-    private class FakeCentermMcuDevice(
+    private class FakeCentermSerialPortDevice(
         private val receiveBytes: ByteArray = byteArrayOf(),
         private val sendResult: Boolean = true,
         private val openResult: Boolean = true,
         private val receiveResultOverride: Int? = null
-    ) : CentermMcuDevice {
+    ) : CentermSerialPortDevice {
         val sentBytes = mutableListOf<ByteArray>()
         var openCalls = 0
         var closeCalls = 0
