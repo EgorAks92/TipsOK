@@ -453,6 +453,7 @@ private fun PcEcrTransportType.next(): PcEcrTransportType = when (this) {
     PcEcrTransportType.CENTERM -> PcEcrTransportType.AUTO
 }
 
+@Composable
 private fun SettingsRegularItem(
     title: String,
     subtitle: String,
