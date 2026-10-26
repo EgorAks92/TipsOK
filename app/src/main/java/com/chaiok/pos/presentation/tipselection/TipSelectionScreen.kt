@@ -290,6 +290,7 @@ fun TipSelectionScreen(
     onPay: () -> Unit,
     onSnackbarShown: () -> Unit,
     onDone: () -> Unit,
+    reviewAfterPayment: Boolean = false,
     onCompactReviewSubmit: () -> Unit = {},
     onCompactReviewSkip: () -> Unit = {},
     onRetry: () -> Unit,
@@ -297,6 +298,16 @@ fun TipSelectionScreen(
     onKitchenEvaluation: (Int) -> Unit = {},
     onServiceEvaluation: (Int) -> Unit = {}
 ) {
+    if (state.showPostPaymentReview) {
+        StandalonePostPaymentFeedbackScreen(
+            state = state,
+            onKitchenEvaluation = onKitchenEvaluation,
+            onServiceEvaluation = onServiceEvaluation,
+            onSubmit = onCompactReviewSubmit,
+            onSkip = onCompactReviewSkip
+        )
+        return
+    }
     val snackState = remember { SnackbarHostState() }
     val deviceClass = rememberChaiOkDeviceClass()
 
@@ -318,8 +329,6 @@ fun TipSelectionScreen(
                     onCustomSet = onCustomSet,
                     onPay = onPay,
                     onDone = onDone,
-                    onCompactReviewSubmit = onCompactReviewSubmit,
-                    onCompactReviewSkip = onCompactReviewSkip,
                     onRetry = onRetry,
                     onServiceFeeToggle = onServiceFeeToggle,
                     onKitchenEvaluation = onKitchenEvaluation,
@@ -330,6 +339,7 @@ fun TipSelectionScreen(
             ChaiOkDeviceClass.Regular -> {
                 TipSelectionRegularLayout(
                     state = state,
+                    reviewAfterPayment = reviewAfterPayment,
                     onBack = onBack,
                     onPreset = onPreset,
                     onCustomStart = onCustomStart,
@@ -363,6 +373,7 @@ fun TipSelectionScreen(
 @Composable
 private fun TipSelectionRegularLayout(
     state: TipSelectionUiState,
+    reviewAfterPayment: Boolean,
     onBack: () -> Unit,
     onPreset: (Int) -> Unit,
     onCustomStart: () -> Unit,
@@ -422,6 +433,7 @@ private fun TipSelectionRegularLayout(
                 } else {
                     TipSelectionRegularContent(
                         state = state,
+                        reviewAfterPayment = reviewAfterPayment,
                         metrics = metrics,
                         onPreset = onPreset,
                         onCustomStart = onCustomStart,
@@ -456,8 +468,6 @@ private fun TipSelectionSquarePremiumLayout(
     onCustomSet: (String) -> Unit,
     onPay: () -> Unit,
     onDone: () -> Unit,
-    onCompactReviewSubmit: () -> Unit,
-    onCompactReviewSkip: () -> Unit,
     onRetry: () -> Unit,
     onServiceFeeToggle: (Boolean) -> Unit,
     onKitchenEvaluation: (Int) -> Unit,
@@ -491,24 +501,14 @@ private fun TipSelectionSquarePremiumLayout(
                             state.paymentState is TipPaymentUiState.Declined
 
                 if (isResultState) {
-                    if (state.showPostPaymentReview && state.paymentState is TipPaymentUiState.Approved) {
-                        CompactPostPaymentReviewContent(
-                            state = state,
-                            onKitchenEvaluation = onKitchenEvaluation,
-                            onServiceEvaluation = onServiceEvaluation,
-                            onSubmit = onCompactReviewSubmit,
-                            onSkip = onCompactReviewSkip
-                        )
-                    } else {
-                        PaymentResultContent(
-                            state = state,
-                            metrics = metrics,
-                            premium = true,
-                            onDone = onDone,
-                            onRetry = onRetry,
-                            onBack = onBack
-                        )
-                    }
+                    PaymentResultContent(
+                        state = state,
+                        metrics = metrics,
+                        premium = true,
+                        onDone = onDone,
+                        onRetry = onRetry,
+                        onBack = onBack
+                    )
                 } else {
                     TipSelectionCompactScreenContent(
                         state = state,
@@ -534,235 +534,6 @@ private fun TipSelectionSquarePremiumLayout(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun CompactPostPaymentReviewContent(
-    state: TipSelectionUiState,
-    onKitchenEvaluation: (Int) -> Unit,
-    onServiceEvaluation: (Int) -> Unit,
-    onSubmit: () -> Unit,
-    onSkip: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 2.dp, bottom = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        CompactReviewSuccessCard(amount = formatRubles(state.totalAmount))
-
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = "Оцените заказ",
-                color = TipSelectionPrimaryTextColor,
-                fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 22.sp
-            )
-            Text(
-                text = "Это займёт пару секунд",
-                color = TipSelectionSecondaryTextColor,
-                fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp
-            )
-        }
-
-        CompactReviewRatingCard(
-            title = "Кухня",
-            subtitle = "Качество блюд",
-            value = state.kitchenEvaluation,
-            onSelect = onKitchenEvaluation
-        )
-        CompactReviewRatingCard(
-            title = "Сервис",
-            subtitle = "Работа команды",
-            value = state.serviceEvaluation,
-            onSelect = onServiceEvaluation
-        )
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            CompactReviewActionButton(
-                text = if (state.isSubmittingReview) "Отправка..." else "Отправить",
-                primary = true,
-                enabled = !state.isSubmittingReview,
-                modifier = Modifier.weight(1f),
-                onClick = onSubmit
-            )
-            CompactReviewActionButton(
-                text = "Пропустить",
-                primary = false,
-                enabled = !state.isSubmittingReview,
-                modifier = Modifier.weight(1f),
-                onClick = onSkip
-            )
-        }
-    }
-}
-
-@Composable
-private fun CompactReviewSuccessCard(amount: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(90.dp)
-            .compactReferenceShadow(RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White)
-            .border(1.dp, TipSelectionStrokeColor.copy(alpha = 0.86f), RoundedCornerShape(20.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor))),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                text = "Оплата прошла",
-                color = TipSelectionPrimaryTextColor,
-                fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
-            Text(
-                text = amount,
-                color = TipSelectionSecondaryTextColor,
-                fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun CompactReviewRatingCard(
-    title: String,
-    subtitle: String,
-    value: Int,
-    onSelect: (Int) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(74.dp)
-            .compactReferenceShadow(RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White)
-            .border(1.dp, TipSelectionStrokeColor.copy(alpha = 0.86f), RoundedCornerShape(20.dp))
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = title,
-                color = TipSelectionPrimaryTextColor,
-                fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-            Text(
-                text = subtitle,
-                color = TipSelectionSecondaryTextColor,
-                fontFamily = MontserratFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            repeat(5) { index ->
-                val starValue = index + 1
-                Box(
-                    modifier = Modifier
-                        .size(35.dp)
-                        .clip(CircleShape)
-                        .background(
-                            brush = if (starValue <= value) {
-                                Brush.linearGradient(listOf(TipSelectionWarningColor, Color(0xFFFF9B43)))
-                            } else {
-                                Brush.linearGradient(listOf(Color.White, Color(0xFFF7F8FA)))
-                            }
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = if (starValue <= value) Color.Transparent else TipSelectionStrokeColor,
-                            shape = CircleShape
-                        )
-                        .clickable { onSelect(starValue) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = if (starValue <= value) Color.White else Color(0xFFC5CED9),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CompactReviewActionButton(
-    text: String,
-    primary: Boolean,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .height(50.dp)
-            .compactReferenceShadow(RoundedCornerShape(18.dp))
-            .clip(RoundedCornerShape(18.dp))
-            .background(
-                brush = if (primary) {
-                    Brush.linearGradient(listOf(TipSelectionAccentColor, TipSelectionGreenColor))
-                } else {
-                    Brush.linearGradient(listOf(Color.White, Color.White))
-                }
-            )
-            .border(
-                width = 1.dp,
-                color = if (primary) Color.Transparent else TipSelectionStrokeColor.copy(alpha = 0.86f),
-                shape = RoundedCornerShape(18.dp)
-            )
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = if (primary) Color.White else TipSelectionPrimaryTextColor,
-            fontFamily = MontserratFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
-        )
     }
 }
 
@@ -1120,6 +891,7 @@ private fun CompactSwitch(
 @Composable
 private fun TipSelectionRegularContent(
     state: TipSelectionUiState,
+    reviewAfterPayment: Boolean,
     metrics: TipSelectionLayoutMetrics,
     onPreset: (Int) -> Unit,
     onCustomStart: () -> Unit,
@@ -1150,7 +922,7 @@ private fun TipSelectionRegularContent(
                 onCustomStart = onCustomStart
             )
 
-            ReviewEvaluationCard(
+            if (!reviewAfterPayment) ReviewEvaluationCard(
                 kitchenEvaluation = state.kitchenEvaluation,
                 serviceEvaluation = state.serviceEvaluation,
                 metrics = metrics,

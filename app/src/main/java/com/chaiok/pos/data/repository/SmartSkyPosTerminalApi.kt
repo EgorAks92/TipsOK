@@ -41,8 +41,25 @@ class SmartSkyPosTerminalApi(
 
             val code = terminalData.getCode()
             val message = terminalData.getMessage()
+            val terminals = terminalData.getTerminals()
 
             Log.e(TAG, "getTerminalData code=$code, message=$message")
+            Log.i(
+                TAG,
+                "getTerminalData fields: tmsId='${terminalData.getTmsId()}' " +
+                        "serialNumber='${terminalData.getSerialNumber()}' " +
+                        "terminalId='${terminalData.getTerminalId()}' " +
+                        "merchantId='${terminalData.getMerchantId()}'"
+            )
+            Log.i(TAG, "getTerminalData terminals count=${terminals?.size}")
+            terminals?.forEachIndexed { index, terminal ->
+                Log.i(
+                    TAG,
+                    "getTerminalData terminals[$index]: " +
+                            "terminalId='${terminal.getTerminalId()}' " +
+                            "terminalName='${terminal.getTerminalName()}'"
+                )
+            }
 
             if (code != 0) {
                 return@withContext PaymentTerminalDataResult.Error(
@@ -59,13 +76,15 @@ class SmartSkyPosTerminalApi(
                 .orEmpty()
                 .trim()
 
-            val firstTerminalId = terminalData.getTerminals()
+            val firstTerminalId = terminals
                 ?.firstOrNull()
                 ?.getTerminalId()
                 .orEmpty()
                 .trim()
 
             val tid = terminalId.ifBlank { firstTerminalId }
+            val tidSource = if (terminalId.isBlank()) "terminals[0].terminalId" else "terminalId"
+            Log.i(TAG, "login identifiers: serialNumber='$serialNumber' serialSource=tmsId tid='$tid' tidSource=$tidSource")
 
             if (serialNumber.isBlank() || tid.isBlank()) {
                 Log.e(

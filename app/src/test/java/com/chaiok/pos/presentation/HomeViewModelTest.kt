@@ -1,5 +1,6 @@
 package com.chaiok.pos.presentation
 
+import com.chaiok.pos.data.repository.InMemorySessionRepository
 import com.chaiok.pos.domain.model.AppSettings
 import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.usecase.LogoutUseCase
@@ -9,8 +10,7 @@ import com.chaiok.pos.presentation.home.HomeViewModel
 import com.chaiok.pos.util.MainDispatcherRule
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -19,21 +19,21 @@ class HomeViewModelTest {
     val rule = MainDispatcherRule()
 
     @Test
-    fun `link card dialog shown once per session`() = runTest {
-        val profileFlow = MutableStateFlow(WaiterProfile("1", "A", "B", "На смене", false, null))
+    fun `profile updates are reflected on home screen`() = runTest {
+        val profile = WaiterProfile("1", "A", "B", "На смене", false, null)
+        val profileFlow = MutableStateFlow<WaiterProfile?>(profile)
         val settingsFlow = MutableStateFlow(AppSettings(false, false, "default"))
 
         val vm = HomeViewModel(
             observeProfileUseCase = ObserveProfileUseCase(FakeObserveWaiterRepo(profileFlow)),
             observeSettingsUseCase = ObserveSettingsUseCase(FakeSettingsRepo(settingsFlow)),
-            logoutUseCase = LogoutUseCase(FakeAuthRepo2(), FakeSessionRepo2())
+            logoutUseCase = LogoutUseCase(FakeAuthRepo2(), InMemorySessionRepository())
         )
 
-        assertTrue(vm.uiState.value.showLinkCardDialog)
-        vm.dismissLinkCardDialog()
-        assertFalse(vm.uiState.value.showLinkCardDialog)
+        assertEquals(profile, vm.uiState.value.profile)
+        assertEquals(settingsFlow.value, vm.uiState.value.settings)
 
-        profileFlow.value = profileFlow.value.copy(status = "Перерыв")
-        assertFalse(vm.uiState.value.showLinkCardDialog)
+        profileFlow.value = profile.copy(status = "Перерыв")
+        assertEquals("Перерыв", vm.uiState.value.profile?.status)
     }
 }

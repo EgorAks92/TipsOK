@@ -346,7 +346,9 @@ class TipSelectionViewModel(
             _uiState.update {
                 it.copy(
                     paymentState = TipPaymentUiState.Approved(result.rawMessage),
-                    showPostPaymentReview = true
+                    showPostPaymentReview = true,
+                    kitchenEvaluation = 0,
+                    serviceEvaluation = 0
                 )
             }
             return false
@@ -371,7 +373,7 @@ class TipSelectionViewModel(
     }
 
     suspend fun finishPostPaymentReview(submit: Boolean): Boolean {
-        if (_uiState.value.isSubmittingReview) return false
+        if (!_uiState.value.showPostPaymentReview || _uiState.value.isSubmittingReview) return false
         if (submit) {
             val state = _uiState.value
             if (state.kitchenEvaluation !in 1..5 || state.serviceEvaluation !in 1..5) {

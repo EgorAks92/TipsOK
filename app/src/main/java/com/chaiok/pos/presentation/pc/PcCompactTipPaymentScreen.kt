@@ -7,11 +7,13 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -63,6 +65,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -89,6 +92,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import com.chaiok.pos.R
 import com.chaiok.pos.presentation.cardpresenting.CardPresentingStage
+import com.chaiok.pos.presentation.cardpresenting.CardPresentingUiState
 import com.chaiok.pos.domain.model.PcCompactPaymentDesignStyle
 import com.chaiok.pos.domain.model.PcEcrOperationType
 import com.chaiok.pos.presentation.components.TiplyNumericKeypad
@@ -129,11 +133,188 @@ private enum class PcCompactPaymentResultVisual {
     Declined
 }
 
-private enum class PcCompactPaymentScreenPhase {
+internal enum class PcCompactPaymentScreenPhase {
     TipSelection,
     Processing,
     Approved,
     Declined
+}
+
+internal fun cardPresentingPhase(stage: CardPresentingStage): PcCompactPaymentScreenPhase = when (stage) {
+    CardPresentingStage.Idle,
+    CardPresentingStage.Preparing,
+    CardPresentingStage.WaitingForCard -> PcCompactPaymentScreenPhase.TipSelection
+    CardPresentingStage.CardDetected,
+    CardPresentingStage.Processing,
+    CardPresentingStage.PinRequired,
+    CardPresentingStage.Cancelling -> PcCompactPaymentScreenPhase.Processing
+    CardPresentingStage.Approved -> PcCompactPaymentScreenPhase.Approved
+    CardPresentingStage.Declined,
+    CardPresentingStage.Error,
+    CardPresentingStage.Cancelled -> PcCompactPaymentScreenPhase.Declined
+}
+
+@Composable
+internal fun StandaloneCardPresentingContent(state: CardPresentingUiState, onCancel: () -> Unit) {
+    val theme = defaultPcCompactPaymentTheme().copy(
+        primaryTextColor = Color(0xFF1B2128),
+        secondaryTextColor = Color(0xFF69707A),
+        resultIndicatorStyle = PcCompactResultIndicatorStyle.CleanLight,
+        showResultRadialGlow = false,
+        processingColor = Color(0xFF24B990),
+        processingCoreColor = Color(0xFFC7F1D9),
+        processingGlowColor = Color(0xFF24B990),
+        processingEdgeColor = Color(0xFF24B990),
+        approvedColor = Color(0xFF24B990),
+        approvedCoreColor = Color(0xFFC7F1D9),
+        approvedGlowColor = Color(0xFF24B990),
+        approvedLineEdgeColor = Color(0xFF24B990),
+        approvedUnifiedEdgeColor = Color(0xFF24B990),
+        declinedColor = Color(0xFFF34F57),
+        declinedCoreColor = Color(0xFFFFC2C5),
+        declinedGlowColor = Color(0xFFF34F57),
+        declinedLineEdgeColor = Color(0xFFF34F57),
+        declinedUnifiedEdgeColor = Color(0xFFF34F57)
+    )
+    val metrics = rememberEcrAdaptiveMetrics().paymentMetrics()
+    val phase = cardPresentingPhase(state.stage)
+    val transition = updateTransition(phase, label = "standalone_payment_phase")
+    val waitingAlpha by transition.animateFloat(
+        transitionSpec = { tween(420, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)) },
+        label = "standalone_card_alpha"
+    ) { if (it == PcCompactPaymentScreenPhase.TipSelection) 1f else 0f }
+
+    Box(Modifier.fillMaxSize().background(Color.White)) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = waitingAlpha }) {
+            PcCompactTipSelectionWavesLayer(transition = transition, theme = theme)
+            Column(
+                modifier = Modifier.padding(start = metrics.headerStart, top = metrics.tipSelectionHeaderTop)
+            ) {
+                Text(
+                    text = "к оплате",
+                    color = theme.secondaryTextColor,
+                    fontSize = metrics.tipSelectionTitleSize,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = MontserratFontFamily
+                )
+                PcCompactAnimatedAmountText(
+                    text = state.amountText,
+                    color = theme.primaryTextColor,
+                    fontSize = metrics.amountSize,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            PcCompactDecorativeBankCard(
+                theme = theme,
+                modifier = Modifier.align(Alignment.TopEnd)
+                    .padding(top = metrics.statusHeaderTop)
+                    .offset(x = metrics.decorativeCardOffsetX)
+            )
+        }
+        PcCompactAnimatedStatusHeader(
+            amountText = state.amountText,
+            operationTitle = "к оплате",
+            transition = transition,
+            theme = theme,
+            metrics = metrics
+        )
+        PcCompactPaymentStatusOverlay(
+            transition = transition,
+            theme = theme,
+            operationType = PcEcrOperationType.SALE,
+            metrics = metrics
+        )
+        if (phase == PcCompactPaymentScreenPhase.TipSelection || phase == PcCompactPaymentScreenPhase.Processing) {
+            Column(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(metrics.rootPadding),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = state.title,
+                    color = theme.primaryTextColor,
+                    fontSize = metrics.resultTextSize,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = state.message,
+                    color = theme.secondaryTextColor,
+                    fontSize = metrics.cancelPreviousMessageSize,
+                    fontFamily = MontserratFontFamily,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        PcCompactPersistentCancelOverlay(
+            canCancel = state.canCancel,
+            theme = theme,
+            onCancel = onCancel,
+            metrics = metrics,
+            iconTint = theme.primaryTextColor
+        )
+    }
+}
+
+@Composable
+internal fun PaymentThankYouScreen() {
+    val metrics = rememberEcrAdaptiveMetrics().paymentMetrics()
+    val progress = remember { Animatable(0f) }
+    val heartbeat = remember { Animatable(1f) }
+    LaunchedEffect(Unit) {
+        progress.animateTo(1f, tween(920, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)))
+        heartbeat.animateTo(
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 1_000
+                    1f at 0 using FastOutSlowInEasing
+                    1.10f at 120 using FastOutSlowInEasing
+                    1f at 260 using FastOutSlowInEasing
+                    1.06f at 390 using FastOutSlowInEasing
+                    1f at 540
+                    1f at 1_000
+                }
+            )
+        )
+    }
+    Box(Modifier.fillMaxSize().background(Color.White)) {
+        Canvas(
+            Modifier.align(Alignment.Center).size(metrics.statusIndicatorSize).graphicsLayer {
+                scaleX = heartbeat.value
+                scaleY = heartbeat.value
+            }
+        ) {
+            val heart = Path().apply {
+                moveTo(size.width * 0.50f, size.height * 0.76f)
+                cubicTo(size.width * 0.46f, size.height * 0.71f, size.width * 0.20f, size.height * 0.54f, size.width * 0.20f, size.height * 0.36f)
+                cubicTo(size.width * 0.20f, size.height * 0.18f, size.width * 0.40f, size.height * 0.15f, size.width * 0.50f, size.height * 0.31f)
+                cubicTo(size.width * 0.60f, size.height * 0.15f, size.width * 0.80f, size.height * 0.18f, size.width * 0.80f, size.height * 0.36f)
+                cubicTo(size.width * 0.80f, size.height * 0.54f, size.width * 0.54f, size.height * 0.71f, size.width * 0.50f, size.height * 0.76f)
+                close()
+            }
+            val measure = PathMeasure().apply { setPath(heart, false) }
+            val visibleHeart = Path()
+            measure.getSegment(0f, measure.length * progress.value, visibleHeart)
+            drawCleanPath(
+                path = visibleHeart,
+                alpha = 1f,
+                settle = 1f,
+                mainColor = Color(0xFF24B990),
+                softColor = Color(0xFF24B990),
+                coreColor = Color(0xFFC7F1D9)
+            )
+        }
+        Text(
+            text = "Спасибо!",
+            color = Color(0xFF1B2128),
+            fontSize = metrics.resultTextSize,
+            fontWeight = FontWeight.Bold,
+            fontFamily = MontserratFontFamily,
+            modifier = Modifier.align(Alignment.Center).offset(y = metrics.resultTextOffset)
+        )
+    }
 }
 
 private enum class PcCompactResultIndicatorStyle {
@@ -300,7 +481,7 @@ private fun PcCompactPaymentAnimatedRoot(
             metrics = metrics
         )
         PcCompactPersistentCancelOverlay(
-            state = state,
+            canCancel = state.canCancel,
             theme = theme,
             onCancel = onCancel,
             metrics = metrics
@@ -310,13 +491,13 @@ private fun PcCompactPaymentAnimatedRoot(
 
 @Composable
 private fun BoxScope.PcCompactPersistentCancelOverlay(
-    state: PcCompactTipPaymentUiState,
+    canCancel: Boolean,
     theme: PcCompactPaymentVisualTheme,
     onCancel: () -> Unit,
-    metrics: EcrPaymentMetrics
+    metrics: EcrPaymentMetrics,
+    iconTint: Color = theme.closeIconTint
 ) {
-    val show = state.canCancel
-    if (!show) return
+    if (!canCancel) return
 
     Box(
         modifier = Modifier
@@ -328,7 +509,7 @@ private fun BoxScope.PcCompactPersistentCancelOverlay(
             .clickable {
                 Log.i(
                     "PcCompactTipPayment",
-                    "UI cancel icon clicked operationType=${state.operationType} stage=${state.paymentStage} canCancel=${state.canCancel}"
+                    "UI cancel icon clicked"
                 )
                 onCancel()
             },
@@ -337,7 +518,7 @@ private fun BoxScope.PcCompactPersistentCancelOverlay(
         Icon(
             painter = painterResource(id = theme.closeIconDrawable),
             contentDescription = "Cancel operation",
-            tint = theme.closeIconTint,
+            tint = iconTint,
             modifier = Modifier.size(metrics.cancelIconSize)
         )
     }

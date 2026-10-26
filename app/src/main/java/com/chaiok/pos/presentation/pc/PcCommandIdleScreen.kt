@@ -58,6 +58,9 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -169,19 +172,23 @@ fun PcPostPaymentFeedbackScreen(
     onServiceRatingSelected: (Int) -> Unit,
     onKitchenRatingSelected: (Int) -> Unit,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    lightBackground: Boolean = false
 ) {
     val isAlfa = designStyle == PcCompactPaymentDesignStyle.ALFA
-    val isCompact = rememberChaiOkDeviceClass() == ChaiOkDeviceClass.SquareCompact
-    val titleColor = if (isAlfa) Color(0xFF181F28) else Color.White
+    val isLight = isAlfa || lightBackground
+    val isCompact = lightBackground || rememberChaiOkDeviceClass() == ChaiOkDeviceClass.SquareCompact
+    val configuration = LocalConfiguration.current
+    val scale = if (lightBackground) (min(configuration.screenWidthDp, configuration.screenHeightDp) / 480f).coerceIn(0.65f, 1.5f) else 1f
+    val titleColor = if (isLight) Color(0xFF181F28) else Color.White
     val selectedStar = if (isAlfa) Color(0xFFE30613) else Color(0xFF42E4E8)
-    val unselectedStar = if (isAlfa) Color(0xFFD7E9FF) else Color(0xFF35546D)
-    val outlineStar = if (isAlfa) Color(0xFFEAF4FF) else Color(0xFF90C7DD)
-    val timerColor = if (isAlfa) Color(0xFF181F28) else Color.White
-    val titleSize = if (isCompact) 35.sp else 64.sp
-    val starSize = if (isCompact) 48.dp else 92.dp
+    val unselectedStar = if (isLight) Color(0xFFD7E9FF) else Color(0xFF35546D)
+    val outlineStar = if (isLight) Color(0xFFD7E9FF) else Color(0xFF90C7DD)
+    val timerColor = if (isLight) Color(0xFF181F28) else Color.White
+    val titleSize = if (isCompact) (35 * scale).sp else 64.sp
+    val starSize = if (isCompact) ((if (lightBackground) 54 else 48) * scale).dp else 92.dp
 
-    val closeIconRes = if (isAlfa) {
+    val closeIconRes = if (isLight) {
         R.drawable.ic_alfa_payment_close
     } else {
         R.drawable.ic_payment_close
@@ -189,7 +196,7 @@ fun PcPostPaymentFeedbackScreen(
 
     Box(
         modifier = modifier.background(
-            if (isAlfa) {
+            if (isLight) {
                 Brush.verticalGradient(listOf(Color.White, Color.White))
             } else {
                 Brush.linearGradient(listOf(Color(0xFF0F1720), Color(0xFF1269A8), Color(0xFF111A23)))
@@ -213,7 +220,7 @@ fun PcPostPaymentFeedbackScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = if (isCompact) 24.dp else 120.dp),
+                .padding(horizontal = if (lightBackground) 16.dp else if (isCompact) 24.dp else 120.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -226,7 +233,8 @@ fun PcPostPaymentFeedbackScreen(
                 unselectedStar = unselectedStar,
                 outlineStar = outlineStar,
                 selectedRating = serviceRating,
-                glow = !isAlfa,
+                glow = !isLight,
+                gradient = lightBackground,
                 onRatingSelected = onServiceRatingSelected
             )
             Spacer(Modifier.fillMaxHeight(if (isCompact) 0.12f else 0.16f))
@@ -239,7 +247,8 @@ fun PcPostPaymentFeedbackScreen(
                 unselectedStar = unselectedStar,
                 outlineStar = outlineStar,
                 selectedRating = kitchenRating,
-                glow = !isAlfa,
+                glow = !isLight,
+                gradient = lightBackground,
                 onRatingSelected = onKitchenRatingSelected
             )
             Spacer(Modifier.fillMaxHeight(if (isCompact) 0.08f else 0.10f))
@@ -267,6 +276,7 @@ private fun FeedbackQuestion(
     outlineStar: Color,
     selectedRating: Int?,
     glow: Boolean,
+    gradient: Boolean,
     onRatingSelected: (Int) -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -279,8 +289,8 @@ private fun FeedbackQuestion(
             textAlign = TextAlign.Center
         )
         Row(
-            modifier = Modifier.padding(top = if (starSize < 60.dp) 18.dp else 56.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (starSize < 60.dp) 20.dp else 64.dp),
+            modifier = Modifier.padding(top = if (gradient || starSize < 60.dp) 18.dp else 56.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (gradient || starSize < 60.dp) 20.dp else 64.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             repeat(5) { index ->
@@ -291,8 +301,10 @@ private fun FeedbackQuestion(
                     unselectedColor = unselectedStar,
                     outlineColor = outlineStar,
                     glow = glow,
+                    gradient = gradient,
                     modifier = Modifier
                         .size(starSize)
+                        .semantics { contentDescription = "$text $value из 5" }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -400,6 +412,7 @@ private fun RatingStar(
     unselectedColor: Color,
     outlineColor: Color,
     glow: Boolean,
+    gradient: Boolean,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
@@ -414,7 +427,9 @@ private fun RatingStar(
             roundingFactor = 0.20f
         )
 
-        if (glow) {
+        if (gradient && filled) {
+            drawPath(path, Brush.horizontalGradient(listOf(Color(0xFF00B98C), Color(0xFF53B53B))))
+        } else if (glow) {
             if (filled) {
                 drawIntoCanvas { canvas ->
                     val frameworkPaint = android.graphics.Paint(

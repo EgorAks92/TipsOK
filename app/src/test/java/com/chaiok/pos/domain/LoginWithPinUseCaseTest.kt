@@ -1,25 +1,33 @@
 package com.chaiok.pos.domain
 
+import com.chaiok.pos.data.repository.InMemorySessionRepository
 import com.chaiok.pos.domain.model.AuthSession
 import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.model.WaiterProfile
 import com.chaiok.pos.domain.repository.AuthRepository
-import com.chaiok.pos.domain.repository.SessionRepository
 import com.chaiok.pos.domain.repository.TerminalDataProvider
 import com.chaiok.pos.domain.repository.WaiterRepository
 import com.chaiok.pos.domain.usecase.LoginWithPinUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LoginWithPinUseCaseTest {
     @Test
     fun `successful login returns profile`() = runTest {
-        val useCase = LoginWithPinUseCase(FakeAuthRepo(), FakeTerminalDataProvider(), FakeWaiterRepo(), FakeSessionRepo())
+        val session = InMemorySessionRepository()
+        val useCase = LoginWithPinUseCase(FakeAuthRepo(), FakeTerminalDataProvider(), FakeWaiterRepo(), session)
         val result = useCase("1234")
         assertTrue(result.isSuccess)
+        assertEquals("w1", result.getOrThrow().id)
+        assertEquals("w1", session.activeWaiterId.first())
+        assertEquals(10019L, session.profileId.first())
+        assertEquals("token", session.accessToken.first())
+        assertEquals("TID1", session.terminalId.first())
     }
 }
 
@@ -29,20 +37,12 @@ private class FakeAuthRepo : AuthRepository {
     override suspend fun logout() = Unit
 }
 
-private class FakeSessionRepo : SessionRepository {
-    private val flow = MutableStateFlow<String?>(null)
-    private val profile = MutableStateFlow<Long?>(null)
-    private val token = MutableStateFlow<String?>(null)
-    override val activeWaiterId: Flow<String?> = flow
-    override val profileId: Flow<Long?> = profile
-    override val accessToken: Flow<String?> = token
-    override suspend fun setActiveWaiter(waiterId: String?) { flow.value = waiterId }
-    override suspend fun setProfileId(profileId: Long?) { profile.value = profileId }
-    override suspend fun setAccessToken(accessToken: String?) { token.value = accessToken }
-    override suspend fun clear() { flow.value = null; profile.value = null; token.value = null }
+private class FakeTerminalDataProvider : TerminalDataProvider {
+    override suspend fun getTerminalInfo(): TerminalInfo = TerminalInfo("SN1", "TID1")
 }
 
 private class FakeWaiterRepo : WaiterRepository {
+    override suspend fun setLoginProfileDisplayData(nickname: String?, personalAppeal: String?): Result<Unit> = Result.success(Unit)
     override suspend fun loadProfile(waiterId: String): Result<WaiterProfile> = Result.success(
         WaiterProfile(waiterId, "A", "B", "На смене", false, null)
     )
@@ -51,4 +51,5 @@ private class FakeWaiterRepo : WaiterRepository {
     override suspend fun updateStatus(status: String): Result<Unit> = Result.success(Unit)
     override suspend fun linkCard(cardSha256: String, cardToken: String): Result<Unit> = Result.success(Unit)
     override suspend fun setCardConnected(isConnected: Boolean): Result<Unit> = Result.success(Unit)
+    override suspend fun setServiceFeePercent(percent: Double): Result<Unit> = Result.success(Unit)
 }

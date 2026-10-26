@@ -441,7 +441,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                             is PaymentResult.Approved -> {
                                 val shouldNavigateNow = vm.handleApprovedPayment(
                                     result = result,
-                                    requirePostPaymentReview = deviceClass == ChaiOkDeviceClass.SquareCompact
+                                    requirePostPaymentReview = !isPcUsbSource || deviceClass == ChaiOkDeviceClass.SquareCompact
                                 )
 
                                 backStack.savedStateHandle.remove<PosPaymentRequest>(
@@ -494,6 +494,7 @@ fun ChaiOkNavHost(container: AppContainer) {
 
             TipSelectionScreen(
                 state = state,
+                reviewAfterPayment = !isPcUsbSource,
                 onBack = {
                     if (isPcUsbSource) {
                         val popped = navController.popBackStack(
@@ -530,7 +531,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                             navController = navController,
                             viewModel = vm,
                             paymentRequest = paymentRequest,
-                            requireReviewBeforePayment = deviceClass != ChaiOkDeviceClass.SquareCompact
+                            requireReviewBeforePayment = false
                         )
                     }
                 },
@@ -587,7 +588,7 @@ fun ChaiOkNavHost(container: AppContainer) {
                             navController = navController,
                             viewModel = vm,
                             paymentRequest = paymentRequest,
-                            requireReviewBeforePayment = deviceClass != ChaiOkDeviceClass.SquareCompact
+                            requireReviewBeforePayment = false
                         )
                     }
                 },

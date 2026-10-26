@@ -25,6 +25,7 @@ class LinkCardUseCaseTest {
 private class CapturingWaiterRepo : WaiterRepository {
     var called = false
     override suspend fun loadProfile(waiterId: String): Result<WaiterProfile> = Result.failure(IllegalStateException())
+    override suspend fun setLoginProfileDisplayData(nickname: String?, personalAppeal: String?): Result<Unit> = Result.success(Unit)
     override fun observeProfile(): Flow<WaiterProfile?> = MutableStateFlow(null)
     override suspend fun updateStatus(status: String): Result<Unit> = Result.success(Unit)
     override suspend fun linkCard(cardSha256: String, cardToken: String): Result<Unit> {
@@ -32,4 +33,5 @@ private class CapturingWaiterRepo : WaiterRepository {
         return Result.success(Unit)
     }
     override suspend fun setCardConnected(isConnected: Boolean): Result<Unit> = Result.success(Unit)
+    override suspend fun setServiceFeePercent(percent: Double): Result<Unit> = Result.success(Unit)
 }

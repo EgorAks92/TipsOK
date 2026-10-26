@@ -9,6 +9,8 @@ import com.chaiok.pos.domain.model.TerminalInfo
 import com.chaiok.pos.domain.repository.AuthRepository
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import com.google.gson.Gson
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -45,6 +47,9 @@ class BackendAuthRepository(
             )
 
             if (!response.isSuccessful) {
+                val serverError = runCatching { response.errorBody()?.string() }
+                    .getOrElse { "<error body read failed: ${it.javaClass.simpleName}>" }
+                logServerError(response.code(), serverError, pin)
                 throw if (response.code() == 400) {
                     DomainError.InvalidPin
                 } else {
@@ -55,6 +60,7 @@ class BackendAuthRepository(
             val body = response.body() ?: throw DomainError.LoginFailed
 
             if (!body.status.isSuccessStatus()) {
+                logServerError(response.code(), Gson().toJson(body), pin)
                 throw DomainError.LoginFailed
             }
 
@@ -95,6 +101,40 @@ class BackendAuthRepository(
     }
 
     override suspend fun logout() = Unit
+
+    private fun logServerError(httpCode: Int, body: String?, pin: String) {
+        loginServerErrorForLog(body, pin).chunked(3_000).forEachIndexed { index, part ->
+            Log.e(LOGIN_TAG, "terminalLogin server error httpCode=$httpCode part=${index + 1} body=$part")
+        }
+    }
+}
+
+internal fun loginServerErrorForLog(body: String?, pin: String): String {
+    if (body.isNullOrBlank()) return "<empty error body>"
+
+    val secretFields = setOf("pin", "waitercode", "password", "token", "accesstoken", "refreshtoken", "authtoken", "authorization", "cardtoken")
+    fun redact(element: JsonElement) {
+        when {
+            element.isJsonObject -> element.asJsonObject.entrySet().forEach { (key, value) ->
+                if (key.lowercase().replace("_", "").replace("-", "") in secretFields) {
+                    element.asJsonObject.addProperty(key, "[REDACTED]")
+                } else {
+                    redact(value)
+                }
+            }
+            element.isJsonArray -> element.asJsonArray.forEach(::redact)
+        }
+    }
+
+    val safeBody = runCatching {
+        JsonParser.parseString(body).also(::redact).toString()
+    }.getOrDefault(body)
+    val secretAssignment = Regex(
+        """(?i)((?:["']?)(?:pin|waiterCode|password|(?:access[_-]?|refresh[_-]?|auth[_-]?|card[_-]?)?token|authorization)["']?\s*[:=]\s*)("(?:\\.|[^"\\])*"|'[^']*'|[^\s,;}\]]+)"""
+    )
+    val maskedBody = safeBody.replace(secretAssignment) { "${it.groupValues[1]}\"[REDACTED]\"" }
+        .replace(Regex("""(?i)\bBearer\s+[^\s"',;}\]]+"""), "Bearer [REDACTED]")
+    return if (pin.isNotEmpty()) maskedBody.replace(pin, "[REDACTED]") else maskedBody
 }
 
 private fun String?.isSuccessStatus(): Boolean =
